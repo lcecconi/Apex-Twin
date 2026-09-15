@@ -525,36 +525,28 @@ class RlcdRenderer(QWidget):
             not t.track_module_connected,
         ]
 
-        alarm_tiles = [
-            ("H2O", ICON_WATER_16X16),
-            ("EGT", ICON_EGT_16X16),
-            ("REV", ICON_REV_16X16),
-            ("BAT", ICON_BAT_16X16),
-            ("LINK", ICON_LINK_16X16),
+        alarm_icons = [
+            ICON_WATER_16X16,
+            ICON_EGT_16X16,
+            ICON_REV_16X16,
+            ICON_BAT_16X16,
+            ICON_LINK_16X16,
         ]
 
-        for i, (label, xbm) in enumerate(alarm_tiles):
+        for i, xbm in enumerate(alarm_icons):
             tx = 211 + (i * 35)
-            ty = 169
+            ty = 171
             tw = 32
-            th = 38
+            th = 34
 
             if alm_active[i]:
                 # Lit Up Alarm (Inverted Solid Fill)
                 p.fillRect(tx, ty, tw, th, fg)
-                draw_xbm(p, tx + 8, ty + 4, xbm, 16, 16, color=bg)
-
-                p.setPen(bg)
-                p.setFont(QFont("Monospace", 6, QFont.Bold))
-                p.drawText(QRectF(tx, ty + 21, tw, 14), Qt.AlignCenter, label)
-                p.setPen(fg)
+                draw_xbm(p, tx + (tw - 16) // 2, ty + (th - 16) // 2, xbm, 16, 16, color=bg)
             else:
                 # Normally OFF (Outline Box)
-                p.drawRoundedRect(tx, ty, tw, th, 2, 2)
-                draw_xbm(p, tx + 8, ty + 4, xbm, 16, 16, color=fg)
-
-                p.setFont(QFont("Monospace", 6, QFont.Bold))
-                p.drawText(QRectF(tx, ty + 21, tw, 14), Qt.AlignCenter, label)
+                p.drawRoundedRect(tx, ty, tw, th, 4, 4)
+                draw_xbm(p, tx + (tw - 16) // 2, ty + (th - 16) // 2, xbm, 16, 16, color=fg)
 
         # 5. Bottom Engine (Left) & Alarm Banner (Right)
         # Left: Water & EGT Temp Pane (185 px width)

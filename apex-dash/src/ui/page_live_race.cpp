@@ -262,46 +262,30 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
 
   bool any_warn = alm_warn[0] || alm_warn[1] || alm_warn[2] || alm_warn[3] || alm_warn[4];
 
-  struct AlarmTile {
-    const char *label;
-    const uint8_t *xbm;
-  };
-
-  static const AlarmTile tiles[5] = {
-    { "H2O",  icon_water_16x16 }, // Water / Droplet
-    { "EGT",  icon_egt_16x16 },   // Exhaust / Flame
-    { "REV",  icon_rev_16x16 },   // Tach / Over-rev
-    { "BAT",  icon_bat_16x16 },   // Battery
-    { "LINK", icon_link_16x16 }   // Telemetry Wireless Link
+  static const uint8_t* const tiles[5] = {
+    icon_water_16x16, // Water / Droplet
+    icon_egt_16x16,   // Exhaust / Flame
+    icon_rev_16x16,   // Tach / Over-rev
+    icon_bat_16x16,   // Battery
+    icon_link_16x16   // Telemetry Wireless Link
   };
 
   for (int i = 0; i < 5; i++) {
     int tx = 211 + (i * 35);
-    int ty = 169;
+    int ty = 171;
     int tw = 32;
-    int th = 38;
+    int th = 34;
 
     if (alm_active[i]) {
       // Lit Up Alarm (Inverted Solid Fill)
-      u8g2->drawRBox(tx, ty, tw, th, 3);
+      u8g2->drawRBox(tx, ty, tw, th, 4);
       u8g2->setDrawColor(0);
-
-      u8g2->drawXBMP(tx + 8, ty + 4, 16, 16, tiles[i].xbm);
-
-      u8g2->setFont(u8g2_font_5x8_tr);
-      int lw = u8g2->getStrWidth(tiles[i].label);
-      u8g2->drawStr(tx + (tw - lw) / 2, ty + 32, tiles[i].label);
-
+      u8g2->drawXBMP(tx + (tw - 16) / 2, ty + (th - 16) / 2, 16, 16, tiles[i]);
       u8g2->setDrawColor(1);
     } else {
       // Normally OFF (Dim Outline Box)
-      u8g2->drawRFrame(tx, ty, tw, th, 3);
-
-      u8g2->drawXBMP(tx + 8, ty + 4, 16, 16, tiles[i].xbm);
-
-      u8g2->setFont(u8g2_font_5x8_tr);
-      int lw = u8g2->getStrWidth(tiles[i].label);
-      u8g2->drawStr(tx + (tw - lw) / 2, ty + 32, tiles[i].label);
+      u8g2->drawRFrame(tx, ty, tw, th, 4);
+      u8g2->drawXBMP(tx + (tw - 16) / 2, ty + (th - 16) / 2, 16, 16, tiles[i]);
     }
   }
 
