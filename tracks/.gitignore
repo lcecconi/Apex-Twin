@@ -1,0 +1,7 @@
+# Ignore all downloaded track JSON and GeoJSON files in this directory
+*.json
+*.geojson
+*.gpx
+
+# Keep this .gitignore file tracked
+!.gitignore

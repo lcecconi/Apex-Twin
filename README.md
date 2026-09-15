@@ -25,6 +25,7 @@ The twin-module topology isolates high-vibration sensor wiring and high-voltage 
 ```
 
 * **[Apex-Dash Detailed Documentation](file:///home/leonardo/Dev/Apex-Twin/apex-dash/README.md)**
+* **[Connector & Pinout Specification](file:///home/leonardo/Dev/Apex-Twin/docs/connector_pinout.md)**
 * **[Implementation & Enhancement Plan](file:///home/leonardo/Dev/Apex-Twin/docs/apex_dash_implementation_plan.md)**
 * **[Feature Status & Apex-Dash Comparison](file:///home/leonardo/Dev/Apex-Twin/docs/apex-dash_unported_features.md)**
 
