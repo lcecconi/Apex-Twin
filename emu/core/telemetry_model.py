@@ -14,6 +14,12 @@ class DriveType(IntEnum):
     SHIFTER_6SPEED = 2  # KZ / Shifter (1-6 gears)
 
 
+class RpmDisplayMode(IntEnum):
+    BOTH = 0          # Both LCD screen and external LED strip
+    DISPLAY_ONLY = 1  # Only on LCD screen
+    LEDS_ONLY = 2     # Only on external LED strip
+
+
 class TrackDetectionMode(IntEnum):
     AUTO = 0
     MANUAL = 1
@@ -104,6 +110,8 @@ class SystemSettings:
     selected_track_file: str = "lonato.json"
     language: Language = Language.LANG_EN
     led_brightness: int = 80       # 0-100%
+    rpm_display_mode: RpmDisplayMode = RpmDisplayMode.BOTH
     led_shift_enable: bool = True
     led_alarm_enable: bool = True
     backlight_percent: int = 0     # 0-100%
+

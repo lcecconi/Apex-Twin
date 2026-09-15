@@ -7,37 +7,40 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   // ==========================================
   // 1. TOP TACHOMETER (RPM BAR GRAPH)
   // ==========================================
-  // Outline bar: 380 px wide, 16 px tall
-  u8g2->drawFrame(10, 4, 380, 16);
+  if (settings.rpm_display_mode != RPM_DISP_LEDS_ONLY) {
+    // Outline bar: 380 px wide, 16 px tall
+    u8g2->drawFrame(10, 4, 380, 16);
 
-  // Shift light marker line at shift_rpm
-  int shift_x = 10 + (int)((uint32_t)settings.shift_rpm * 376 / settings.max_rpm);
-  if (shift_x < 386) {
-    u8g2->drawVLine(shift_x, 2, 20);
-    u8g2->drawVLine(shift_x + 1, 2, 20);
+    // Shift light marker line at shift_rpm
+    int shift_x = 10 + (int)((uint32_t)settings.shift_rpm * 376 / settings.max_rpm);
+    if (shift_x < 386) {
+      u8g2->drawVLine(shift_x, 2, 20);
+      u8g2->drawVLine(shift_x + 1, 2, 20);
+    }
+
+    // Fill current RPM
+    int rpm_fill = (int)((uint32_t)telemetry.rpm * 376 / settings.max_rpm);
+    if (rpm_fill > 376) rpm_fill = 376;
+    if (rpm_fill > 0) {
+      u8g2->drawBox(12, 6, rpm_fill, 12);
+    }
+
+    // Numerical RPM label below bar
+    u8g2->setFont(u8g2_font_6x10_tr);
+    snprintf(buf, sizeof(buf), "%s: %u", I18n::get(STR_LABEL_RPM), telemetry.rpm);
+    u8g2->drawStr(14, 32, buf);
+
+    if (telemetry.rpm >= settings.shift_rpm) {
+      u8g2->drawRBox(300, 22, 90, 14, 2);
+      u8g2->setDrawColor(0);
+      u8g2->drawStr(305, 33, I18n::get(STR_WARN_SHIFT));
+      u8g2->setDrawColor(1);
+    } else {
+      snprintf(buf, sizeof(buf), "MAX %u", settings.max_rpm);
+      u8g2->drawStr(328, 32, buf);
+    }
   }
 
-  // Fill current RPM
-  int rpm_fill = (int)((uint32_t)telemetry.rpm * 376 / settings.max_rpm);
-  if (rpm_fill > 376) rpm_fill = 376;
-  if (rpm_fill > 0) {
-    u8g2->drawBox(12, 6, rpm_fill, 12);
-  }
-
-  // Numerical RPM label below bar
-  u8g2->setFont(u8g2_font_6x10_tr);
-  snprintf(buf, sizeof(buf), "%s: %u", I18n::get(STR_LABEL_RPM), telemetry.rpm);
-  u8g2->drawStr(14, 32, buf);
-
-  if (telemetry.rpm >= settings.shift_rpm) {
-    u8g2->drawRBox(300, 22, 90, 14, 2);
-    u8g2->setDrawColor(0);
-    u8g2->drawStr(305, 33, I18n::get(STR_WARN_SHIFT));
-    u8g2->setDrawColor(1);
-  } else {
-    snprintf(buf, sizeof(buf), "MAX %u", settings.max_rpm);
-    u8g2->drawStr(328, 32, buf);
-  }
 
   // ==========================================
   // 2. SPEED & GEAR (CENTER-LEFT)

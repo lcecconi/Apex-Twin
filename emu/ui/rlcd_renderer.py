@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt, QRectF, QPointF
 from PySide6.QtGui import QColor, QPainter, QFont, QPen, QBrush
 from PySide6.QtWidgets import QWidget
 
-from emu.core.telemetry_model import SystemSettings, TelemetrySnapshot, DriveType
+from emu.core.telemetry_model import SystemSettings, TelemetrySnapshot, DriveType, RpmDisplayMode
 from emu.core.i18n import I18n, StrId
 
 
@@ -99,7 +99,7 @@ class RlcdRenderer(QWidget):
         elif self.menu_state == MenuState.MENU_RACE_SETUP:
             return 4
         elif self.menu_state == MenuState.MENU_LEDS_ALARMS:
-            return 6
+            return 7
         elif self.menu_state == MenuState.MENU_TRACK_GPS:
             return 6
         elif self.menu_state == MenuState.MENU_STORAGE_PC:
@@ -148,15 +148,18 @@ class RlcdRenderer(QWidget):
         elif self.menu_state == MenuState.MENU_LEDS_ALARMS:
             if self.cursor_idx == 0:
                 self.settings.led_brightness = 20 if self.settings.led_brightness >= 100 else self.settings.led_brightness + 20
-            elif self.cursor_idx == 2:
-                self.settings.led_shift_enable = not self.settings.led_shift_enable
+            elif self.cursor_idx == 1:
+                self.settings.rpm_display_mode = RpmDisplayMode((self.settings.rpm_display_mode + 1) % 3)
             elif self.cursor_idx == 3:
-                self.settings.led_alarm_enable = not self.settings.led_alarm_enable
+                self.settings.led_shift_enable = not self.settings.led_shift_enable
             elif self.cursor_idx == 4:
+                self.settings.led_alarm_enable = not self.settings.led_alarm_enable
+            elif self.cursor_idx == 5:
                 self.settings.water_temp_alarm_c = 55.0 if self.settings.water_temp_alarm_c >= 75.0 else self.settings.water_temp_alarm_c + 5.0
             else:
                 self.menu_state = MenuState.MENU_ROOT
                 self.cursor_idx = 1
+
         elif self.menu_state == MenuState.MENU_STORAGE_PC:
             if self.cursor_idx == 0:
                 self.menu_state = MenuState.MENU_USB_MSC_SCREEN
@@ -241,26 +244,28 @@ class RlcdRenderer(QWidget):
         s = self.settings
 
         # 1. Top Tachometer Bar
-        p.drawRect(10, 4, 380, 16)
-        shift_x = int(10 + (s.shift_rpm * 376 / max(1, s.max_rpm)))
-        if shift_x < 386:
-            p.drawLine(shift_x, 2, shift_x, 22)
+        if s.rpm_display_mode != RpmDisplayMode.LEDS_ONLY:
+            p.drawRect(10, 4, 380, 16)
+            shift_x = int(10 + (s.shift_rpm * 376 / max(1, s.max_rpm)))
+            if shift_x < 386:
+                p.drawLine(shift_x, 2, shift_x, 22)
 
-        rpm_fill = int(t.rpm * 376 / max(1, s.max_rpm))
-        rpm_fill = max(0, min(376, rpm_fill))
-        if rpm_fill > 0:
-            p.fillRect(12, 6, rpm_fill, 12, fg)
+            rpm_fill = int(t.rpm * 376 / max(1, s.max_rpm))
+            rpm_fill = max(0, min(376, rpm_fill))
+            if rpm_fill > 0:
+                p.fillRect(12, 6, rpm_fill, 12, fg)
 
-        p.setFont(QFont("Monospace", 8, QFont.Bold))
-        p.drawText(14, 32, f"{I18n.get(StrId.LABEL_RPM)}: {t.rpm}")
+            p.setFont(QFont("Monospace", 8, QFont.Bold))
+            p.drawText(14, 32, f"{I18n.get(StrId.LABEL_RPM)}: {t.rpm}")
 
-        if t.rpm >= s.shift_rpm:
-            p.fillRect(300, 22, 90, 14, fg)
-            p.setPen(bg)
-            p.drawText(306, 33, I18n.get(StrId.WARN_SHIFT))
-            p.setPen(fg)
-        else:
-            p.drawText(328, 32, f"MAX {s.max_rpm}")
+            if t.rpm >= s.shift_rpm:
+                p.fillRect(300, 22, 90, 14, fg)
+                p.setPen(bg)
+                p.drawText(306, 33, I18n.get(StrId.WARN_SHIFT))
+                p.setPen(fg)
+            else:
+                p.drawText(328, 32, f"MAX {s.max_rpm}")
+
 
         # 2. Speed & Gear
         p.drawRoundedRect(10, 38, 160, 118, 4, 4)
@@ -580,8 +585,11 @@ class RlcdRenderer(QWidget):
 
         elif self.menu_state == MenuState.MENU_LEDS_ALARMS:
             p.drawText(12, 46, I18n.get(StrId.CAT_RPM_ALARM))
+            rpm_mode_str = I18n.get(StrId.RPM_DISP_BOTH) if self.settings.rpm_display_mode == RpmDisplayMode.BOTH else (
+                I18n.get(StrId.RPM_DISP_DISPLAY) if self.settings.rpm_display_mode == RpmDisplayMode.DISPLAY_ONLY else I18n.get(StrId.RPM_DISP_LEDS))
             items = [
                 f"{I18n.get(StrId.LED_BRIGHTNESS)}: [{self.settings.led_brightness}%]",
+                f"{I18n.get(StrId.RPM_DISP_MODE)}: [{rpm_mode_str}]",
                 f"{I18n.get(StrId.LED_TEST)} [Click to run]",
                 f"Shift LEDs: [{'ON' if self.settings.led_shift_enable else 'OFF'}]",
                 f"Alarm LEDs: [{'ON' if self.settings.led_alarm_enable else 'OFF'}]",
@@ -589,14 +597,15 @@ class RlcdRenderer(QWidget):
                 "< Return >"
             ]
             for i, text in enumerate(items):
-                y = 74 + (i * 32)
+                y = 70 + (i * 28)
                 if i == self.cursor_idx:
-                    p.fillRect(12, y - 20, 376, 26, fg)
+                    p.fillRect(12, y - 18, 376, 24, fg)
                     p.setPen(bg)
                     p.drawText(24, y, text)
                     p.setPen(fg)
                 else:
                     p.drawText(24, y, text)
+
 
         elif self.menu_state == MenuState.MENU_DISPLAY_PWM:
             p.drawText(12, 46, I18n.get(StrId.CAT_DISPLAY_PWM))

@@ -25,6 +25,10 @@ class StrId(Enum):
     EGT_ALARM = "EGT_ALARM"
     LED_BRIGHTNESS = "LED_BRIGHTNESS"
     LED_TEST = "LED_TEST"
+    RPM_DISP_MODE = "RPM_DISP_MODE"
+    RPM_DISP_BOTH = "RPM_DISP_BOTH"
+    RPM_DISP_DISPLAY = "RPM_DISP_DISPLAY"
+    RPM_DISP_LEDS = "RPM_DISP_LEDS"
     BACKLIGHT_PWM = "BACKLIGHT_PWM"
     TRACK_SELECT = "TRACK_SELECT"
     TRACK_SD_LOAD = "TRACK_SD_LOAD"
@@ -86,6 +90,10 @@ STRINGS = {
         StrId.EGT_ALARM: "EGT Temp Alarm",
         StrId.LED_BRIGHTNESS: "RGB LED Brightness",
         StrId.LED_TEST: "Test RGB LEDs",
+        StrId.RPM_DISP_MODE: "RPM Bar Display",
+        StrId.RPM_DISP_BOTH: "Both (LCD + LEDs)",
+        StrId.RPM_DISP_DISPLAY: "Display Only",
+        StrId.RPM_DISP_LEDS: "LED Strip Only",
         StrId.BACKLIGHT_PWM: "Backlight (PWM)",
         StrId.TRACK_SELECT: "Select Track",
         StrId.TRACK_SD_LOAD: "Reload Tracks from SD",
@@ -141,6 +149,10 @@ STRINGS = {
         StrId.EGT_ALARM: "Allarme Temp EGT",
         StrId.LED_BRIGHTNESS: "Luminosita LED RGB",
         StrId.LED_TEST: "Test LED RGB",
+        StrId.RPM_DISP_MODE: "Mostra Barra Giri",
+        StrId.RPM_DISP_BOTH: "Entrambi (LCD + LED)",
+        StrId.RPM_DISP_DISPLAY: "Solo Display",
+        StrId.RPM_DISP_LEDS: "Solo Striscia LED",
         StrId.BACKLIGHT_PWM: "Retroilluminazione",
         StrId.TRACK_SELECT: "Seleziona Circuito",
         StrId.TRACK_SD_LOAD: "Ricarica Piste da SD",
@@ -196,6 +208,10 @@ STRINGS = {
         StrId.EGT_ALARM: "Alarme Temp EGT",
         StrId.LED_BRIGHTNESS: "Luminosite LED RGB",
         StrId.LED_TEST: "Test LED RGB",
+        StrId.RPM_DISP_MODE: "Affichage Barre RPM",
+        StrId.RPM_DISP_BOTH: "Les deux (Ecran + LED)",
+        StrId.RPM_DISP_DISPLAY: "Ecran Seul",
+        StrId.RPM_DISP_LEDS: "LEDs Seules",
         StrId.BACKLIGHT_PWM: "Retroeclairage",
         StrId.TRACK_SELECT: "Choisir Circuit",
         StrId.TRACK_SD_LOAD: "Recharger Pistes SD",
@@ -251,7 +267,12 @@ STRINGS = {
         StrId.EGT_ALARM: "Abgastemp-Alarm",
         StrId.LED_BRIGHTNESS: "LED-Helligkeit",
         StrId.LED_TEST: "RGB-LED Test",
+        StrId.RPM_DISP_MODE: "Drehzahlbalken-Modus",
+        StrId.RPM_DISP_BOTH: "Beide (Display + LEDs)",
+        StrId.RPM_DISP_DISPLAY: "Nur Display",
+        StrId.RPM_DISP_LEDS: "Nur LED-Leiste",
         StrId.BACKLIGHT_PWM: "Displaybeleuchtung",
+
         StrId.TRACK_SELECT: "Strecke Wahlen",
         StrId.TRACK_SD_LOAD: "Strecken von SD Laden",
         StrId.USB_MSC_START: "PC USB-Speicher Starten",

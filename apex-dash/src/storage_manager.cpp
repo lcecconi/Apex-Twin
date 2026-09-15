@@ -25,6 +25,7 @@ void StorageManager::loadSettings(SystemSettings &settings) {
   settings.simulation_mode = _prefs.getBool("sim_mode", settings.simulation_mode);
   settings.language = _prefs.getUChar("lang", settings.language);
   settings.led_brightness = _prefs.getUChar("led_bright", settings.led_brightness);
+  settings.rpm_display_mode = (RpmDisplayMode)_prefs.getUChar("rpm_disp", (uint8_t)settings.rpm_display_mode);
   settings.led_shift_enable = _prefs.getBool("led_shift_en", settings.led_shift_enable);
   settings.led_alarm_enable = _prefs.getBool("led_alarm_en", settings.led_alarm_enable);
   settings.backlight_percent = _prefs.getUChar("backlight_pct", settings.backlight_percent);
@@ -49,9 +50,11 @@ void StorageManager::saveSettings(const SystemSettings &settings) {
   _prefs.putBool("sim_mode", settings.simulation_mode);
   _prefs.putUChar("lang", settings.language);
   _prefs.putUChar("led_bright", settings.led_brightness);
+  _prefs.putUChar("rpm_disp", (uint8_t)settings.rpm_display_mode);
   _prefs.putBool("led_shift_en", settings.led_shift_enable);
   _prefs.putBool("led_alarm_en", settings.led_alarm_enable);
   _prefs.putUChar("backlight_pct", settings.backlight_percent);
   _prefs.putString("track", String(settings.selected_track));
   _prefs.putString("track_file", String(settings.selected_track_file));
 }
+

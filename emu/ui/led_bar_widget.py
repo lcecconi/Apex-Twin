@@ -8,7 +8,7 @@ import time
 from PySide6.QtCore import Qt, QTimer, QRectF
 from PySide6.QtGui import QColor, QPainter, QRadialGradient, QBrush, QPen
 from PySide6.QtWidgets import QWidget
-from emu.core.telemetry_model import SystemSettings, TelemetrySnapshot
+from emu.core.telemetry_model import SystemSettings, TelemetrySnapshot, RpmDisplayMode
 
 
 class LedBarWidget(QWidget):
@@ -49,7 +49,7 @@ class LedBarWidget(QWidget):
         brightness_scale = settings.led_brightness / 100.0
 
         # 1. Shift Lights (LEDs 0..4)
-        if settings.led_shift_enable:
+        if settings.led_shift_enable and settings.rpm_display_mode != RpmDisplayMode.DISPLAY_ONLY:
             shift_rpm = settings.shift_rpm
             rpm = telemetry.rpm
 

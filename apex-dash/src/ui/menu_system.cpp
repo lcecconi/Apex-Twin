@@ -89,7 +89,7 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings) {
 
   // --- 2. SHIFT LIGHTS & ALARMS ---
   if (_current_state == MENU_LEDS_ALARMS) {
-    int max_items = 6;
+    int max_items = 7;
     if (event == INPUT_NEXT) {
       _cursor_idx = (_cursor_idx + 1) % max_items;
     } else if (event == INPUT_PREV) {
@@ -100,13 +100,16 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings) {
         settings.led_brightness = (settings.led_brightness >= 100) ? 20 : (settings.led_brightness + 20);
         if (_ledMgr) _ledMgr->setBrightness(settings.led_brightness);
       } else if (_cursor_idx == 1) {
+        // RPM Display Mode: Both -> Display Only -> LEDs Only
+        settings.rpm_display_mode = (RpmDisplayMode)((settings.rpm_display_mode + 1) % 3);
+      } else if (_cursor_idx == 2) {
         // Run test pattern on RGB LEDs
         if (_ledMgr) _ledMgr->runTestPattern();
-      } else if (_cursor_idx == 2) {
-        settings.led_shift_enable = !settings.led_shift_enable;
       } else if (_cursor_idx == 3) {
-        settings.led_alarm_enable = !settings.led_alarm_enable;
+        settings.led_shift_enable = !settings.led_shift_enable;
       } else if (_cursor_idx == 4) {
+        settings.led_alarm_enable = !settings.led_alarm_enable;
+      } else if (_cursor_idx == 5) {
         // Water temp alarm threshold: 55 -> 60 -> 65 -> 70 -> 75
         settings.water_temp_alarm_c = (settings.water_temp_alarm_c >= 75.0f) ? 55.0f : (settings.water_temp_alarm_c + 5.0f);
       } else {
@@ -116,6 +119,7 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings) {
     }
     return true;
   }
+
 
   // --- 3. TRACK & GPS DATABASE ---
   if (_current_state == MENU_TRACK_GPS) {
@@ -343,19 +347,23 @@ void MenuSystem::renderLedsAlarmsMenu(U8G2 *u8g2, const SystemSettings &settings
   u8g2->setFont(u8g2_font_helvB10_tr);
   u8g2->drawStr(12, 46, I18n::get(STR_CAT_RPM_ALARM));
 
-  char b0[64], b1[64], b2[64], b3[64], b4[64];
+  const char *rpm_mode_str = (settings.rpm_display_mode == RPM_DISP_BOTH) ? I18n::get(STR_RPM_DISP_BOTH) :
+                             ((settings.rpm_display_mode == RPM_DISP_DISPLAY_ONLY) ? I18n::get(STR_RPM_DISP_DISPLAY) : I18n::get(STR_RPM_DISP_LEDS));
+
+  char b0[64], b1[64], b2[64], b3[64], b4[64], b5[64];
   snprintf(b0, sizeof(b0), "%s: [%d%%]", I18n::get(STR_LED_BRIGHTNESS), settings.led_brightness);
-  snprintf(b1, sizeof(b1), "%s [Click to run]", I18n::get(STR_LED_TEST));
-  snprintf(b2, sizeof(b2), "Shift LEDs (5x): [%s]", settings.led_shift_enable ? "ENABLED" : "OFF");
-  snprintf(b3, sizeof(b3), "Alarm LEDs (2x): [%s]", settings.led_alarm_enable ? "ENABLED" : "OFF");
-  snprintf(b4, sizeof(b4), "%s: [%.0f \xb0\x43]", I18n::get(STR_WATER_ALARM), settings.water_temp_alarm_c);
+  snprintf(b1, sizeof(b1), "%s: [%s]", I18n::get(STR_RPM_DISP_MODE), rpm_mode_str);
+  snprintf(b2, sizeof(b2), "%s [Click to run]", I18n::get(STR_LED_TEST));
+  snprintf(b3, sizeof(b3), "Shift LEDs (5x): [%s]", settings.led_shift_enable ? "ENABLED" : "OFF");
+  snprintf(b4, sizeof(b4), "Alarm LEDs (2x): [%s]", settings.led_alarm_enable ? "ENABLED" : "OFF");
+  snprintf(b5, sizeof(b5), "%s: [%.0f \xb0\x43]", I18n::get(STR_WATER_ALARM), settings.water_temp_alarm_c);
 
-  const char *items[6] = { b0, b1, b2, b3, b4, "< Return >" };
+  const char *items[7] = { b0, b1, b2, b3, b4, b5, "< Return >" };
 
-  for (int i = 0; i < 6; i++) {
-    int y = 74 + (i * 32);
+  for (int i = 0; i < 7; i++) {
+    int y = 70 + (i * 28);
     if (i == _cursor_idx) {
-      u8g2->drawRBox(12, y - 20, 376, 26, 3);
+      u8g2->drawRBox(12, y - 18, 376, 24, 3);
       u8g2->setDrawColor(0);
       u8g2->drawStr(24, y, items[i]);
       u8g2->setDrawColor(1);
@@ -364,6 +372,7 @@ void MenuSystem::renderLedsAlarmsMenu(U8G2 *u8g2, const SystemSettings &settings
     }
   }
 }
+
 
 void MenuSystem::renderTrackGpsMenu(U8G2 *u8g2, const SystemSettings &settings) {
   u8g2->setFont(u8g2_font_helvB10_tr);

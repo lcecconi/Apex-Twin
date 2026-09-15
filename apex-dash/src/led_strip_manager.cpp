@@ -51,7 +51,7 @@ void LEDStripManager::update(const TelemetrySnapshot &telemetry, const SystemSet
   }
 
   // 1. Shift Lights (LEDs 0..4)
-  if (settings.led_shift_enable) {
+  if (settings.led_shift_enable && settings.rpm_display_mode != RPM_DISP_DISPLAY_ONLY) {
     uint16_t shift_rpm = settings.shift_rpm;
     uint16_t rpm = telemetry.rpm;
 

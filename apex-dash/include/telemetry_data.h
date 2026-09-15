@@ -8,6 +8,12 @@ enum DriveType : uint8_t {
   DRIVE_SHIFTER_6SPEED  // KZ / Shifter (1-6 gears)
 };
 
+enum RpmDisplayMode : uint8_t {
+  RPM_DISP_BOTH = 0,      // Both LCD screen and external LED strip
+  RPM_DISP_DISPLAY_ONLY, // Only on LCD screen
+  RPM_DISP_LEDS_ONLY     // Only on external LED strip
+};
+
 enum TrackDetectionMode : uint8_t {
   TRACK_AUTO = 0,
   TRACK_MANUAL,
@@ -83,7 +89,9 @@ struct SystemSettings {
   char selected_track_file[64] = "lonato.json";
   uint8_t language = 0; // 0 = LANG_EN, 1 = LANG_IT, 2 = LANG_FR, 3 = LANG_DE
   uint8_t led_brightness = 80; // 0 - 100%
+  RpmDisplayMode rpm_display_mode = RPM_DISP_BOTH;
   bool led_shift_enable = true;
   bool led_alarm_enable = true;
   uint8_t backlight_percent = 0; // 0 - 100% (PWM to external driver)
 };
+
