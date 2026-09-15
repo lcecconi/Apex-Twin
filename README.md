@@ -81,7 +81,7 @@ apex mon track                         # Launch GUI targeting Track module
 apex test                              # Run unit tests and emulator smoke tests
 ```
 
-*(You can also run `./apex <command>` directly from the repository root, or use standard `make` targets such as `make emu`, `make flash`, `make build`, `make monitor`, `make mon`, `make test`).*
+*(You can also use standard `make` targets such as `make emu`, `make flash`, `make build`, `make monitor`, `make mon`, `make test`, or run `uv run apex <command>`).*
 
 ---
 

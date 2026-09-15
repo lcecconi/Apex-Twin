@@ -1,25 +1,28 @@
+APEX ?= $(shell if command -v uv >/dev/null 2>&1; then echo "uv run apex"; elif [ -x .venv/bin/apex ]; then echo ".venv/bin/apex"; else echo "apex"; fi)
+
 .PHONY: help emu flash build monitor mon test setup
 
 help:
-	@./apex help
+	@$(APEX) --help
 
 emu:
-	@./apex emu
+	@$(APEX) emu
 
 flash:
-	@./apex flash
+	@$(APEX) flash
 
 build:
-	@./apex build
+	@$(APEX) build
 
 monitor:
-	@./apex monitor
+	@$(APEX) monitor
 
 mon:
-	@./apex mon
+	@$(APEX) mon
 
 test:
-	@./apex test
+	@$(APEX) test
 
 setup:
-	@./apex setup
+	@$(APEX) setup
+
