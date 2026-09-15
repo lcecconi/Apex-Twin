@@ -401,49 +401,55 @@ class RlcdRenderer(QWidget):
         elif delta_px > 0:
             p.fillRect(center_x, 188, delta_px, 12, fg)
 
-        # Right Pane: Alarms & System Diagnostics (185 px width)
+        # Right Pane: Alarms Grid (185 px width)
         p.drawRoundedRect(205, 162, 185, 52, 4, 4)
 
-        alm_water = (t.water_temp_c >= s.water_temp_alarm_c and s.water_temp_alarm_c > 0)
-        alm_egt = (t.exhaust_temp_c >= s.exhaust_temp_alarm_c and s.exhaust_temp_alarm_c > 0)
-        alm_rev = (t.rpm >= s.over_rev_rpm and s.over_rev_rpm > 0)
-        alm_bat = (t.battery_voltage < s.low_bat_alarm_v and t.battery_voltage > 1.0)
-        alm_link = not t.track_module_connected
-        has_alarm = alm_water or alm_egt or alm_rev or alm_bat or alm_link
+        alm_active = [
+            t.water_temp_c >= s.water_temp_alarm_c and s.water_temp_alarm_c > 0,
+            t.exhaust_temp_c >= s.exhaust_temp_alarm_c and s.exhaust_temp_alarm_c > 0,
+            t.rpm >= s.over_rev_rpm and s.over_rev_rpm > 0,
+            t.battery_voltage < s.low_bat_alarm_v and t.battery_voltage > 1.0,
+            not t.track_module_connected,
+        ]
 
-        p.setFont(QFont("SansSerif", 8, QFont.Bold))
-        p.drawText(213, 178, "SYSTEM ALARMS")
+        alarm_tiles = [
+            ("H2O", "💧"),
+            ("EGT", "🔥"),
+            ("REV", "⚡"),
+            ("BAT", "🔋"),
+            ("LINK", "📡"),
+        ]
 
-        if has_alarm:
-            p.fillRect(328, 166, 56, 14, fg)
-            p.setPen(bg)
-            p.drawText(QRectF(328, 166, 56, 14), Qt.AlignCenter, "! ALERT")
-            p.setPen(fg)
+        p.setFont(QFont("SansSerif", 7, QFont.Bold))
+        p.drawText(212, 172, "SYSTEM ALARMS")
 
-            if alm_water:
-                alm_msg = f"WATER: {t.water_temp_c:.1f}°C (MAX {s.water_temp_alarm_c:.0f})"
-            elif alm_egt:
-                alm_msg = f"EGT: {int(t.exhaust_temp_c)}°C (MAX {s.exhaust_temp_alarm_c:.0f})"
-            elif alm_rev:
-                alm_msg = f"OVER-REV: {t.rpm} RPM"
-            elif alm_bat:
-                alm_msg = f"LOW BAT: {t.battery_voltage:.2f}V"
+        for i, (label, symbol) in enumerate(alarm_tiles):
+            tx = 211 + (i * 35)
+            ty = 175
+            tw = 32
+            th = 34
+
+            if alm_active[i]:
+                # Lit Up Alarm (Inverted Solid Fill)
+                p.fillRect(tx, ty, tw, th, fg)
+                p.setPen(bg)
+
+                p.setFont(QFont("SansSerif", 8))
+                p.drawText(QRectF(tx, ty + 2, tw, 16), Qt.AlignCenter, symbol)
+
+                p.setFont(QFont("Monospace", 6, QFont.Bold))
+                p.drawText(QRectF(tx, ty + 18, tw, 14), Qt.AlignCenter, label)
+
+                p.setPen(fg)
             else:
-                alm_msg = "NO TRACK LINK"
+                # Normally OFF (Outline Box)
+                p.drawRoundedRect(tx, ty, tw, th, 2, 2)
 
-            p.fillRect(211, 186, 173, 20, fg)
-            p.setPen(bg)
-            p.setFont(QFont("Monospace", 8, QFont.Bold))
-            p.drawText(QRectF(211, 186, 173, 20), Qt.AlignCenter, alm_msg)
-            p.setPen(fg)
-        else:
-            p.drawText(QRectF(340, 164, 45, 16), Qt.AlignRight | Qt.AlignVCenter, "[OK]")
+                p.setFont(QFont("SansSerif", 8))
+                p.drawText(QRectF(tx, ty + 2, tw, 16), Qt.AlignCenter, symbol)
 
-            p.setFont(QFont("SansSerif", 8, QFont.Bold))
-            p.drawText(214, 192, "All Systems Normal")
-
-            p.setFont(QFont("Monospace", 7))
-            p.drawText(214, 206, f"H2O:{t.water_temp_c:.0f}°C EGT:{int(t.exhaust_temp_c)}°C BAT:{t.battery_percent}%")
+                p.setFont(QFont("Monospace", 6, QFont.Bold))
+                p.drawText(QRectF(tx, ty + 18, tw, 14), Qt.AlignCenter, label)
 
         # 5. Bottom Engine Status Bar
         p.drawLine(10, 222, 390, 222)

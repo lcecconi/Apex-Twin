@@ -227,56 +227,64 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
     u8g2->drawBox(center_x, 190, bar_px, 10);
   }
 
-  // Right Pane: Alarms & System Diagnostics (185 px width)
+  // Right Pane: Alarms Grid (185 px width)
   u8g2->drawRFrame(205, 162, 185, 52, 4);
 
   // Evaluate Alarm Conditions
-  bool alm_water = (telemetry.water_temp_c >= settings.water_temp_alarm_c && settings.water_temp_alarm_c > 0);
-  bool alm_egt   = (telemetry.exhaust_temp_c >= settings.exhaust_temp_alarm_c && settings.exhaust_temp_alarm_c > 0);
-  bool alm_rev   = (telemetry.rpm >= settings.over_rev_rpm && settings.over_rev_rpm > 0);
-  bool alm_bat   = (telemetry.battery_voltage < settings.low_bat_alarm_v && telemetry.battery_voltage > 1.0f);
-  bool alm_link  = (!telemetry.track_module_connected);
-  bool has_alarm = alm_water || alm_egt || alm_rev || alm_bat || alm_link;
+  bool alm_active[5];
+  alm_active[0] = (telemetry.water_temp_c >= settings.water_temp_alarm_c && settings.water_temp_alarm_c > 0);
+  alm_active[1] = (telemetry.exhaust_temp_c >= settings.exhaust_temp_alarm_c && settings.exhaust_temp_alarm_c > 0);
+  alm_active[2] = (telemetry.rpm >= settings.over_rev_rpm && settings.over_rev_rpm > 0);
+  alm_active[3] = (telemetry.battery_voltage < settings.low_bat_alarm_v && telemetry.battery_voltage > 1.0f);
+  alm_active[4] = (!telemetry.track_module_connected);
+
+  struct AlarmTile {
+    const char *label;
+    const uint8_t *icon_font;
+    uint16_t glyph;
+  };
+
+  static const AlarmTile tiles[5] = {
+    { "H2O",  u8g2_font_open_iconic_weather_1x_t,  70 }, // Water / Droplet
+    { "EGT",  u8g2_font_open_iconic_thing_1x_t,    76 }, // Fire / High Temp
+    { "REV",  u8g2_font_open_iconic_app_1x_t,      66 }, // Gauge / Over-rev
+    { "BAT",  u8g2_font_open_iconic_embedded_1x_t, 65 }, // Battery
+    { "LINK", u8g2_font_open_iconic_embedded_1x_t, 68 }  // Radio / Wireless Link
+  };
 
   u8g2->setFont(u8g2_font_6x10_tr);
-  u8g2->drawStr(213, 178, "SYSTEM ALARMS");
+  u8g2->drawStr(212, 172, "SYSTEM ALARMS");
 
-  if (has_alarm) {
-    // Inverted [! ALERT] header badge
-    u8g2->drawRBox(328, 166, 56, 13, 2);
-    u8g2->setDrawColor(0);
-    u8g2->drawStr(332, 176, "! ALERT");
-    u8g2->setDrawColor(1);
+  for (int i = 0; i < 5; i++) {
+    int tx = 211 + (i * 35);
+    int ty = 175;
+    int tw = 32;
+    int th = 34;
 
-    // Primary active alarm label
-    char alm_msg[48];
-    if (alm_water) {
-      snprintf(alm_msg, sizeof(alm_msg), "WATER: %.1f\xb0\x43 (MAX %.0f)", telemetry.water_temp_c, settings.water_temp_alarm_c);
-    } else if (alm_egt) {
-      snprintf(alm_msg, sizeof(alm_msg), "EGT: %d\xb0\x43 (MAX %.0f)", (int)telemetry.exhaust_temp_c, settings.exhaust_temp_alarm_c);
-    } else if (alm_rev) {
-      snprintf(alm_msg, sizeof(alm_msg), "OVER-REV: %u RPM", telemetry.rpm);
-    } else if (alm_bat) {
-      snprintf(alm_msg, sizeof(alm_msg), "LOW BAT: %.2fV", telemetry.battery_voltage);
+    if (alm_active[i]) {
+      // Lit Up Alarm (Inverted Solid Fill)
+      u8g2->drawRBox(tx, ty, tw, th, 2);
+      u8g2->setDrawColor(0);
+
+      u8g2->setFont(tiles[i].icon_font);
+      u8g2->drawGlyph(tx + 12, ty + 15, tiles[i].glyph);
+
+      u8g2->setFont(u8g2_font_5x8_tr);
+      int lw = u8g2->getStrWidth(tiles[i].label);
+      u8g2->drawStr(tx + (tw - lw) / 2, ty + 28, tiles[i].label);
+
+      u8g2->setDrawColor(1);
     } else {
-      snprintf(alm_msg, sizeof(alm_msg), "NO TRACK LINK");
+      // Normally OFF (Dim Outline Box)
+      u8g2->drawRFrame(tx, ty, tw, th, 2);
+
+      u8g2->setFont(tiles[i].icon_font);
+      u8g2->drawGlyph(tx + 12, ty + 15, tiles[i].glyph);
+
+      u8g2->setFont(u8g2_font_5x8_tr);
+      int lw = u8g2->getStrWidth(tiles[i].label);
+      u8g2->drawStr(tx + (tw - lw) / 2, ty + 28, tiles[i].label);
     }
-
-    u8g2->drawRBox(211, 186, 173, 20, 3);
-    u8g2->setDrawColor(0);
-    u8g2->setFont(u8g2_font_6x12_tr);
-    u8g2->drawStr(216, 200, alm_msg);
-    u8g2->setDrawColor(1);
-  } else {
-    // Normal OK status
-    u8g2->drawStr(360, 178, "[OK]");
-
-    u8g2->setFont(u8g2_font_6x12_tr);
-    u8g2->drawStr(214, 192, "All Systems Normal");
-
-    u8g2->setFont(u8g2_font_6x10_tr);
-    snprintf(buf, sizeof(buf), "H2O:%.0f\xb0 C  EGT:%d\xb0 C  BAT:%d%%", telemetry.water_temp_c, (int)telemetry.exhaust_temp_c, telemetry.battery_percent);
-    u8g2->drawStr(214, 206, buf);
   }
 
   // ==========================================
