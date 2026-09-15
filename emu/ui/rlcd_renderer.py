@@ -10,6 +10,21 @@ from PySide6.QtWidgets import QWidget
 
 from emu.core.telemetry_model import SystemSettings, TelemetrySnapshot, DriveType, RpmDisplayMode
 from emu.core.i18n import I18n, StrId
+from emu.ui.icons import (
+    draw_icon_water,
+    draw_icon_flame,
+    draw_icon_gauge,
+    draw_icon_battery,
+    draw_icon_wireless,
+    draw_icon_gear,
+    draw_icon_lightbulb,
+    draw_icon_flag,
+    draw_icon_disk,
+    draw_icon_sun,
+    draw_icon_globe,
+    draw_icon_wrench,
+    draw_icon_back,
+)
 
 
 class UiViewMode(IntEnum):
@@ -412,18 +427,18 @@ class RlcdRenderer(QWidget):
             not t.track_module_connected,
         ]
 
-        alarm_tiles = [
-            ("H2O", "💧"),
-            ("EGT", "🔥"),
-            ("REV", "⚡"),
-            ("BAT", "🔋"),
-            ("LINK", "📡"),
+        alarm_drawers = [
+            ("H2O", draw_icon_water),
+            ("EGT", draw_icon_flame),
+            ("REV", draw_icon_gauge),
+            ("BAT", draw_icon_battery),
+            ("LINK", draw_icon_wireless),
         ]
 
         p.setFont(QFont("SansSerif", 7, QFont.Bold))
         p.drawText(212, 172, "SYSTEM ALARMS")
 
-        for i, (label, symbol) in enumerate(alarm_tiles):
+        for i, (label, drawer) in enumerate(alarm_drawers):
             tx = 211 + (i * 35)
             ty = 175
             tw = 32
@@ -434,8 +449,7 @@ class RlcdRenderer(QWidget):
                 p.fillRect(tx, ty, tw, th, fg)
                 p.setPen(bg)
 
-                p.setFont(QFont("SansSerif", 8))
-                p.drawText(QRectF(tx, ty + 2, tw, 16), Qt.AlignCenter, symbol)
+                drawer(p, tx + 10, ty + 4, 12, fill=True)
 
                 p.setFont(QFont("Monospace", 6, QFont.Bold))
                 p.drawText(QRectF(tx, ty + 18, tw, 14), Qt.AlignCenter, label)
@@ -445,8 +459,7 @@ class RlcdRenderer(QWidget):
                 # Normally OFF (Outline Box)
                 p.drawRoundedRect(tx, ty, tw, th, 2, 2)
 
-                p.setFont(QFont("SansSerif", 8))
-                p.drawText(QRectF(tx, ty + 2, tw, 16), Qt.AlignCenter, symbol)
+                drawer(p, tx + 10, ty + 4, 12, fill=False)
 
                 p.setFont(QFont("Monospace", 6, QFont.Bold))
                 p.drawText(QRectF(tx, ty + 18, tw, 14), Qt.AlignCenter, label)
@@ -658,27 +671,27 @@ class RlcdRenderer(QWidget):
         p.setPen(fg)
 
         if self.menu_state == MenuState.MENU_ROOT:
-            items = [
-                (I18n.get(StrId.CAT_RACE_CONFIG), "⚙"),
-                (I18n.get(StrId.CAT_RPM_ALARM), "💡"),
-                (I18n.get(StrId.CAT_TRACK_GPS), "🏁"),
-                (I18n.get(StrId.CAT_STORAGE_PC), "💾"),
-                (I18n.get(StrId.CAT_DISPLAY_PWM), "☼"),
-                (I18n.get(StrId.CAT_SYSTEM_LANG), "🌐"),
-                (I18n.get(StrId.CAT_SENSORS_INFO), "🔧"),
-                ("< Exit Menu >", "⮌")
+            menu_items = [
+                (I18n.get(StrId.CAT_RACE_CONFIG), draw_icon_gear),
+                (I18n.get(StrId.CAT_RPM_ALARM), draw_icon_lightbulb),
+                (I18n.get(StrId.CAT_TRACK_GPS), draw_icon_flag),
+                (I18n.get(StrId.CAT_STORAGE_PC), draw_icon_disk),
+                (I18n.get(StrId.CAT_DISPLAY_PWM), draw_icon_sun),
+                (I18n.get(StrId.CAT_SYSTEM_LANG), draw_icon_globe),
+                (I18n.get(StrId.CAT_SENSORS_INFO), draw_icon_wrench),
+                ("< Exit Menu >", draw_icon_back),
             ]
-            for i, (text, symbol) in enumerate(items):
+            for i, (text, drawer) in enumerate(menu_items):
                 y = 50 + (i * 28)
                 if i == self.cursor_idx:
                     p.fillRect(10, y - 18, 380, 24, fg)
                     p.setPen(bg)
-                    p.drawText(18, y, symbol)
+                    drawer(p, 16, y - 14, 13)
                     p.drawText(38, y, text)
                     p.drawText(365, y, ">")
                     p.setPen(fg)
                 else:
-                    p.drawText(18, y, symbol)
+                    drawer(p, 16, y - 14, 13)
                     p.drawText(38, y, text)
 
 
