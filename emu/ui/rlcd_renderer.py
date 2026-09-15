@@ -462,21 +462,51 @@ class RlcdRenderer(QWidget):
                 p.setFont(QFont("Monospace", 6, QFont.Bold))
                 p.drawText(QRectF(tx, ty + 19, tw, 14), Qt.AlignCenter, label)
 
-        # 5. Bottom Engine Status Bar
-        p.drawLine(10, 222, 390, 222)
+        # 5. Bottom Engine (Left) & Alarm Banner (Right)
+        # Left: Water & EGT Temp Pane (185 px width)
+        p.drawRoundedRect(10, 224, 185, 50, 4, 4)
+
+        w_temp = t.water_temp_c if s.use_celsius else (t.water_temp_c * 1.8 + 32.0)
+        e_temp = t.exhaust_temp_c if s.use_celsius else (t.exhaust_temp_c * 1.8 + 32.0)
+        t_unit = "°C" if s.use_celsius else "°F"
+
         p.setFont(QFont("SansSerif", 9, QFont.Bold))
-        p.drawText(14, 244, f"{I18n.get(StrId.LABEL_WATER)}: {t.water_temp_c:.1f}°C")
-        if t.water_temp_c >= s.water_temp_alarm_c:
-            p.fillRect(115, 232, 42, 16, fg)
-            p.setPen(bg)
-            p.drawText(120, 244, "WARN")
-            p.setPen(fg)
+        p.drawText(16, 243, f"{I18n.get(StrId.LABEL_WATER)}: {w_temp:.1f}{t_unit}")
+        p.drawText(16, 264, f"{I18n.get(StrId.LABEL_EGT)}: {int(e_temp)}{t_unit}")
 
-        p.drawText(175, 244, f"{I18n.get(StrId.LABEL_EGT)}: {int(t.exhaust_temp_c)}°C")
         p.setFont(QFont("Monospace", 7))
-        p.drawText(275, 244, t.current_track_name[:18])
+        p.drawText(112, 264, f"{t.battery_voltage:.1f}V ({t.battery_percent}%)")
 
-        p.drawText(14, 264, f"{I18n.get(StrId.LABEL_BAT)}: {t.battery_voltage:.2f}V ({t.battery_percent}%) | {I18n.get(StrId.STATUS_WIRELESS_OK)}")
+        # Right: Flashing WARN Alert or Track Status (185 px width)
+        any_alarm = any(alm_active)
+        if any_alarm:
+            import time
+            flash_state = int(time.time() * 3.3) % 2 == 0
+            reason = "WATER OVERHEAT" if alm_active[0] else (
+                     "EGT OVERHEAT" if alm_active[1] else (
+                     "ENGINE OVER-REV" if alm_active[2] else (
+                     "BATTERY LOW" if alm_active[3] else "LINK LOST")))
+
+            if flash_state:
+                p.fillRect(205, 224, 185, 50, fg)
+                p.setPen(bg)
+                p.setFont(QFont("SansSerif", 14, QFont.Bold))
+                p.drawText(QRectF(205, 226, 185, 24), Qt.AlignCenter, "! WARN !")
+                p.setFont(QFont("SansSerif", 7, QFont.Bold))
+                p.drawText(QRectF(205, 250, 185, 18), Qt.AlignCenter, reason)
+                p.setPen(fg)
+            else:
+                p.drawRoundedRect(205, 224, 185, 50, 4, 4)
+                p.setFont(QFont("SansSerif", 14, QFont.Bold))
+                p.drawText(QRectF(205, 226, 185, 24), Qt.AlignCenter, "! WARN !")
+                p.setFont(QFont("SansSerif", 7, QFont.Bold))
+                p.drawText(QRectF(205, 250, 185, 18), Qt.AlignCenter, reason)
+        else:
+            p.drawRoundedRect(205, 224, 185, 50, 4, 4)
+            p.setFont(QFont("Monospace", 7))
+            p.drawText(214, 241, "TRACK:")
+            p.setFont(QFont("SansSerif", 9, QFont.Bold))
+            p.drawText(214, 262, t.current_track_name[:18])
 
 
     def _render_telemetry(self, p: QPainter, bg: QColor, fg: QColor):

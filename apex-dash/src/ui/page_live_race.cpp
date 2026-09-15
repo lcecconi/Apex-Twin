@@ -286,35 +286,72 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   }
 
   // ==========================================
-  // 5. BOTTOM ENGINE & SENSOR STATUS BAR
+  // 5. BOTTOM ENGINE (LEFT) & ALARM BANNER (RIGHT)
   // ==========================================
-  u8g2->drawHLine(10, 222, 380);
+  // Left: Water & EGT Temp Pane (185 px width)
+  u8g2->drawRFrame(10, 224, 185, 50, 4);
+
+  float w_temp = settings.use_celsius ? telemetry.water_temp_c : (telemetry.water_temp_c * 1.8f + 32.0f);
+  float e_temp = settings.use_celsius ? telemetry.exhaust_temp_c : (telemetry.exhaust_temp_c * 1.8f + 32.0f);
+  const char *t_unit = settings.use_celsius ? "\xb0\x43" : "\xb0\x46";
 
   u8g2->setFont(u8g2_font_helvB10_tr);
-  // Water Temp
-  snprintf(buf, sizeof(buf), "%s: %.1f\xb0\x43", I18n::get(STR_LABEL_WATER), telemetry.water_temp_c);
-  u8g2->drawStr(14, 244, buf);
-  if (telemetry.water_temp_c >= settings.water_temp_alarm_c) {
-    u8g2->drawRBox(120, 232, 42, 16, 2);
-    u8g2->setDrawColor(0);
-    u8g2->drawStr(124, 244, "WARN");
-    u8g2->setDrawColor(1);
-  }
+  snprintf(buf, sizeof(buf), "%s: %.1f%s", I18n::get(STR_LABEL_WATER), w_temp, t_unit);
+  u8g2->drawStr(16, 243, buf);
 
-  // Exhaust Temp (EGT)
-  snprintf(buf, sizeof(buf), "%s: %d\xb0\x43", I18n::get(STR_LABEL_EGT), (int)telemetry.exhaust_temp_c);
-  u8g2->drawStr(175, 244, buf);
+  snprintf(buf, sizeof(buf), "%s: %d%s", I18n::get(STR_LABEL_EGT), (int)e_temp, t_unit);
+  u8g2->drawStr(16, 264, buf);
 
-  // Track Name
   u8g2->setFont(u8g2_font_6x10_tr);
-  snprintf(buf, sizeof(buf), "%s", telemetry.current_track_name);
-  u8g2->drawStr(275, 244, buf);
+  snprintf(buf, sizeof(buf), "%.1fV (%d%%)", telemetry.battery_voltage, telemetry.battery_percent);
+  int bat_w = u8g2->getStrWidth(buf);
+  u8g2->drawStr(190 - bat_w, 264, buf);
 
-  // Battery & Mode
-  snprintf(buf, sizeof(buf), "%s: %.2fV (%d%%)  |  Apex-Track: %s",
-           I18n::get(STR_LABEL_BAT), telemetry.battery_voltage, telemetry.battery_percent,
-           telemetry.track_module_connected ? I18n::get(STR_STATUS_WIRELESS_OK) : I18n::get(STR_STATUS_SIMULATION));
-  u8g2->drawStr(14, 264, buf);
+  // Right: Flashing WARN Alert or System/Track Status (185 px width)
+  bool any_alarm = alm_active[0] || alm_active[1] || alm_active[2] || alm_active[3] || alm_active[4];
+
+  if (any_alarm) {
+    bool flash_state = ((millis() / 300) % 2) == 0;
+    const char *reason = alm_active[0] ? "WATER OVERHEAT" : 
+                        (alm_active[1] ? "EGT OVERHEAT" : 
+                        (alm_active[2] ? "ENGINE OVER-REV" : 
+                        (alm_active[3] ? "BATTERY LOW" : "LINK LOST")));
+
+    if (flash_state) {
+      // Solid Inverted Fill (Active Flashing Warning)
+      u8g2->drawRBox(205, 224, 185, 50, 4);
+      u8g2->setDrawColor(0);
+
+      u8g2->setFont(u8g2_font_helvB18_tr);
+      int w_warn = u8g2->getStrWidth("! WARN !");
+      u8g2->drawStr(205 + (185 - w_warn) / 2, 247, "! WARN !");
+
+      u8g2->setFont(u8g2_font_6x10_tr);
+      int w_reas = u8g2->getStrWidth(reason);
+      u8g2->drawStr(205 + (185 - w_reas) / 2, 265, reason);
+
+      u8g2->setDrawColor(1);
+    } else {
+      // Outlined Frame (Flash Alternate Phase)
+      u8g2->drawRFrame(205, 224, 185, 50, 4);
+
+      u8g2->setFont(u8g2_font_helvB18_tr);
+      int w_warn = u8g2->getStrWidth("! WARN !");
+      u8g2->drawStr(205 + (185 - w_warn) / 2, 247, "! WARN !");
+
+      u8g2->setFont(u8g2_font_6x10_tr);
+      int w_reas = u8g2->getStrWidth(reason);
+      u8g2->drawStr(205 + (185 - w_reas) / 2, 265, reason);
+    }
+  } else {
+    // Normal Track Status (Dim Outline Box)
+    u8g2->drawRFrame(205, 224, 185, 50, 4);
+    u8g2->setFont(u8g2_font_6x10_tr);
+    u8g2->drawStr(214, 241, "TRACK:");
+    u8g2->setFont(u8g2_font_helvB10_tr);
+    u8g2->drawStr(214, 262, telemetry.current_track_name);
+  }
 }
+
 
 
