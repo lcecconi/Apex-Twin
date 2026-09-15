@@ -153,14 +153,67 @@ class BezelWidget(QFrame):
 
     def _setup_layout(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(25, 20, 25, 20)
-        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(25, 14, 25, 14)
+        main_layout.setSpacing(8)
 
-        # Header Title
+        # Header Row with Brand & Action Buttons
+        header_row = QHBoxLayout()
+        header_row.setContentsMargins(0, 0, 0, 0)
+
         lbl_brand = QLabel("APEX-DASH // TELEMETRY & RACING DISPLAY")
-        lbl_brand.setAlignment(Qt.AlignCenter)
-        lbl_brand.setStyleSheet("color: #484f58; font-weight: bold; font-size: 10px; letter-spacing: 2px;")
-        main_layout.addWidget(lbl_brand)
+        lbl_brand.setStyleSheet("color: #6e7681; font-weight: bold; font-size: 10px; letter-spacing: 2px;")
+        header_row.addWidget(lbl_brand)
+        header_row.addStretch()
+
+        self.btn_reload = QPushButton("⚡ Reload [F5]")
+        self.btn_reload.setCursor(Qt.PointingHandCursor)
+        self.btn_reload.setToolTip("Hot-reload UI & Renderer code without restarting\n[Hotkey: F5]")
+        self.btn_reload.setStyleSheet("""
+            QPushButton {
+                background: #21262d;
+                color: #58a6ff;
+                border: 1px solid #30363d;
+                border-radius: 4px;
+                padding: 3px 8px;
+                font-size: 10px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: #30363d;
+                color: #79c0ff;
+                border-color: #58a6ff;
+            }
+            QPushButton:pressed {
+                background: #0d1117;
+            }
+        """)
+        header_row.addWidget(self.btn_reload)
+
+        self.btn_reset = QPushButton("🔄 Reset Sim")
+        self.btn_reset.setCursor(Qt.PointingHandCursor)
+        self.btn_reset.setToolTip("Reset simulation timer, laps, and physics state\n[Hotkey: Ctrl+R]")
+        self.btn_reset.setStyleSheet("""
+            QPushButton {
+                background: #21262d;
+                color: #8b949e;
+                border: 1px solid #30363d;
+                border-radius: 4px;
+                padding: 3px 8px;
+                font-size: 10px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: #30363d;
+                color: #f0f6fc;
+                border-color: #8b949e;
+            }
+            QPushButton:pressed {
+                background: #0d1117;
+            }
+        """)
+        header_row.addWidget(self.btn_reset)
+
+        main_layout.addLayout(header_row)
 
         # LED Bar
         main_layout.addWidget(self.led_bar, alignment=Qt.AlignCenter)
@@ -188,9 +241,9 @@ class BezelWidget(QFrame):
             border: 4px solid #161b22;
             border-radius: 4px;
         """)
-        screen_layout = QVBoxLayout(screen_frame)
-        screen_layout.setContentsMargins(0, 0, 0, 0)
-        screen_layout.addWidget(self.screen)
+        self.screen_layout = QVBoxLayout(screen_frame)
+        self.screen_layout.setContentsMargins(0, 0, 0, 0)
+        self.screen_layout.addWidget(self.screen)
         center_row.addWidget(screen_frame, stretch=1)
 
         # Right Column (KEY Button)
@@ -208,6 +261,55 @@ class BezelWidget(QFrame):
         lbl_sub.setAlignment(Qt.AlignCenter)
         lbl_sub.setStyleSheet("color: #30363d; font-size: 8px; font-weight: bold; letter-spacing: 1px;")
         main_layout.addWidget(lbl_sub)
+
+    def reload_screen(self):
+        """Hot-reloads RlcdRenderer, i18n, and telemetry model modules dynamically"""
+        import importlib
+        import emu.core.telemetry_model
+        import emu.core.i18n
+        import emu.ui.rlcd_renderer
+
+        importlib.reload(emu.core.telemetry_model)
+        importlib.reload(emu.core.i18n)
+        importlib.reload(emu.ui.rlcd_renderer)
+
+        from emu.ui.rlcd_renderer import RlcdRenderer
+
+        old_screen = self.screen
+        old_settings = old_screen.settings
+        old_view = old_screen.current_view
+        old_menu_active = old_screen.menu_active
+        old_menu_state = old_screen.menu_state
+        old_cursor = old_screen.cursor_idx
+        old_telemetry = old_screen.telemetry
+
+        new_screen = RlcdRenderer(self)
+        new_screen.settings = old_settings
+        new_screen.current_view = old_view
+        new_screen.menu_active = old_menu_active
+        new_screen.menu_state = old_menu_state
+        new_screen.cursor_idx = old_cursor
+        new_screen.telemetry = old_telemetry
+
+        self.screen_layout.replaceWidget(old_screen, new_screen)
+        old_screen.deleteLater()
+        self.screen = new_screen
+
+        # Reconnect buttons
+        try:
+            self.btn_boot.short_pressed.disconnect()
+            self.btn_boot.long_pressed.disconnect()
+            self.btn_key.short_pressed.disconnect()
+            self.btn_key.long_pressed.disconnect()
+        except RuntimeError:
+            pass
+
+        self.btn_boot.short_pressed.connect(self.screen.handle_boot_short)
+        self.btn_boot.long_pressed.connect(self.screen.handle_boot_long)
+        self.btn_key.short_pressed.connect(self.screen.handle_key_short)
+        self.btn_key.long_pressed.connect(self.screen.handle_key_long)
+
+        self.screen.update()
 
     def update_hardware(self, telemetry: TelemetrySnapshot, settings: SystemSettings):
         self.led_bar.update_leds(telemetry, settings)

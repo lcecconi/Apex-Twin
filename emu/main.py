@@ -163,6 +163,8 @@ class MainWindow(QMainWindow):
         self.bezel = BezelWidget(self)
         self.bezel.btn_aux_l.clicked.connect(self._trigger_aux_lap_mark)
         self.bezel.btn_aux_r.clicked.connect(self.bezel.screen.handle_key_short)
+        self.bezel.btn_reload.clicked.connect(self._hot_reload)
+        self.bezel.btn_reset.clicked.connect(self._reset_sim)
         top_layout.addWidget(self.bezel)
 
         self.splitter.addWidget(top_container)
@@ -247,6 +249,23 @@ class MainWindow(QMainWindow):
         act_key_long.triggered.connect(self.bezel.screen.handle_key_long)
         self.addAction(act_key_long)
 
+        # Hot Reload (F5 or Ctrl+R)
+        act_f5 = QAction(self)
+        act_f5.setShortcut(QKeySequence("F5"))
+        act_f5.triggered.connect(self._hot_reload)
+        self.addAction(act_f5)
+
+        act_reload = QAction(self)
+        act_reload.setShortcut(QKeySequence("Ctrl+R"))
+        act_reload.triggered.connect(self._hot_reload)
+        self.addAction(act_reload)
+
+        # Reset Simulation (Ctrl+Shift+R)
+        act_reset = QAction(self)
+        act_reset.setShortcut(QKeySequence("Ctrl+Shift+R"))
+        act_reset.triggered.connect(self._reset_sim)
+        self.addAction(act_reset)
+
         # Direct View Selectors (1, 2, 3, 4)
         for i in range(4):
             act = QAction(self)
@@ -259,6 +278,19 @@ class MainWindow(QMainWindow):
         act_gate.setShortcut(QKeySequence("Tab"))
         act_gate.triggered.connect(lambda: self._on_gate_triggered("sf"))
         self.addAction(act_gate)
+
+    def _hot_reload(self):
+        """Hot reload UI modules and repaint without restarting the process"""
+        try:
+            self.bezel.reload_screen()
+            self.statusBar.showMessage("⚡ Hot-reloaded UI & Renderer modules successfully [F5]", 4000)
+        except Exception as e:
+            self.statusBar.showMessage(f"❌ Hot-reload error: {e}", 6000)
+
+    def _reset_sim(self):
+        """Reset physics sim lap counter, sectors, and dynamics"""
+        self.sim = PhysicsSim()
+        self.statusBar.showMessage("🔄 Simulation session reset", 3000)
 
     def _jump_view(self, view_idx: int):
         self.bezel.screen.menu_active = False
