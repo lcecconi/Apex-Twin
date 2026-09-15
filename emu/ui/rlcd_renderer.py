@@ -555,9 +555,12 @@ class RlcdRenderer(QWidget):
         e_temp = t.exhaust_temp_c if s.use_celsius else (t.exhaust_temp_c * 1.8 + 32.0)
         t_unit = "°C" if s.use_celsius else "°F"
 
-        p.setFont(QFont("SansSerif", 10, QFont.Bold))
-        p.drawText(18, 242, f"{I18n.get(StrId.LABEL_WATER)}: {w_temp:.1f}{t_unit}")
-        p.drawText(18, 263, f"{I18n.get(StrId.LABEL_EGT)}: {int(e_temp)}{t_unit}")
+        draw_xbm(p, 18, 228, ICON_WATER_16X16, 16, 16, color=fg)
+        p.setFont(QFont("SansSerif", 11, QFont.Bold))
+        p.drawText(40, 242, f"{w_temp:.1f} {t_unit}")
+
+        draw_xbm(p, 18, 249, ICON_EGT_16X16, 16, 16, color=fg)
+        p.drawText(40, 263, f"{int(e_temp)} {t_unit}")
 
         # Evaluate which alarms trigger the blinking WARN alert
         alm_warn = [

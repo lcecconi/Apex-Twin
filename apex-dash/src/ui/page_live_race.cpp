@@ -294,12 +294,16 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   float e_temp = settings.use_celsius ? telemetry.exhaust_temp_c : (telemetry.exhaust_temp_c * 1.8f + 32.0f);
   const char *t_unit = settings.use_celsius ? "\xb0\x43" : "\xb0\x46";
 
-  u8g2->setFont(u8g2_font_helvB12_tr);
-  snprintf(buf, sizeof(buf), "%s: %.1f%s", I18n::get(STR_LABEL_WATER), w_temp, t_unit);
-  u8g2->drawStr(18, 242, buf);
+  // Water icon + value
+  u8g2->drawXBMP(18, 228, 16, 16, icon_water_16x16);
+  u8g2->setFont(u8g2_font_helvB14_tr);
+  snprintf(buf, sizeof(buf), "%.1f %s", w_temp, t_unit);
+  u8g2->drawStr(40, 242, buf);
 
-  snprintf(buf, sizeof(buf), "%s: %d%s", I18n::get(STR_LABEL_EGT), (int)e_temp, t_unit);
-  u8g2->drawStr(18, 263, buf);
+  // EGT icon + value
+  u8g2->drawXBMP(18, 249, 16, 16, icon_egt_16x16);
+  snprintf(buf, sizeof(buf), "%d %s", (int)e_temp, t_unit);
+  u8g2->drawStr(40, 263, buf);
 
   // Right: Flashing WARN Alert or System Status (185 px width)
   if (any_warn) {
