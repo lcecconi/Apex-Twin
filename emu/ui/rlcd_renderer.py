@@ -11,19 +11,20 @@ from PySide6.QtWidgets import QWidget
 from emu.core.telemetry_model import SystemSettings, TelemetrySnapshot, DriveType, RpmDisplayMode
 from emu.core.i18n import I18n, StrId
 from emu.ui.icons import (
-    draw_icon_water,
-    draw_icon_flame,
-    draw_icon_gauge,
-    draw_icon_battery,
-    draw_icon_wireless,
-    draw_icon_gear,
-    draw_icon_lightbulb,
-    draw_icon_flag,
-    draw_icon_disk,
-    draw_icon_sun,
-    draw_icon_globe,
-    draw_icon_wrench,
-    draw_icon_back,
+    draw_xbm,
+    ICON_WATER_16X16,
+    ICON_EGT_16X16,
+    ICON_REV_16X16,
+    ICON_BAT_16X16,
+    ICON_LINK_16X16,
+    ICON_GEAR_16X16,
+    ICON_LIGHTBULB_16X16,
+    ICON_FLAG_16X16,
+    ICON_SDCARD_16X16,
+    ICON_SUN_16X16,
+    ICON_GLOBE_16X16,
+    ICON_WRENCH_16X16,
+    ICON_BACK_16X16,
 )
 
 
@@ -427,18 +428,18 @@ class RlcdRenderer(QWidget):
             not t.track_module_connected,
         ]
 
-        alarm_drawers = [
-            ("H2O", draw_icon_water),
-            ("EGT", draw_icon_flame),
-            ("REV", draw_icon_gauge),
-            ("BAT", draw_icon_battery),
-            ("LINK", draw_icon_wireless),
+        alarm_tiles = [
+            ("H2O", ICON_WATER_16X16),
+            ("EGT", ICON_EGT_16X16),
+            ("REV", ICON_REV_16X16),
+            ("BAT", ICON_BAT_16X16),
+            ("LINK", ICON_LINK_16X16),
         ]
 
         p.setFont(QFont("SansSerif", 7, QFont.Bold))
         p.drawText(212, 172, "SYSTEM ALARMS")
 
-        for i, (label, drawer) in enumerate(alarm_drawers):
+        for i, (label, xbm) in enumerate(alarm_tiles):
             tx = 211 + (i * 35)
             ty = 175
             tw = 32
@@ -447,22 +448,19 @@ class RlcdRenderer(QWidget):
             if alm_active[i]:
                 # Lit Up Alarm (Inverted Solid Fill)
                 p.fillRect(tx, ty, tw, th, fg)
+                draw_xbm(p, tx + 8, ty + 3, xbm, 16, 16, color=bg)
+
                 p.setPen(bg)
-
-                drawer(p, tx + 10, ty + 4, 12, fill=True)
-
                 p.setFont(QFont("Monospace", 6, QFont.Bold))
-                p.drawText(QRectF(tx, ty + 18, tw, 14), Qt.AlignCenter, label)
-
+                p.drawText(QRectF(tx, ty + 19, tw, 14), Qt.AlignCenter, label)
                 p.setPen(fg)
             else:
                 # Normally OFF (Outline Box)
                 p.drawRoundedRect(tx, ty, tw, th, 2, 2)
-
-                drawer(p, tx + 10, ty + 4, 12, fill=False)
+                draw_xbm(p, tx + 8, ty + 3, xbm, 16, 16, color=fg)
 
                 p.setFont(QFont("Monospace", 6, QFont.Bold))
-                p.drawText(QRectF(tx, ty + 18, tw, 14), Qt.AlignCenter, label)
+                p.drawText(QRectF(tx, ty + 19, tw, 14), Qt.AlignCenter, label)
 
         # 5. Bottom Engine Status Bar
         p.drawLine(10, 222, 390, 222)
@@ -672,27 +670,27 @@ class RlcdRenderer(QWidget):
 
         if self.menu_state == MenuState.MENU_ROOT:
             menu_items = [
-                (I18n.get(StrId.CAT_RACE_CONFIG), draw_icon_gear),
-                (I18n.get(StrId.CAT_RPM_ALARM), draw_icon_lightbulb),
-                (I18n.get(StrId.CAT_TRACK_GPS), draw_icon_flag),
-                (I18n.get(StrId.CAT_STORAGE_PC), draw_icon_disk),
-                (I18n.get(StrId.CAT_DISPLAY_PWM), draw_icon_sun),
-                (I18n.get(StrId.CAT_SYSTEM_LANG), draw_icon_globe),
-                (I18n.get(StrId.CAT_SENSORS_INFO), draw_icon_wrench),
-                ("< Exit Menu >", draw_icon_back),
+                (I18n.get(StrId.CAT_RACE_CONFIG), ICON_GEAR_16X16),
+                (I18n.get(StrId.CAT_RPM_ALARM), ICON_LIGHTBULB_16X16),
+                (I18n.get(StrId.CAT_TRACK_GPS), ICON_FLAG_16X16),
+                (I18n.get(StrId.CAT_STORAGE_PC), ICON_SDCARD_16X16),
+                (I18n.get(StrId.CAT_DISPLAY_PWM), ICON_SUN_16X16),
+                (I18n.get(StrId.CAT_SYSTEM_LANG), ICON_GLOBE_16X16),
+                (I18n.get(StrId.CAT_SENSORS_INFO), ICON_WRENCH_16X16),
+                ("< Exit Menu >", ICON_BACK_16X16),
             ]
-            for i, (text, drawer) in enumerate(menu_items):
+            for i, (text, icon_xbm) in enumerate(menu_items):
                 y = 50 + (i * 28)
                 if i == self.cursor_idx:
                     p.fillRect(10, y - 18, 380, 24, fg)
                     p.setPen(bg)
-                    drawer(p, 16, y - 14, 13)
-                    p.drawText(38, y, text)
+                    draw_xbm(p, 18, y - 14, icon_xbm, 16, 16, color=bg)
+                    p.drawText(42, y, text)
                     p.drawText(365, y, ">")
                     p.setPen(fg)
                 else:
-                    drawer(p, 16, y - 14, 13)
-                    p.drawText(38, y, text)
+                    draw_xbm(p, 18, y - 14, icon_xbm, 16, 16, color=fg)
+                    p.drawText(42, y, text)
 
 
         elif self.menu_state == MenuState.MENU_RACE_SETUP:

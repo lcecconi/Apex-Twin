@@ -1,153 +1,286 @@
 """
-Monochrome Vector Icons for Apex-Dash Emulator
-1-bit high-contrast graphical glyphs matching U8g2 Open Iconic font.
-Drawn dynamically using QPainter vector paths honoring foreground/background colors.
+Custom 16x16 1-Bit Monochrome XBM Bitmaps for Apex-Dash Emulator
+100% Pixel-for-Pixel parity with C++ U8g2 drawXBMP() in icons_xbm.h.
 """
 
 from PySide6.QtCore import Qt, QPointF, QRectF
-from PySide6.QtGui import QPainter, QPainterPath, QPen, QColor
+from PySide6.QtGui import QPainter, QColor
 
 
-def draw_icon_water(p: QPainter, x: float, y: float, s: float = 12, fill: bool = False):
-    """Water droplet / coolant temp icon"""
-    old_pen = p.pen()
-    color = old_pen.color()
-    cx = x + s / 2.0
-    path = QPainterPath()
-    path.moveTo(cx, y + 1)
-    path.quadTo(x + s - 1, y + s * 0.6, cx, y + s - 1)
-    path.quadTo(x + 1, y + s * 0.6, cx, y + 1)
-    if fill:
-        p.fillPath(path, color)
-    else:
-        p.drawPath(path)
+# 1. Water / Coolant Temperature Alarm Icon (H2O)
+ICON_WATER_16X16 = bytes([
+    0x00, 0x00,
+    0x80, 0x00,
+    0xC0, 0x01,
+    0xE0, 0x03,
+    0x70, 0x07,
+    0x38, 0x0E,
+    0x1C, 0x1C,
+    0x0C, 0x18,
+    0x0C, 0x18,
+    0x1C, 0x1C,
+    0x38, 0x0E,
+    0x70, 0x07,
+    0xE0, 0x03,
+    0xC0, 0x01,
+    0x00, 0x00,
+    0x00, 0x00
+])
+
+# 2. Exhaust Gas Temperature / Flame Alarm Icon (EGT)
+ICON_EGT_16X16 = bytes([
+    0x00, 0x00,
+    0x00, 0x02,
+    0x00, 0x07,
+    0x80, 0x07,
+    0xC0, 0x0F,
+    0xE0, 0x1F,
+    0xF0, 0x1F,
+    0xF8, 0x3F,
+    0xFC, 0x3F,
+    0x7C, 0x7E,
+    0x3C, 0x7C,
+    0x38, 0x38,
+    0x70, 0x1C,
+    0xE0, 0x0F,
+    0xC0, 0x03,
+    0x00, 0x00
+])
+
+# 3. Engine Tachometer / Over-Rev Alarm Icon (REV)
+ICON_REV_16X16 = bytes([
+    0x00, 0x00,
+    0xE0, 0x07,
+    0x18, 0x18,
+    0x04, 0x20,
+    0x02, 0x44,
+    0x02, 0x48,
+    0x01, 0x90,
+    0x01, 0xA0,
+    0xC1, 0x83,
+    0x61, 0x86,
+    0x32, 0x4C,
+    0x1C, 0x38,
+    0x00, 0x00,
+    0xE0, 0x07,
+    0x00, 0x00,
+    0x00, 0x00
+])
+
+# 4. Battery / Voltage Alarm Icon (BAT)
+ICON_BAT_16X16 = bytes([
+    0x00, 0x00,
+    0x00, 0x00,
+    0x00, 0x00,
+    0x00, 0x00,
+    0xFE, 0x1F,
+    0x02, 0x30,
+    0x6A, 0x35,
+    0x6A, 0x35,
+    0x6A, 0x35,
+    0x6A, 0x35,
+    0x02, 0x30,
+    0xFE, 0x1F,
+    0x00, 0x00,
+    0x00, 0x00,
+    0x00, 0x00,
+    0x00, 0x00
+])
+
+# 5. Wireless Telemetry RF Link Icon (LINK)
+ICON_LINK_16X16 = bytes([
+    0x00, 0x00,
+    0x10, 0x08,
+    0x28, 0x14,
+    0x44, 0x22,
+    0x82, 0x41,
+    0x82, 0x41,
+    0x44, 0x22,
+    0x28, 0x14,
+    0x10, 0x08,
+    0x00, 0x00,
+    0x80, 0x01,
+    0x80, 0x01,
+    0x80, 0x01,
+    0xC0, 0x03,
+    0xE0, 0x07,
+    0x00, 0x00
+])
+
+# 6. Setup / Race Config Gear Icon
+ICON_GEAR_16X16 = bytes([
+    0x00, 0x00,
+    0xC0, 0x03,
+    0xC0, 0x03,
+    0x38, 0x1C,
+    0x0E, 0x70,
+    0x06, 0x60,
+    0xC3, 0xC3,
+    0xC3, 0xC3,
+    0xC3, 0xC3,
+    0xC3, 0xC3,
+    0x06, 0x60,
+    0x0E, 0x70,
+    0x38, 0x1C,
+    0xC0, 0x03,
+    0xC0, 0x03,
+    0x00, 0x00
+])
+
+# 7. Shift Lights & LEDs Lightbulb Icon
+ICON_LIGHTBULB_16X16 = bytes([
+    0x80, 0x01,
+    0x00, 0x00,
+    0xC0, 0x03,
+    0x30, 0x0C,
+    0x09, 0x90,
+    0x05, 0xA0,
+    0x05, 0xA0,
+    0x09, 0x90,
+    0x30, 0x0C,
+    0xE0, 0x07,
+    0xE0, 0x07,
+    0xC0, 0x03,
+    0xC0, 0x03,
+    0x80, 0x01,
+    0x00, 0x00,
+    0x00, 0x00
+])
+
+# 8. GPS Track & Database Checkered Flag Icon
+ICON_FLAG_16X16 = bytes([
+    0x00, 0x00,
+    0x06, 0x00,
+    0xFE, 0x3F,
+    0xAA, 0x2A,
+    0x56, 0x15,
+    0xAA, 0x2A,
+    0x56, 0x15,
+    0xAA, 0x2A,
+    0xFE, 0x3F,
+    0x06, 0x00,
+    0x06, 0x00,
+    0x06, 0x00,
+    0x06, 0x00,
+    0x06, 0x00,
+    0x0F, 0x00,
+    0x00, 0x00
+])
+
+# 9. Storage & MicroSD Card Icon
+ICON_SDCARD_16X16 = bytes([
+    0x00, 0x00,
+    0xF8, 0x0F,
+    0xAC, 0x1A,
+    0xAC, 0x1A,
+    0x04, 0x10,
+    0x04, 0x10,
+    0x04, 0x30,
+    0x04, 0x30,
+    0x04, 0x10,
+    0x04, 0x10,
+    0x04, 0x10,
+    0x04, 0x10,
+    0x04, 0x10,
+    0x04, 0x10,
+    0xFC, 0x1F,
+    0x00, 0x00
+])
+
+# 10. Display & Backlight PWM Sun Icon
+ICON_SUN_16X16 = bytes([
+    0x80, 0x01,
+    0x80, 0x01,
+    0x00, 0x00,
+    0x44, 0x22,
+    0x38, 0x1C,
+    0x0E, 0x70,
+    0x07, 0xE0,
+    0x83, 0xC1,
+    0x83, 0xC1,
+    0x07, 0xE0,
+    0x0E, 0x70,
+    0x38, 0x1C,
+    0x44, 0x22,
+    0x00, 0x00,
+    0x80, 0x01,
+    0x80, 0x01
+])
+
+# 11. System & Language Globe Icon
+ICON_GLOBE_16X16 = bytes([
+    0x00, 0x00,
+    0xE0, 0x07,
+    0x18, 0x18,
+    0x04, 0x20,
+    0x02, 0x40,
+    0x02, 0x40,
+    0x01, 0x80,
+    0xFF, 0xFF,
+    0xFF, 0xFF,
+    0x01, 0x80,
+    0x02, 0x40,
+    0x02, 0x40,
+    0x04, 0x20,
+    0x18, 0x18,
+    0xE0, 0x07,
+    0x00, 0x00
+])
+
+# 12. Diagnostics & Sensors Wrench Icon
+ICON_WRENCH_16X16 = bytes([
+    0x00, 0x00,
+    0x00, 0x38,
+    0x00, 0x7C,
+    0x00, 0x6E,
+    0x00, 0x6E,
+    0x00, 0x7C,
+    0x00, 0x38,
+    0x00, 0x1C,
+    0x00, 0x0E,
+    0x00, 0x07,
+    0x80, 0x03,
+    0xC0, 0x01,
+    0xE6, 0x00,
+    0x7E, 0x00,
+    0x3C, 0x00,
+    0x00, 0x00
+])
+
+# 13. Return / Exit Menu Arrow Icon
+ICON_BACK_16X16 = bytes([
+    0x00, 0x00,
+    0x00, 0x00,
+    0x10, 0x00,
+    0x38, 0x00,
+    0x7C, 0x00,
+    0xFE, 0x3F,
+    0xFE, 0x3F,
+    0x7C, 0x30,
+    0x38, 0x30,
+    0x10, 0x30,
+    0x00, 0x30,
+    0x00, 0x30,
+    0x00, 0x1E,
+    0x00, 0x0C,
+    0x00, 0x00,
+    0x00, 0x00
+])
 
 
-def draw_icon_flame(p: QPainter, x: float, y: float, s: float = 12, fill: bool = False):
-    """Exhaust / EGT flame icon"""
-    old_pen = p.pen()
-    color = old_pen.color()
-    cx = x + s / 2.0
-    path = QPainterPath()
-    path.moveTo(cx, y + 1)
-    path.quadTo(x + s - 1, y + s * 0.45, x + s * 0.75, y + s - 1)
-    path.quadTo(cx, y + s * 0.7, x + s * 0.25, y + s - 1)
-    path.quadTo(x + 1, y + s * 0.45, cx, y + 1)
-    if fill:
-        p.fillPath(path, color)
-    else:
-        p.drawPath(path)
-
-
-def draw_icon_gauge(p: QPainter, x: float, y: float, s: float = 12, fill: bool = False):
-    """Tachometer / Rev gauge icon"""
-    color = p.pen().color()
-    p.drawArc(QRectF(x + 1, y + 1, s - 2, s - 2), 0, 180 * 16)
-    p.drawLine(x + 1, y + s / 2, x + s - 1, y + s / 2)
-    cx = x + s / 2
-    cy = y + s / 2
-    # Needle
-    p.drawLine(cx, cy, cx + s * 0.3, cy - s * 0.3)
-
-
-def draw_icon_battery(p: QPainter, x: float, y: float, s: float = 12, fill: bool = False):
-    """Battery level icon"""
-    color = p.pen().color()
-    bx = x + 1
-    by = y + (s - 7) / 2.0
-    bw = s - 4
-    bh = 7.0
-    p.drawRect(QRectF(bx, by, bw, bh))
-    p.fillRect(QRectF(bx + bw, by + 2, 2, 3), color)
-    p.fillRect(QRectF(bx + 2, by + 2, (bw - 4) * 0.65, bh - 4), color)
-
-
-def draw_icon_wireless(p: QPainter, x: float, y: float, s: float = 12, fill: bool = False):
-    """Wireless radio link icon"""
-    cx = x + s / 2.0
-    cy = y + s - 2.0
-    p.drawEllipse(QPointF(cx, cy), 1.0, 1.0)
-    p.drawArc(QRectF(cx - 3.5, cy - 4.5, 7, 7), 40 * 16, 100 * 16)
-    p.drawArc(QRectF(cx - 5.5, cy - 7.5, 11, 11), 40 * 16, 100 * 16)
-
-
-def draw_icon_gear(p: QPainter, x: float, y: float, s: float = 12):
-    """Setup / Gear icon"""
-    cx = x + s / 2.0
-    cy = y + s / 2.0
-    r = s / 2.0 - 2.0
-    p.drawEllipse(QPointF(cx, cy), r, r)
-    p.drawEllipse(QPointF(cx, cy), r * 0.45, r * 0.45)
-    # 4 gear teeth
-    p.drawLine(cx, cy - r - 2, cx, cy - r)
-    p.drawLine(cx, cy + r, cx, cy + r + 2)
-    p.drawLine(cx - r - 2, cy, cx - r, cy)
-    p.drawLine(cx + r, cy, cx + r + 2, cy)
-
-
-def draw_icon_lightbulb(p: QPainter, x: float, y: float, s: float = 12):
-    """Shift lightbulb / LED icon"""
-    cx = x + s / 2.0
-    p.drawEllipse(QPointF(cx, y + 4.5), 3.5, 3.5)
-    p.drawLine(cx - 2, y + 8, cx + 2, y + 8)
-    p.drawLine(cx - 1, y + 10, cx + 1, y + 10)
-    # Side rays
-    p.drawLine(cx, y, cx, y + 1.5)
-    p.drawLine(x + 1, y + 4.5, x + 2.5, y + 4.5)
-    p.drawLine(x + s - 1, y + 4.5, x + s - 2.5, y + 4.5)
-
-
-def draw_icon_flag(p: QPainter, x: float, y: float, s: float = 12):
-    """Checkered / Race flag icon"""
-    p.drawLine(x + 2, y + 1, x + 2, y + s)
-    path = QPainterPath()
-    path.moveTo(x + 2, y + 1)
-    path.lineTo(x + s - 1, y + 4)
-    path.lineTo(x + 2, y + 7)
-    path.closeSubpath()
-    p.fillPath(path, p.pen().color())
-
-
-def draw_icon_disk(p: QPainter, x: float, y: float, s: float = 12):
-    """Storage disk icon"""
-    p.drawRect(QRectF(x + 1, y + 1, s - 2, s - 2))
-    p.fillRect(QRectF(x + 3, y + 2, s - 6, 3), p.pen().color())
-    p.drawRect(QRectF(x + 3, y + 6, s - 6, s - 8))
-
-
-def draw_icon_sun(p: QPainter, x: float, y: float, s: float = 12):
-    """Display polarity / Backlight sun icon"""
-    cx = x + s / 2.0
-    cy = y + s / 2.0
-    r = 2.5
-    p.drawEllipse(QPointF(cx, cy), r, r)
-    p.drawLine(cx, y + 1, cx, cy - r - 1)
-    p.drawLine(cx, cy + r + 1, cx, y + s - 1)
-    p.drawLine(x + 1, cy, cx - r - 1, cy)
-    p.drawLine(cx + r + 1, cy, x + s - 1, cy)
-
-
-def draw_icon_globe(p: QPainter, x: float, y: float, s: float = 12):
-    """Globe / Language icon"""
-    cx = x + s / 2.0
-    cy = y + s / 2.0
-    r = s / 2.0 - 1.5
-    p.drawEllipse(QPointF(cx, cy), r, r)
-    p.drawLine(x + 1.5, cy, x + s - 1.5, cy)
-    p.drawEllipse(QPointF(cx, cy), r * 0.45, r)
-
-
-def draw_icon_wrench(p: QPainter, x: float, y: float, s: float = 12):
-    """Wrench / Diagnostics icon"""
-    p.drawLine(x + 3, y + s - 3, x + s - 4, y + 4)
-    p.drawLine(x + 4, y + s - 3, x + s - 3, y + 4)
-    p.drawArc(QRectF(x + s - 7, y + 1, 6, 6), 30 * 16, 260 * 16)
-
-
-def draw_icon_back(p: QPainter, x: float, y: float, s: float = 12):
-    """Return / Exit arrow icon"""
-    cy = y + s / 2.0
-    p.drawLine(x + 2, cy, x + 5, y + 2)
-    p.drawLine(x + 2, cy, x + 5, y + s - 2)
-    p.drawLine(x + 2, cy, x + s - 2, cy)
-    p.drawLine(x + s - 2, cy, x + s - 2, y + 3)
+def draw_xbm(p: QPainter, x: int, y: int, xbm_bytes: bytes, w: int = 16, h: int = 16, color: QColor = None):
+    """
+    Draws a 1-bit monochrome XBM bitmap (LSB first) matching U8g2 drawXBMP() exactly.
+    """
+    draw_color = color if color is not None else p.pen().color()
+    stride = (w + 7) // 8
+    
+    p.save()
+    p.setPen(draw_color)
+    for row in range(h):
+        for col in range(w):
+            byte_idx = row * stride + (col // 8)
+            bit_idx = col % 8
+            if byte_idx < len(xbm_bytes) and (xbm_bytes[byte_idx] & (1 << bit_idx)):
+                p.drawPoint(int(x + col), int(y + row))
+    p.restore()

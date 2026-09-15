@@ -1,4 +1,5 @@
 #include "ui/page_live_race.h"
+#include "ui/icons_xbm.h"
 #include "i18n.h"
 
 void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const SystemSettings &settings) {
@@ -240,16 +241,15 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
 
   struct AlarmTile {
     const char *label;
-    const uint8_t *icon_font;
-    uint16_t glyph;
+    const uint8_t *xbm;
   };
 
   static const AlarmTile tiles[5] = {
-    { "H2O",  u8g2_font_open_iconic_weather_1x_t,  70 }, // Water / Droplet
-    { "EGT",  u8g2_font_open_iconic_thing_1x_t,    76 }, // Fire / High Temp
-    { "REV",  u8g2_font_open_iconic_app_1x_t,      66 }, // Gauge / Over-rev
-    { "BAT",  u8g2_font_open_iconic_embedded_1x_t, 65 }, // Battery
-    { "LINK", u8g2_font_open_iconic_embedded_1x_t, 68 }  // Radio / Wireless Link
+    { "H2O",  icon_water_16x16 }, // Water / Droplet
+    { "EGT",  icon_egt_16x16 },   // Exhaust / Flame
+    { "REV",  icon_rev_16x16 },   // Tach / Over-rev
+    { "BAT",  icon_bat_16x16 },   // Battery
+    { "LINK", icon_link_16x16 }   // Telemetry Wireless Link
   };
 
   u8g2->setFont(u8g2_font_6x10_tr);
@@ -266,24 +266,22 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
       u8g2->drawRBox(tx, ty, tw, th, 2);
       u8g2->setDrawColor(0);
 
-      u8g2->setFont(tiles[i].icon_font);
-      u8g2->drawGlyph(tx + 12, ty + 15, tiles[i].glyph);
+      u8g2->drawXBMP(tx + 8, ty + 3, 16, 16, tiles[i].xbm);
 
       u8g2->setFont(u8g2_font_5x8_tr);
       int lw = u8g2->getStrWidth(tiles[i].label);
-      u8g2->drawStr(tx + (tw - lw) / 2, ty + 28, tiles[i].label);
+      u8g2->drawStr(tx + (tw - lw) / 2, ty + 30, tiles[i].label);
 
       u8g2->setDrawColor(1);
     } else {
       // Normally OFF (Dim Outline Box)
       u8g2->drawRFrame(tx, ty, tw, th, 2);
 
-      u8g2->setFont(tiles[i].icon_font);
-      u8g2->drawGlyph(tx + 12, ty + 15, tiles[i].glyph);
+      u8g2->drawXBMP(tx + 8, ty + 3, 16, 16, tiles[i].xbm);
 
       u8g2->setFont(u8g2_font_5x8_tr);
       int lw = u8g2->getStrWidth(tiles[i].label);
-      u8g2->drawStr(tx + (tw - lw) / 2, ty + 28, tiles[i].label);
+      u8g2->drawStr(tx + (tw - lw) / 2, ty + 30, tiles[i].label);
     }
   }
 
