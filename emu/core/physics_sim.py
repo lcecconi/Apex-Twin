@@ -128,6 +128,16 @@ class PhysicsSimulator:
         snapshot.link_rssi = -54
         snapshot.lap_history = self.lap_history
 
+        # Accumulate engine runtime when engine is running (rpm > 0)
+        if snapshot.rpm > 0:
+            if not hasattr(self, "_eng_accum_s"):
+                self._eng_accum_s = 0.0
+            self._eng_accum_s += dt_s
+            if self._eng_accum_s >= 1.0:
+                add_sec = int(self._eng_accum_s)
+                snapshot.engine_total_hours_sec += add_sec
+                self._eng_accum_s -= add_sec
+
 
 # Compatibility alias
 PhysicsSim = PhysicsSimulator

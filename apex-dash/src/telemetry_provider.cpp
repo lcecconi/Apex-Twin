@@ -1,13 +1,15 @@
 #include "telemetry_provider.h"
+#include "storage_manager.h"
 #include <math.h>
 
 #define TRACK_LENGTH_METERS 1050.0f // Simulated Lonato circuit length
 #define SECTOR_1_END        340.0f
 #define SECTOR_2_END        710.0f
 
-void TelemetryProvider::begin(const SystemSettings &settings) {
+void TelemetryProvider::begin(const SystemSettings &settings, StorageManager *storage) {
   memset(&_snapshot, 0, sizeof(_snapshot));
   memset(_lap_history, 0, sizeof(_lap_history));
+  _storage = storage;
 
   strncpy(_snapshot.current_track_name, settings.selected_track, sizeof(_snapshot.current_track_name) - 1);
   _snapshot.satellites_visible = 15;
@@ -20,11 +22,19 @@ void TelemetryProvider::begin(const SystemSettings &settings) {
   _snapshot.current_sector = 1;
   _snapshot.track_module_connected = false; // Wireless unlinked -> running internal simulation
   _snapshot.link_rssi = -64;
-  _snapshot.engine_total_hours_sec = 14 * 3600 + 18 * 60; // 14h 18m
+
+  if (_storage) {
+    _snapshot.engine_total_hours_sec = _storage->getEngineHours();
+  } else {
+    _snapshot.engine_total_hours_sec = 14 * 3600 + 18 * 60; // 14h 18m
+  }
   _snapshot.piston_hours_sec = 4 * 3600 + 12 * 60;
 
   _lap_start_ms = millis();
   _last_sim_update_ms = millis();
+  _last_engine_time_ms = millis();
+  _last_storage_save_ms = millis();
+  _engine_accum_ms = 0;
 
   // Initialize wireless link
   _receiver.begin();
@@ -34,6 +44,14 @@ void TelemetryProvider::begin(const SystemSettings &settings) {
   onLapCompleted(47950, 15980, 16040, 15930, 117.8f, 15450, 5950, 58.1f); // Best lap
   onLapCompleted(48190, 16050, 16110, 16030, 116.1f, 15300, 5890, 58.6f);
   _snapshot.lap_number = 4;
+}
+
+void TelemetryProvider::resetEngineHours() {
+  _snapshot.engine_total_hours_sec = 0;
+  _engine_accum_ms = 0;
+  if (_storage) {
+    _storage->resetEngineHours();
+  }
 }
 
 void TelemetryProvider::resetSession() {
@@ -208,7 +226,8 @@ void TelemetryProvider::updateSimulation(const SystemSettings &settings) {
 }
 
 void TelemetryProvider::update(const DeviceSensorsData &local_sensors, const SystemSettings &settings) {
-  _snapshot.timestamp_ms = millis();
+  uint32_t now = millis();
+  _snapshot.timestamp_ms = now;
 
   // Incorporate onboard environmental sensors
   _snapshot.ambient_temp_c = local_sensors.ambient_temp_c;
@@ -225,5 +244,27 @@ void TelemetryProvider::update(const DeviceSensorsData &local_sensors, const Sys
   if (!live_received) {
     _snapshot.track_module_connected = false;
     updateSimulation(settings);
+  }
+
+  // Track absolute engine runtime when engine is running (rpm > 0)
+  if (_last_engine_time_ms == 0) {
+    _last_engine_time_ms = now;
+  }
+  uint32_t dt_eng_ms = now - _last_engine_time_ms;
+  _last_engine_time_ms = now;
+
+  if (_snapshot.rpm > 0) {
+    _engine_accum_ms += dt_eng_ms;
+    if (_engine_accum_ms >= 1000) {
+      uint32_t add_sec = _engine_accum_ms / 1000;
+      _snapshot.engine_total_hours_sec += add_sec;
+      _engine_accum_ms %= 1000;
+
+      // Periodically persist to flash every 60 seconds of engine run time
+      if (_storage && (now - _last_storage_save_ms >= 60000)) {
+        _storage->saveEngineHours(_snapshot.engine_total_hours_sec);
+        _last_storage_save_ms = now;
+      }
+    }
   }
 }

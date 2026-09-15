@@ -11,7 +11,7 @@ void UiManager::handleInput(UserInputEvent event, SystemSettings &settings, Tele
 
   // If menu is open, it consumes all inputs
   if (_menu.isMenuActive()) {
-    _menu.handleInput(event, settings);
+    _menu.handleInput(event, settings, &provider);
     return;
   }
 

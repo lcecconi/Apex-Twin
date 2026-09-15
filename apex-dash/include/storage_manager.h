@@ -10,6 +10,10 @@ public:
   void loadSettings(SystemSettings &settings);
   void saveSettings(const SystemSettings &settings);
 
+  uint32_t getEngineHours();
+  void saveEngineHours(uint32_t seconds);
+  void resetEngineHours();
+
 private:
   Preferences _prefs;
 };

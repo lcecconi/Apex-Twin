@@ -287,23 +287,33 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   // ==========================================
   // 5. BOTTOM ENGINE (LEFT) & ALARM BANNER (RIGHT)
   // ==========================================
-  // Left: Water & EGT Temp Pane (185 px width)
+  // Left: Water, EGT & Engine Runtime Pane (185 px width)
   u8g2->drawRFrame(10, 222, 185, 50, 4);
 
   float w_temp = settings.use_celsius ? telemetry.water_temp_c : (telemetry.water_temp_c * 1.8f + 32.0f);
   float e_temp = settings.use_celsius ? telemetry.exhaust_temp_c : (telemetry.exhaust_temp_c * 1.8f + 32.0f);
   const char *t_unit = settings.use_celsius ? "\xb0\x43" : "\xb0\x46";
 
-  // Water icon + value
-  u8g2->drawXBMP(18, 228, 16, 16, icon_water_16x16);
-  u8g2->setFont(u8g2_font_helvB14_tr);
-  snprintf(buf, sizeof(buf), "%.1f %s", w_temp, t_unit);
-  u8g2->drawStr(40, 242, buf);
+  // Col 1: Water & EGT temp sensors
+  u8g2->drawXBMP(14, 228, 16, 16, icon_water_16x16);
+  u8g2->setFont(u8g2_font_helvB10_tr);
+  snprintf(buf, sizeof(buf), "%.1f%s", w_temp, t_unit);
+  u8g2->drawStr(34, 241, buf);
 
-  // EGT icon + value
-  u8g2->drawXBMP(18, 249, 16, 16, icon_egt_16x16);
-  snprintf(buf, sizeof(buf), "%d %s", (int)e_temp, t_unit);
-  u8g2->drawStr(40, 263, buf);
+  u8g2->drawXBMP(14, 249, 16, 16, icon_egt_16x16);
+  snprintf(buf, sizeof(buf), "%d%s", (int)e_temp, t_unit);
+  u8g2->drawStr(34, 263, buf);
+
+  // Vertical Separator
+  u8g2->drawVLine(96, 226, 42);
+
+  // Col 2: Absolute Engine Runtime (hours:minutes)
+  uint32_t eng_hrs = telemetry.engine_total_hours_sec / 3600;
+  uint32_t eng_min = (telemetry.engine_total_hours_sec % 3600) / 60;
+  u8g2->drawXBMP(104, 239, 16, 16, icon_engine_16x16);
+  u8g2->setFont(u8g2_font_helvB12_tr);
+  snprintf(buf, sizeof(buf), "%lu:%02lu", (unsigned long)eng_hrs, (unsigned long)eng_min);
+  u8g2->drawStr(124, 253, buf);
 
   // Right: Flashing WARN Alert or System Status (185 px width)
   if (any_warn) {

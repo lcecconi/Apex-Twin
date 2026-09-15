@@ -26,6 +26,7 @@ from emu.ui.icons import (
     ICON_GLOBE_16X16,
     ICON_WRENCH_16X16,
     ICON_BACK_16X16,
+    ICON_ENGINE_16X16,
     ICON_WARN_24X24,
 )
 
@@ -548,19 +549,30 @@ class RlcdRenderer(QWidget):
                 draw_xbm(p, tx + (tw - 16) // 2, ty + (th - 16) // 2, xbm, 16, 16, color=fg)
 
         # 5. Bottom Engine (Left) & Alarm Banner (Right)
-        # Left: Water & EGT Temp Pane (185 px width)
+        # Left: Water, EGT & Engine Runtime Pane (185 px width)
         p.drawRoundedRect(10, 222, 185, 50, 4, 4)
 
         w_temp = t.water_temp_c if s.use_celsius else (t.water_temp_c * 1.8 + 32.0)
         e_temp = t.exhaust_temp_c if s.use_celsius else (t.exhaust_temp_c * 1.8 + 32.0)
         t_unit = "°C" if s.use_celsius else "°F"
 
-        draw_xbm(p, 18, 228, ICON_WATER_16X16, 16, 16, color=fg)
-        p.setFont(QFont("SansSerif", 11, QFont.Bold))
-        p.drawText(40, 242, f"{w_temp:.1f} {t_unit}")
+        # Col 1: Water & EGT temps
+        draw_xbm(p, 14, 228, ICON_WATER_16X16, 16, 16, color=fg)
+        p.setFont(QFont("SansSerif", 9, QFont.Bold))
+        p.drawText(34, 241, f"{w_temp:.1f}{t_unit}")
 
-        draw_xbm(p, 18, 249, ICON_EGT_16X16, 16, 16, color=fg)
-        p.drawText(40, 263, f"{int(e_temp)} {t_unit}")
+        draw_xbm(p, 14, 249, ICON_EGT_16X16, 16, 16, color=fg)
+        p.drawText(34, 263, f"{int(e_temp)}{t_unit}")
+
+        # Vertical Separator
+        p.drawLine(96, 226, 96, 268)
+
+        # Col 2: Absolute Engine Runtime (hours:minutes)
+        eng_hrs = t.engine_total_hours_sec // 3600
+        eng_min = (t.engine_total_hours_sec % 3600) // 60
+        draw_xbm(p, 104, 239, ICON_ENGINE_16X16, 16, 16, color=fg)
+        p.setFont(QFont("SansSerif", 11, QFont.Bold))
+        p.drawText(124, 253, f"{eng_hrs}:{eng_min:02d}")
 
         # Evaluate which alarms trigger the blinking WARN alert
         alm_warn = [

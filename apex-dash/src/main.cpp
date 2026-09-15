@@ -89,7 +89,7 @@ void setup() {
 
   // 6. Initialize Telemetry Provider
   Serial.println("[INIT] Initializing Telemetry Provider (Physics Simulation Active)...");
-  telemetry_provider.begin(settings);
+  telemetry_provider.begin(settings, &storage_manager);
 
   // 7. Initialize UI Subsystem & Menu System
   Serial.println("[INIT] Initializing UI Manager & Menus...");

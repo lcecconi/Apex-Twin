@@ -1,5 +1,6 @@
 #include "ui/menu_system.h"
 #include "ui/icons_xbm.h"
+#include "telemetry_provider.h"
 #include "track_manager.h"
 #include "led_strip_manager.h"
 #include "backlight_manager.h"
@@ -20,7 +21,7 @@ void MenuSystem::begin(TrackManager *trackMgr, LEDStripManager *ledMgr, Backligh
   _cursor_idx = 0;
 }
 
-bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings) {
+bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings, TelemetryProvider *provider) {
   if (!_active) return false;
 
   // Handle USB MSC active screen escape
@@ -330,9 +331,18 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings) {
 
   // --- 7. DIAGNOSTICS & COUNTERS ---
   if (_current_state == MENU_DIAGNOSTICS_COUNTERS) {
-    if (event == INPUT_SELECT) {
-      _current_state = MENU_ROOT;
-      _cursor_idx = 6;
+    int max_items = 2;
+    if (event == INPUT_NEXT) {
+      _cursor_idx = (_cursor_idx + 1) % max_items;
+    } else if (event == INPUT_PREV) {
+      _cursor_idx = (_cursor_idx - 1 + max_items) % max_items;
+    } else if (event == INPUT_SELECT) {
+      if (_cursor_idx == 0) {
+        if (provider) provider->resetEngineHours();
+      } else {
+        _current_state = MENU_ROOT;
+        _cursor_idx = 6;
+      }
     }
     return true;
   }
@@ -692,11 +702,31 @@ void MenuSystem::renderDiagnosticsCountersMenu(U8G2 *u8g2, const TelemetrySnapsh
            (unsigned long)(ESP.getFreePsram() / 1024));
   u8g2->drawStr(24, 167, buf);
 
-  u8g2->drawRBox(12, 215, 376, 32, 4);
-  u8g2->setDrawColor(0);
-  u8g2->setFont(u8g2_font_helvB10_tr);
-  u8g2->drawStr(120, 237, "< Return to Main Menu >");
-  u8g2->setDrawColor(1);
+  // Button 0: Reset Engine Hours
+  if (_cursor_idx == 0) {
+    u8g2->drawRBox(12, 192, 376, 26, 4);
+    u8g2->setDrawColor(0);
+    u8g2->setFont(u8g2_font_helvB10_tr);
+    u8g2->drawStr(120, 210, "[ Reset Engine Hours ]");
+    u8g2->setDrawColor(1);
+  } else {
+    u8g2->drawRFrame(12, 192, 376, 26, 4);
+    u8g2->setFont(u8g2_font_helvB10_tr);
+    u8g2->drawStr(120, 210, "Reset Engine Hours");
+  }
+
+  // Button 1: Return to Main Menu
+  if (_cursor_idx == 1) {
+    u8g2->drawRBox(12, 222, 376, 26, 4);
+    u8g2->setDrawColor(0);
+    u8g2->setFont(u8g2_font_helvB10_tr);
+    u8g2->drawStr(120, 240, "< Return to Main Menu >");
+    u8g2->setDrawColor(1);
+  } else {
+    u8g2->drawRFrame(12, 222, 376, 26, 4);
+    u8g2->setFont(u8g2_font_helvB10_tr);
+    u8g2->drawStr(120, 240, "< Return to Main Menu >");
+  }
 }
 
 void MenuSystem::renderUsbMscScreen(U8G2 *u8g2) {

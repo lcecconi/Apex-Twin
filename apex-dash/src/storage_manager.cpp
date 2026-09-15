@@ -70,4 +70,16 @@ void StorageManager::saveSettings(const SystemSettings &settings) {
   _prefs.putString("track_file", String(settings.selected_track_file));
 }
 
+uint32_t StorageManager::getEngineHours() {
+  return _prefs.getUInt("eng_hrs_sec", 14 * 3600 + 18 * 60);
+}
+
+void StorageManager::saveEngineHours(uint32_t seconds) {
+  _prefs.putUInt("eng_hrs_sec", seconds);
+}
+
+void StorageManager::resetEngineHours() {
+  _prefs.putUInt("eng_hrs_sec", 0);
+}
+
 

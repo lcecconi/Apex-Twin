@@ -26,10 +26,12 @@ class BacklightManager;
 class USBStorageManager;
 class SDManager;
 
+class TelemetryProvider;
+
 class MenuSystem {
 public:
   void begin(TrackManager *trackMgr, LEDStripManager *ledMgr, BacklightManager *blMgr, USBStorageManager *usbMgr, SDManager *sdMgr);
-  bool handleInput(UserInputEvent event, SystemSettings &settings);
+  bool handleInput(UserInputEvent event, SystemSettings &settings, TelemetryProvider *provider = nullptr);
   void render(U8G2 *u8g2, const SystemSettings &settings, const TelemetrySnapshot &telemetry);
 
   bool isMenuActive() const { return _active; }

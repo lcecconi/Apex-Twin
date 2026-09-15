@@ -7,9 +7,11 @@
 
 #define MAX_SAVED_LAPS 30
 
+class StorageManager;
+
 class TelemetryProvider {
 public:
-  void begin(const SystemSettings &settings);
+  void begin(const SystemSettings &settings, StorageManager *storage = nullptr);
   void update(const DeviceSensorsData &local_sensors, const SystemSettings &settings);
   const TelemetrySnapshot &getSnapshot() const { return _snapshot; }
 
@@ -18,6 +20,7 @@ public:
   const LapRecord *getLapRecord(uint16_t index) const;
   const LapRecord *getBestLap() const;
   void resetSession();
+  void resetEngineHours();
 
 private:
   TelemetrySnapshot _snapshot;
@@ -25,6 +28,12 @@ private:
   LapRecord _lap_history[MAX_SAVED_LAPS];
   uint16_t _completed_laps_count = 0;
   int16_t _best_lap_index = -1;
+  StorageManager *_storage = nullptr;
+
+  // Runtime tracking
+  uint32_t _last_engine_time_ms = 0;
+  uint32_t _engine_accum_ms = 0;
+  uint32_t _last_storage_save_ms = 0;
 
   // Simulation state variables
   float _sim_track_progress_m = 0.0f;
