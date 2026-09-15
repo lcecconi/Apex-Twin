@@ -3,6 +3,7 @@
 Pixel-accurate rendering of all 4 racing HUD pages and 7 setup submenus.
 """
 
+import time
 from enum import IntEnum
 from PySide6.QtCore import Qt, QRectF, QPointF
 from PySide6.QtGui import QColor, QPainter, QFont, QPen, QBrush
@@ -581,7 +582,6 @@ class RlcdRenderer(QWidget):
 
         # Right: Flashing WARN Alert or System Status (185 px width)
         if any_warn:
-            import time
             flash_state = int(time.time() * 3.3) % 2 == 0
             reason = "WATER OVERHEAT" if alm_warn[0] else (
                      "EGT OVERHEAT" if alm_warn[1] else (
