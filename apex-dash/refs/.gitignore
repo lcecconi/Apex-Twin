@@ -1,0 +1,7 @@
+# Ignore downloaded PDFs and archives so they are not pushed to remote git repository
+*.pdf
+*.rar
+*.zip
+*.7z
+waveshare-wiki
+images

@@ -1,0 +1,9 @@
+https://files.waveshare.com/wiki/ESP32-S3-RLCD-4.2/ESP32-S3-RLCD-4.2-schematic.pdf
+https://files.waveshare.com/wiki/ESP32-S3-RLCD-4.2/ESP32-S3-RLCD-4.2-3dFile.rar
+https://files.waveshare.com/wiki/common/ST_7305_V0_2.pdf
+https://files.waveshare.com/wiki/common/ES8311.DS.pdf
+https://files.waveshare.com/upload/9/9e/ES7210_PB.pdf
+https://files.waveshare.com/wiki/common/Pcf85063atl1118-NdPQpTGE-loeW7GbZ7.pdf
+https://files.waveshare.com/wiki/common/SHTC3_Datasheet.pdf
+https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf
+https://www.espressif.com/sites/default/files/documentation/esp32-s3_technical_reference_manual_en.pdf
