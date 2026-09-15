@@ -71,8 +71,21 @@ Holding down the **BOOT Button (GPIO 0)** opens the hierarchical setup menu:
 
 ---
 
-## 5. Building & Flashing
+## 5. Building, Flashing & Monitoring
+ 
+### Option A: Using the Unified Apex Command Center (`apex`)
+```bash
+# Build & Flash firmware (auto-detects serial port)
+apex flash dash
 
+# Live Serial Terminal Monitor
+apex monitor dash
+
+# Launch Graphical Desktop Flasher & Monitor GUI
+apex mon dash
+```
+
+### Option B: Using PlatformIO CLI Directly
 ```bash
 # Build
 uvx platformio run -d apex-dash
