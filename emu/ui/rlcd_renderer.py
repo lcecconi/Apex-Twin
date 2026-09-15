@@ -437,9 +437,9 @@ class RlcdRenderer(QWidget):
             if t.best_lap_time_ms > 0:
                 b_sec = (t.best_lap_time_ms % 60000) // 1000
                 b_cen = (t.best_lap_time_ms % 1000) // 10
-                best_str = f" {I18n.get(StrId.LABEL_BEST)} {b_sec:02d}.{b_cen:02d}s "
+                best_str = f" {I18n.get(StrId.LABEL_BEST)} {b_sec:02d}.{b_cen:02d} "
             else:
-                best_str = f" {I18n.get(StrId.LABEL_BEST)} --.--s "
+                best_str = f" {I18n.get(StrId.LABEL_BEST)} --.-- "
 
             fm = p.fontMetrics()
             bw = fm.horizontalAdvance(best_str) + 4
@@ -453,9 +453,9 @@ class RlcdRenderer(QWidget):
             if t.last_lap_time_ms > 0:
                 l_sec = (t.last_lap_time_ms % 60000) // 1000
                 l_cen = (t.last_lap_time_ms % 1000) // 10
-                last_str = f"{I18n.get(StrId.LABEL_LAST)}: {l_sec:02d}.{l_cen:02d}s"
+                last_str = f"{I18n.get(StrId.LABEL_LAST)}: {l_sec:02d}.{l_cen:02d}"
             else:
-                last_str = f"{I18n.get(StrId.LABEL_LAST)}: --.--s"
+                last_str = f"{I18n.get(StrId.LABEL_LAST)}: --.--"
             p.drawText(QRectF(182 + bw + 4, 122, 384 - (182 + bw + 4), 22), Qt.AlignRight | Qt.AlignVCenter, last_str)
         else:
             # Full-Width Lap Time Pane (380 px width)
@@ -474,9 +474,9 @@ class RlcdRenderer(QWidget):
             if t.best_lap_time_ms > 0:
                 b_sec = (t.best_lap_time_ms % 60000) // 1000
                 b_cen = (t.best_lap_time_ms % 1000) // 10
-                best_str = f" {I18n.get(StrId.LABEL_BEST)} {b_sec:02d}.{b_cen:02d}s "
+                best_str = f" {I18n.get(StrId.LABEL_BEST)} {b_sec:02d}.{b_cen:02d} "
             else:
-                best_str = f" {I18n.get(StrId.LABEL_BEST)} --.--s "
+                best_str = f" {I18n.get(StrId.LABEL_BEST)} --.-- "
 
             fm = p.fontMetrics()
             bw = fm.horizontalAdvance(best_str) + 6
@@ -489,9 +489,9 @@ class RlcdRenderer(QWidget):
             if t.last_lap_time_ms > 0:
                 l_sec = (t.last_lap_time_ms % 60000) // 1000
                 l_cen = (t.last_lap_time_ms % 1000) // 10
-                last_str = f"{I18n.get(StrId.LABEL_LAST)}: {l_sec:02d}.{l_cen:02d}s"
+                last_str = f"{I18n.get(StrId.LABEL_LAST)}: {l_sec:02d}.{l_cen:02d}"
             else:
-                last_str = f"{I18n.get(StrId.LABEL_LAST)}: --.--s"
+                last_str = f"{I18n.get(StrId.LABEL_LAST)}: --.--"
             p.drawText(QRectF(200, 122, 176, 24), Qt.AlignRight | Qt.AlignVCenter, last_str)
 
         # 4. Predictive Delta (Left) & System Alarms (Right)
@@ -501,7 +501,7 @@ class RlcdRenderer(QWidget):
         p.drawText(16, 178, f"{I18n.get(StrId.LABEL_PRED)} {I18n.get(StrId.LABEL_DELTA)}")
 
         p.setFont(QFont("SansSerif", 10, QFont.Bold))
-        p.drawText(QRectF(100, 164, 90, 16), Qt.AlignRight | Qt.AlignVCenter, f"{t.predictive_delta_s:+0.2f} s")
+        p.drawText(QRectF(100, 164, 90, 16), Qt.AlignRight | Qt.AlignVCenter, f"{t.predictive_delta_s:+0.2f}")
 
         center_x = 102
         p.drawRect(18, 186, 169, 16)

@@ -133,9 +133,9 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
     if (telemetry.best_lap_time_ms > 0) {
       uint32_t b_sec = (telemetry.best_lap_time_ms % 60000) / 1000;
       uint32_t b_cen = (telemetry.best_lap_time_ms % 1000) / 10;
-      snprintf(b_buf, sizeof(b_buf), " %s %02lu.%02lus ", I18n::get(STR_LABEL_BEST), (unsigned long)b_sec, (unsigned long)b_cen);
+      snprintf(b_buf, sizeof(b_buf), " %s %02lu.%02lu ", I18n::get(STR_LABEL_BEST), (unsigned long)b_sec, (unsigned long)b_cen);
     } else {
-      snprintf(b_buf, sizeof(b_buf), " %s --.--s ", I18n::get(STR_LABEL_BEST));
+      snprintf(b_buf, sizeof(b_buf), " %s --.-- ", I18n::get(STR_LABEL_BEST));
     }
 
     u8g2->setFont(u8g2_font_helvB10_tr);
@@ -149,9 +149,9 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
     if (telemetry.last_lap_time_ms > 0) {
       uint32_t l_sec = (telemetry.last_lap_time_ms % 60000) / 1000;
       uint32_t l_cen = (telemetry.last_lap_time_ms % 1000) / 10;
-      snprintf(l_buf, sizeof(l_buf), "%s: %02lu.%02lus", I18n::get(STR_LABEL_LAST), (unsigned long)l_sec, (unsigned long)l_cen);
+      snprintf(l_buf, sizeof(l_buf), "%s: %02lu.%02lu", I18n::get(STR_LABEL_LAST), (unsigned long)l_sec, (unsigned long)l_cen);
     } else {
-      snprintf(l_buf, sizeof(l_buf), "%s: --.--s", I18n::get(STR_LABEL_LAST));
+      snprintf(l_buf, sizeof(l_buf), "%s: --.--", I18n::get(STR_LABEL_LAST));
     }
     int l_w = u8g2->getStrWidth(l_buf);
     u8g2->drawStr(386 - l_w, 138, l_buf);
@@ -181,9 +181,9 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
     if (telemetry.best_lap_time_ms > 0) {
       uint32_t b_sec = (telemetry.best_lap_time_ms % 60000) / 1000;
       uint32_t b_cen = (telemetry.best_lap_time_ms % 1000) / 10;
-      snprintf(b_buf, sizeof(b_buf), " %s %02lu.%02lus ", I18n::get(STR_LABEL_BEST), (unsigned long)b_sec, (unsigned long)b_cen);
+      snprintf(b_buf, sizeof(b_buf), " %s %02lu.%02lu ", I18n::get(STR_LABEL_BEST), (unsigned long)b_sec, (unsigned long)b_cen);
     } else {
-      snprintf(b_buf, sizeof(b_buf), " %s --.--s ", I18n::get(STR_LABEL_BEST));
+      snprintf(b_buf, sizeof(b_buf), " %s --.-- ", I18n::get(STR_LABEL_BEST));
     }
 
     u8g2->setFont(u8g2_font_helvB12_tr);
@@ -197,9 +197,9 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
     if (telemetry.last_lap_time_ms > 0) {
       uint32_t l_sec = (telemetry.last_lap_time_ms % 60000) / 1000;
       uint32_t l_cen = (telemetry.last_lap_time_ms % 1000) / 10;
-      snprintf(l_buf, sizeof(l_buf), "%s: %02lu.%02lus", I18n::get(STR_LABEL_LAST), (unsigned long)l_sec, (unsigned long)l_cen);
+      snprintf(l_buf, sizeof(l_buf), "%s: %02lu.%02lu", I18n::get(STR_LABEL_LAST), (unsigned long)l_sec, (unsigned long)l_cen);
     } else {
-      snprintf(l_buf, sizeof(l_buf), "%s: --.--s", I18n::get(STR_LABEL_LAST));
+      snprintf(l_buf, sizeof(l_buf), "%s: --.--", I18n::get(STR_LABEL_LAST));
     }
     int last_w = u8g2->getStrWidth(l_buf);
     u8g2->drawStr(376 - last_w, 140, l_buf);
@@ -217,7 +217,7 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   u8g2->drawStr(16, 178, buf);
 
   u8g2->setFont(u8g2_font_helvB12_tr);
-  snprintf(buf, sizeof(buf), "%+0.2f s", telemetry.predictive_delta_s);
+  snprintf(buf, sizeof(buf), "%+0.2f", telemetry.predictive_delta_s);
   int delta_w = u8g2->getStrWidth(buf);
   u8g2->drawStr(190 - delta_w, 178, buf);
 
