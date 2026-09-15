@@ -1,12 +1,12 @@
 # Apex-Dash: Open-Source Kart Racing Display Module
 
-**Apex-Dash** is the wireless steering-wheel display module of the **Apex-Twin** telemetry ecosystem, engineered around the **Waveshare ESP32-S3-RLCD-4.2** development board and inspired by the industry-standard ** Apex-Dash**.
+**Apex-Dash** is the wireless steering-wheel display module of the **Apex-Twin** telemetry ecosystem, engineered around the **Waveshare ESP32-S3-RLCD-4.2** development board.
 
 ---
 
-## 1. Key Architectural Differences from Apex-Dash
+## 1. System Architecture & Features
 
-| Feature |  Apex-Dash | Apex-Dash (Apex-Twin) |
+| Feature | Traditional Monolithic Dash | Apex-Dash (Apex-Twin) |
 | :--- | :--- | :--- |
 | **System Topology** | Single unit on steering wheel with all sensor wiring harnesses attached directly to the wheel. | **Twin Architecture:** Chassis-mounted **Apex-Track** acquires high-rate GNSS, IMU, RPM, and temps. Steering-wheel **Apex-Dash** receives live data wirelessly via **ESP-NOW (2.4 GHz)**. |
 | **Display Panel** | Custom multi-segment / low-res greyscale LCD with RGB backlight. | **4.2" Reflective LCD (Sitronix ST7305):** Full dot-matrix $400 \times 300$ resolution, zero backlight power draw, sunlight readable, ~24 FPS. |

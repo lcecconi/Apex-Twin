@@ -43,7 +43,7 @@ void setup() {
 
   Serial.println("\n=======================================================");
   Serial.println("   APEX-DASH: Open-Source Kart Racing Display Module   ");
-  Serial.println("      (Inspired by  Apex-Dash Telemetry Systems)     ");
+  Serial.println("      (High-Performance Telemetry Display System)      ");
   Serial.println("=======================================================");
 
   // 0. Load persisted settings from NVS

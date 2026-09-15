@@ -23,7 +23,7 @@ This document outlines the engineering architecture, hardware pin allocation, wo
 
 * **Direct Sparkplug RPM Lead:** Handled by chassis module (**Apex-Track**) over ESP-NOW.
 * **Analog Thermocouple Inputs (CHT / EGT / Water TR):** Wired directly to **Apex-Track**.
-* ** Expansion CAN Bus & ACC3:** Handled by **Apex-Track**.
+* **Expansion CAN Bus & Analog Expansion:** Handled by **Apex-Track**.
 * **Oval Racing Mode:** Dropped from scope.
 * **BLE Heart Rate Monitor:** Dropped to eliminate radio coexistence overhead with ESP-NOW.
 * **On-Screen 2D Track Map Playback & Tire Temp Grid:** Skipped for now.

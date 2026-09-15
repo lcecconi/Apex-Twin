@@ -9,7 +9,7 @@
 
 The system is split into two specialized modules:
 * **Apex-Track:** Chassis-mounted data acquisition and high-rate sensor logging module.
-* **Apex-Dash:** Wireless steering-wheel live display and analysis unit inspired by the  Apex-Dash.
+* **Apex-Dash:** Wireless steering-wheel live display and analysis unit.
 
 ---
 
@@ -32,7 +32,6 @@ The twin-module topology isolates high-vibration sensor wiring and high-voltage 
 * **[Apex-Dash Detailed Documentation](file:///home/leonardo/Dev/Apex-Twin/apex-dash/README.md)**
 * **[Connector & Pinout Specification](file:///home/leonardo/Dev/Apex-Twin/docs/connector_pinout.md)**
 * **[Implementation & Enhancement Plan](file:///home/leonardo/Dev/Apex-Twin/docs/apex_dash_implementation_plan.md)**
-* **[Feature Status & Apex-Dash Comparison](file:///home/leonardo/Dev/Apex-Twin/docs/apex-dash_unported_features.md)**
 
 ---
 
