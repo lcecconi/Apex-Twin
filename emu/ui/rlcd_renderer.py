@@ -264,19 +264,29 @@ class RlcdRenderer(QWidget):
         # 2. Speed & Gear
         p.drawRoundedRect(10, 38, 160, 118, 4, 4)
         disp_speed = t.speed_kmh if s.use_kmh else t.speed_kmh * 0.621371
-        p.setFont(QFont("SansSerif", 42, QFont.Bold))
-        p.drawText(18, 115, f"{int(disp_speed):03d}")
+        speed_unit = "KM/H" if s.use_kmh else "MPH"
 
-        p.setFont(QFont("SansSerif", 9, QFont.Bold))
-        p.drawText(118, 70, "KM/H" if s.use_kmh else "MPH")
+        if s.drive_type == DriveType.SHIFTER_6SPEED:
+            p.setFont(QFont("SansSerif", 42, QFont.Bold))
+            p.drawText(18, 115, f"{int(disp_speed):03d}")
 
-        p.drawRoundedRect(116, 82, 46, 66, 3, 3)
-        p.setFont(QFont("Monospace", 7))
-        p.drawText(124, 94, I18n.get(StrId.LABEL_GEAR))
+            p.setFont(QFont("SansSerif", 9, QFont.Bold))
+            p.drawText(118, 70, speed_unit)
 
-        p.setFont(QFont("SansSerif", 26, QFont.Bold))
-        gear_str = "N" if t.gear == 0 else str(t.gear)
-        p.drawText(130, 134, gear_str)
+            p.drawRoundedRect(116, 82, 46, 66, 3, 3)
+            p.setFont(QFont("Monospace", 7))
+            p.drawText(124, 94, I18n.get(StrId.LABEL_GEAR))
+
+            p.setFont(QFont("SansSerif", 26, QFont.Bold))
+            gear_str = "N" if t.gear == 0 else str(t.gear)
+            p.drawText(130, 134, gear_str)
+        else:
+            # Single Speed (Direct Drive / Clutch) — Large Centered Speed
+            p.setFont(QFont("SansSerif", 46, QFont.Bold))
+            p.drawText(QRectF(10, 48, 160, 58), Qt.AlignCenter, f"{int(disp_speed):03d}")
+
+            p.setFont(QFont("SansSerif", 10, QFont.Bold))
+            p.drawText(QRectF(10, 116, 160, 24), Qt.AlignCenter, speed_unit)
 
         # 3. Lap Time & Best
         p.drawRoundedRect(176, 38, 214, 118, 4, 4)
@@ -334,6 +344,7 @@ class RlcdRenderer(QWidget):
 
     def _render_telemetry(self, p: QPainter, bg: QColor, fg: QColor):
         t = self.telemetry
+        s = self.settings
         p.setFont(QFont("SansSerif", 9, QFont.Bold))
         p.drawText(10, 20, "TELEMETRY & SENSOR MONITOR")
         p.drawText(300, 20, f"LAP {t.lap_number:02d} | SEC {t.current_sector}")
@@ -343,12 +354,16 @@ class RlcdRenderer(QWidget):
         p.drawRoundedRect(10, 32, 185, 110, 3, 3)
         p.fillRect(10, 32, 185, 16, fg)
         p.setPen(bg)
-        p.drawText(16, 44, "ENGINE RPM & GEAR")
+        header_title = "ENGINE RPM & GEAR" if s.drive_type == DriveType.SHIFTER_6SPEED else "ENGINE TACHOMETER"
+        p.drawText(16, 44, header_title)
         p.setPen(fg)
         p.setFont(QFont("SansSerif", 24, QFont.Bold))
         p.drawText(16, 84, f"{t.rpm}")
-        p.setFont(QFont("SansSerif", 9, QFont.Bold))
-        p.drawText(124, 72, f"Gear: {t.gear}")
+
+        if s.drive_type == DriveType.SHIFTER_6SPEED:
+            p.setFont(QFont("SansSerif", 9, QFont.Bold))
+            gear_str = "N" if t.gear == 0 else str(t.gear)
+            p.drawText(130, 72, f"Gear: {gear_str}")
 
         p.drawRect(16, 96, 172, 10)
         fill = int(t.rpm * 168 / max(1, self.settings.max_rpm))

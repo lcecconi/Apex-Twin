@@ -18,16 +18,26 @@ void PageTelemetry::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const
   u8g2->drawBox(10, 32, 185, 16);
   u8g2->setDrawColor(0);
   u8g2->setFont(u8g2_font_6x10_tr);
-  u8g2->drawStr(16, 44, "ENGINE RPM & GEAR");
+  if (settings.drive_type == DRIVE_SHIFTER_6SPEED) {
+    u8g2->drawStr(16, 44, "ENGINE RPM & GEAR");
+  } else {
+    u8g2->drawStr(16, 44, "ENGINE TACHOMETER");
+  }
   u8g2->setDrawColor(1);
 
   u8g2->setFont(u8g2_font_logisoso32_tn);
   snprintf(buf, sizeof(buf), "%u", telemetry.rpm);
   u8g2->drawStr(16, 84, buf);
 
-  u8g2->setFont(u8g2_font_helvB10_tr);
-  snprintf(buf, sizeof(buf), "Gear: %d", telemetry.gear);
-  u8g2->drawStr(124, 72, buf);
+  if (settings.drive_type == DRIVE_SHIFTER_6SPEED) {
+    u8g2->setFont(u8g2_font_helvB10_tr);
+    if (telemetry.gear == 0) {
+      snprintf(buf, sizeof(buf), "Gear: N");
+    } else {
+      snprintf(buf, sizeof(buf), "Gear: %d", telemetry.gear);
+    }
+    u8g2->drawStr(124, 72, buf);
+  }
 
   // Segmented Bar
   u8g2->drawFrame(16, 96, 172, 10);
