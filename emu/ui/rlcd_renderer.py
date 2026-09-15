@@ -348,7 +348,7 @@ class RlcdRenderer(QWidget):
         t = self.telemetry
         s = self.settings
 
-        # 1. Top Tachometer Bar (Wider, no RPM/MAX text, RPM printed inside in XOR difference mode)
+        # 1. Top Tachometer Bar (Clean bar without text)
         if s.rpm_display_mode != RpmDisplayMode.LEDS_ONLY:
             p.drawRoundedRect(6, 4, 388, 26, 3, 3)
             shift_x = int(6 + (s.shift_rpm * 384 / max(1, s.max_rpm)))
@@ -359,14 +359,6 @@ class RlcdRenderer(QWidget):
             rpm_fill = max(0, min(384, rpm_fill))
             if rpm_fill > 0:
                 p.fillRect(8, 6, rpm_fill, 22, fg)
-
-            # Draw current RPM printed directly onto the bar in Difference (XOR) mode
-            p.setFont(QFont("SansSerif", 13, QFont.Bold))
-            p.setCompositionMode(QPainter.CompositionMode_Difference)
-            p.setPen(QColor(255, 255, 255))
-            p.drawText(QRectF(6, 4, 388, 26), Qt.AlignCenter, str(t.rpm))
-            p.setCompositionMode(QPainter.CompositionMode_SourceOver)
-            p.setPen(fg)
 
 
         # 2 & 3. Speed/Gear & Lap Time

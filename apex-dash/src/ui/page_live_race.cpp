@@ -25,14 +25,6 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
     if (rpm_fill > 0) {
       u8g2->drawBox(8, 6, rpm_fill, 22);
     }
-
-    // Current RPM numerical value printed onto the bar in XOR mode (no RPM/MAX text)
-    snprintf(buf, sizeof(buf), "%u", telemetry.rpm);
-    u8g2->setFont(u8g2_font_helvB14_tr);
-    int rw = u8g2->getStrWidth(buf);
-    u8g2->setDrawColor(2); // XOR mode
-    u8g2->drawStr(200 - (rw / 2), 23, buf);
-    u8g2->setDrawColor(1);
   }
 
 
