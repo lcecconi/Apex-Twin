@@ -381,24 +381,69 @@ class RlcdRenderer(QWidget):
                 last_str = f"{I18n.get(StrId.LABEL_LAST)}: --.--s"
             p.drawText(QRectF(200, 126, 176, 22), Qt.AlignRight | Qt.AlignVCenter, last_str)
 
-        # 4. Predictive Delta Bar
-        p.drawRoundedRect(10, 162, 380, 52, 4, 4)
+        # 4. Predictive Delta (Left) & System Alarms (Right)
+        # Left Pane: Predictive Delta Bar (185 px width)
+        p.drawRoundedRect(10, 162, 185, 52, 4, 4)
+        p.setFont(QFont("SansSerif", 8, QFont.Bold))
+        p.drawText(16, 178, f"{I18n.get(StrId.LABEL_PRED)} {I18n.get(StrId.LABEL_DELTA)}")
+
         p.setFont(QFont("SansSerif", 9, QFont.Bold))
-        p.drawText(18, 180, f"{I18n.get(StrId.LABEL_PRED)} {I18n.get(StrId.LABEL_DELTA)}")
+        p.drawText(QRectF(100, 164, 90, 16), Qt.AlignRight | Qt.AlignVCenter, f"{t.predictive_delta_s:+0.2f} s")
 
-        p.setFont(QFont("SansSerif", 11, QFont.Bold))
-        p.drawText(315, 180, f"{t.predictive_delta_s:+0.2f} s")
+        center_x = 102
+        p.drawRect(18, 186, 169, 16)
+        p.drawLine(center_x, 182, center_x, 206)
 
-        center_x = 200
-        p.drawRect(20, 192, 360, 14)
-        p.drawLine(center_x, 188, center_x, 210)
-
-        delta_px = int(t.predictive_delta_s * 170.0)
-        delta_px = max(-170, min(170, delta_px))
+        delta_px = int(t.predictive_delta_s * 80.0)
+        delta_px = max(-80, min(80, delta_px))
         if delta_px < 0:
-            p.fillRect(center_x + delta_px, 194, -delta_px, 10, fg)
+            p.fillRect(center_x + delta_px, 188, -delta_px, 12, fg)
         elif delta_px > 0:
-            p.fillRect(center_x, 194, delta_px, 10, fg)
+            p.fillRect(center_x, 188, delta_px, 12, fg)
+
+        # Right Pane: Alarms & System Diagnostics (185 px width)
+        p.drawRoundedRect(205, 162, 185, 52, 4, 4)
+
+        alm_water = (t.water_temp_c >= s.water_temp_alarm_c and s.water_temp_alarm_c > 0)
+        alm_egt = (t.exhaust_temp_c >= s.exhaust_temp_alarm_c and s.exhaust_temp_alarm_c > 0)
+        alm_rev = (t.rpm >= s.over_rev_rpm and s.over_rev_rpm > 0)
+        alm_bat = (t.battery_voltage < s.low_bat_alarm_v and t.battery_voltage > 1.0)
+        alm_link = not t.track_module_connected
+        has_alarm = alm_water or alm_egt or alm_rev or alm_bat or alm_link
+
+        p.setFont(QFont("SansSerif", 8, QFont.Bold))
+        p.drawText(213, 178, "SYSTEM ALARMS")
+
+        if has_alarm:
+            p.fillRect(328, 166, 56, 14, fg)
+            p.setPen(bg)
+            p.drawText(QRectF(328, 166, 56, 14), Qt.AlignCenter, "! ALERT")
+            p.setPen(fg)
+
+            if alm_water:
+                alm_msg = f"WATER: {t.water_temp_c:.1f}°C (MAX {s.water_temp_alarm_c:.0f})"
+            elif alm_egt:
+                alm_msg = f"EGT: {int(t.exhaust_temp_c)}°C (MAX {s.exhaust_temp_alarm_c:.0f})"
+            elif alm_rev:
+                alm_msg = f"OVER-REV: {t.rpm} RPM"
+            elif alm_bat:
+                alm_msg = f"LOW BAT: {t.battery_voltage:.2f}V"
+            else:
+                alm_msg = "NO TRACK LINK"
+
+            p.fillRect(211, 186, 173, 20, fg)
+            p.setPen(bg)
+            p.setFont(QFont("Monospace", 8, QFont.Bold))
+            p.drawText(QRectF(211, 186, 173, 20), Qt.AlignCenter, alm_msg)
+            p.setPen(fg)
+        else:
+            p.drawText(QRectF(340, 164, 45, 16), Qt.AlignRight | Qt.AlignVCenter, "[OK]")
+
+            p.setFont(QFont("SansSerif", 8, QFont.Bold))
+            p.drawText(214, 192, "All Systems Normal")
+
+            p.setFont(QFont("Monospace", 7))
+            p.drawText(214, 206, f"H2O:{t.water_temp_c:.0f}°C EGT:{int(t.exhaust_temp_c)}°C BAT:{t.battery_percent}%")
 
         # 5. Bottom Engine Status Bar
         p.drawLine(10, 222, 390, 222)

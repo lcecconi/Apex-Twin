@@ -197,36 +197,86 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   }
 
   // ==========================================
-  // 4. PREDICTIVE LAP TIME DELTA BAR
+  // 4. PREDICTIVE DELTA (LEFT) & ALARMS (RIGHT)
   // ==========================================
-  u8g2->drawRFrame(10, 162, 380, 52, 4);
+  // Left Pane: Predictive Lap Time Delta Bar (185 px width)
+  u8g2->drawRFrame(10, 162, 185, 52, 4);
 
   // Header & Numerical Delta
-  u8g2->setFont(u8g2_font_helvB10_tr);
+  u8g2->setFont(u8g2_font_6x10_tr);
   snprintf(buf, sizeof(buf), "%s %s", I18n::get(STR_LABEL_PRED), I18n::get(STR_LABEL_DELTA));
-  u8g2->drawStr(18, 180, buf);
+  u8g2->drawStr(16, 178, buf);
 
-  u8g2->setFont(u8g2_font_helvB14_tr);
+  u8g2->setFont(u8g2_font_helvB10_tr);
   snprintf(buf, sizeof(buf), "%+0.2f s", telemetry.predictive_delta_s);
   int delta_w = u8g2->getStrWidth(buf);
-  u8g2->drawStr(376 - delta_w, 182, buf);
+  u8g2->drawStr(190 - delta_w, 178, buf);
 
-  // Center Zero Marker Line
-  int center_x = 200;
-  u8g2->drawFrame(20, 192, 360, 14);
-  u8g2->drawVLine(center_x, 188, 22);
+  // Center Zero Marker Line & Delta Bar
+  int center_x = 102;
+  u8g2->drawFrame(18, 188, 169, 14);
+  u8g2->drawVLine(center_x, 184, 22);
 
-  // Graphical delta bar (+/- 1.0 second range = 170 pixels each side)
-  int bar_px = (int)(telemetry.predictive_delta_s * 170.0f);
-  if (bar_px > 170) bar_px = 170;
-  if (bar_px < -170) bar_px = -170;
+  int bar_px = (int)(telemetry.predictive_delta_s * 80.0f);
+  if (bar_px > 80) bar_px = 80;
+  if (bar_px < -80) bar_px = -80;
 
   if (bar_px < 0) {
-    // Faster -> Bar extends LEFT from center
-    u8g2->drawBox(center_x + bar_px, 194, -bar_px, 10);
+    u8g2->drawBox(center_x + bar_px, 190, -bar_px, 10);
   } else if (bar_px > 0) {
-    // Slower -> Bar extends RIGHT from center
-    u8g2->drawBox(center_x, 194, bar_px, 10);
+    u8g2->drawBox(center_x, 190, bar_px, 10);
+  }
+
+  // Right Pane: Alarms & System Diagnostics (185 px width)
+  u8g2->drawRFrame(205, 162, 185, 52, 4);
+
+  // Evaluate Alarm Conditions
+  bool alm_water = (telemetry.water_temp_c >= settings.water_temp_alarm_c && settings.water_temp_alarm_c > 0);
+  bool alm_egt   = (telemetry.exhaust_temp_c >= settings.exhaust_temp_alarm_c && settings.exhaust_temp_alarm_c > 0);
+  bool alm_rev   = (telemetry.rpm >= settings.over_rev_rpm && settings.over_rev_rpm > 0);
+  bool alm_bat   = (telemetry.battery_voltage < settings.low_bat_alarm_v && telemetry.battery_voltage > 1.0f);
+  bool alm_link  = (!telemetry.track_module_connected);
+  bool has_alarm = alm_water || alm_egt || alm_rev || alm_bat || alm_link;
+
+  u8g2->setFont(u8g2_font_6x10_tr);
+  u8g2->drawStr(213, 178, "SYSTEM ALARMS");
+
+  if (has_alarm) {
+    // Inverted [! ALERT] header badge
+    u8g2->drawRBox(328, 166, 56, 13, 2);
+    u8g2->setDrawColor(0);
+    u8g2->drawStr(332, 176, "! ALERT");
+    u8g2->setDrawColor(1);
+
+    // Primary active alarm label
+    char alm_msg[48];
+    if (alm_water) {
+      snprintf(alm_msg, sizeof(alm_msg), "WATER: %.1f\xb0\x43 (MAX %.0f)", telemetry.water_temp_c, settings.water_temp_alarm_c);
+    } else if (alm_egt) {
+      snprintf(alm_msg, sizeof(alm_msg), "EGT: %d\xb0\x43 (MAX %.0f)", (int)telemetry.exhaust_temp_c, settings.exhaust_temp_alarm_c);
+    } else if (alm_rev) {
+      snprintf(alm_msg, sizeof(alm_msg), "OVER-REV: %u RPM", telemetry.rpm);
+    } else if (alm_bat) {
+      snprintf(alm_msg, sizeof(alm_msg), "LOW BAT: %.2fV", telemetry.battery_voltage);
+    } else {
+      snprintf(alm_msg, sizeof(alm_msg), "NO TRACK LINK");
+    }
+
+    u8g2->drawRBox(211, 186, 173, 20, 3);
+    u8g2->setDrawColor(0);
+    u8g2->setFont(u8g2_font_6x12_tr);
+    u8g2->drawStr(216, 200, alm_msg);
+    u8g2->setDrawColor(1);
+  } else {
+    // Normal OK status
+    u8g2->drawStr(360, 178, "[OK]");
+
+    u8g2->setFont(u8g2_font_6x12_tr);
+    u8g2->drawStr(214, 192, "All Systems Normal");
+
+    u8g2->setFont(u8g2_font_6x10_tr);
+    snprintf(buf, sizeof(buf), "H2O:%.0f\xb0 C  EGT:%d\xb0 C  BAT:%d%%", telemetry.water_temp_c, (int)telemetry.exhaust_temp_c, telemetry.battery_percent);
+    u8g2->drawStr(214, 206, buf);
   }
 
   // ==========================================
