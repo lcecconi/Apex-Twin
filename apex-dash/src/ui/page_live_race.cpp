@@ -68,15 +68,15 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
           u8g2->drawRFrame(116, 82, 46, 66, 4);
         }
 
-        u8g2->setFont(u8g2_font_6x10_tr);
-        u8g2->drawStr(122, 94, I18n::get(STR_LABEL_GEAR));
-        u8g2->setFont(u8g2_font_logisoso32_tn);
         if (telemetry.gear == 0) {
-          u8g2->setFont(u8g2_font_helvB18_tr);
-          u8g2->drawStr(132, 134, "N");
+          u8g2->setFont(u8g2_font_helvB24_tr);
+          int nw = u8g2->getStrWidth("N");
+          u8g2->drawStr(116 + (46 - nw) / 2, 126, "N");
         } else {
+          u8g2->setFont(u8g2_font_logisoso50_tn);
           snprintf(buf, sizeof(buf), "%d", telemetry.gear);
-          u8g2->drawStr(130, 136, buf);
+          int gw = u8g2->getStrWidth(buf);
+          u8g2->drawStr(116 + (46 - gw) / 2, 136, buf);
         }
 
         if (shift_blink) {
@@ -98,16 +98,15 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
         u8g2->setDrawColor(0);
       }
 
-      u8g2->setFont(u8g2_font_helvB10_tr);
-      u8g2->drawStr(66, 60, I18n::get(STR_LABEL_GEAR));
-
       if (telemetry.gear == 0) {
-        u8g2->setFont(u8g2_font_helvB24_tr);
-        u8g2->drawStr(78, 120, "N");
+        u8g2->setFont(u8g2_font_logisoso58_tr);
+        int nw = u8g2->getStrWidth("N");
+        u8g2->drawStr(10 + (160 - nw) / 2, 126, "N");
       } else {
-        u8g2->setFont(u8g2_font_logisoso58_tn);
+        u8g2->setFont(u8g2_font_logisoso92_tn);
         snprintf(buf, sizeof(buf), "%d", telemetry.gear);
-        u8g2->drawStr(72, 126, buf);
+        int gw = u8g2->getStrWidth(buf);
+        u8g2->drawStr(10 + (160 - gw) / 2, 134, buf);
       }
 
       if (shift_blink) {
@@ -134,7 +133,7 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
     snprintf(buf, sizeof(buf), "%02lu:%02lu.%02lu", (unsigned long)lap_min, (unsigned long)lap_sec, (unsigned long)lap_cen);
     u8g2->drawStr(184, 102, buf);
 
-    // Best Lap reference (Inverted Badge)
+    // Best Lap reference (Inverted Badge - Double Size)
     char b_buf[32], l_buf[32];
     if (telemetry.best_lap_time_ms > 0) {
       uint32_t b_sec = (telemetry.best_lap_time_ms % 60000) / 1000;
@@ -144,23 +143,23 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
       snprintf(b_buf, sizeof(b_buf), " %s --.--s ", I18n::get(STR_LABEL_BEST));
     }
 
-    u8g2->setFont(u8g2_font_6x10_tr);
+    u8g2->setFont(u8g2_font_helvB10_tr);
     int b_w = u8g2->getStrWidth(b_buf);
-    u8g2->drawRBox(182, 128, b_w, 16, 2);
+    u8g2->drawRBox(182, 122, b_w, 22, 3);
     u8g2->setDrawColor(0);
-    u8g2->drawStr(182, 140, b_buf);
+    u8g2->drawStr(182, 138, b_buf);
     u8g2->setDrawColor(1);
 
-    // Last Lap reference (Normal text)
+    // Last Lap reference (Normal text - Double Size)
     if (telemetry.last_lap_time_ms > 0) {
       uint32_t l_sec = (telemetry.last_lap_time_ms % 60000) / 1000;
       uint32_t l_cen = (telemetry.last_lap_time_ms % 1000) / 10;
-      snprintf(l_buf, sizeof(l_buf), "%s %02lu.%02lus", I18n::get(STR_LABEL_LAST), (unsigned long)l_sec, (unsigned long)l_cen);
+      snprintf(l_buf, sizeof(l_buf), "%s: %02lu.%02lus", I18n::get(STR_LABEL_LAST), (unsigned long)l_sec, (unsigned long)l_cen);
     } else {
-      snprintf(l_buf, sizeof(l_buf), "%s --.--s", I18n::get(STR_LABEL_LAST));
+      snprintf(l_buf, sizeof(l_buf), "%s: --.--s", I18n::get(STR_LABEL_LAST));
     }
     int l_w = u8g2->getStrWidth(l_buf);
-    u8g2->drawStr(380 - l_w, 140, l_buf);
+    u8g2->drawStr(384 - l_w, 138, l_buf);
   } else {
     // Full-Width Lap Time Pane (380 px width)
     u8g2->drawRFrame(10, 38, 380, 118, 6);
@@ -182,7 +181,7 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
     int time_w = u8g2->getStrWidth(buf);
     u8g2->drawStr(200 - (time_w / 2), 108, buf);
 
-    // Best Lap reference on bottom-left (Inverted Badge)
+    // Best Lap reference on bottom-left (Inverted Badge - Double Size)
     char b_buf[32], l_buf[32];
     if (telemetry.best_lap_time_ms > 0) {
       uint32_t b_sec = (telemetry.best_lap_time_ms % 60000) / 1000;
@@ -192,14 +191,14 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
       snprintf(b_buf, sizeof(b_buf), " %s --.--s ", I18n::get(STR_LABEL_BEST));
     }
 
-    u8g2->setFont(u8g2_font_helvB10_tr);
+    u8g2->setFont(u8g2_font_helvB12_tr);
     int b_w = u8g2->getStrWidth(b_buf);
-    u8g2->drawRBox(22, 127, b_w, 20, 3);
+    u8g2->drawRBox(22, 122, b_w, 24, 3);
     u8g2->setDrawColor(0);
-    u8g2->drawStr(22, 142, b_buf);
+    u8g2->drawStr(22, 140, b_buf);
     u8g2->setDrawColor(1);
 
-    // Last Lap reference on bottom-right (Normal text)
+    // Last Lap reference on bottom-right (Normal text - Double Size)
     if (telemetry.last_lap_time_ms > 0) {
       uint32_t l_sec = (telemetry.last_lap_time_ms % 60000) / 1000;
       uint32_t l_cen = (telemetry.last_lap_time_ms % 1000) / 10;
@@ -208,7 +207,7 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
       snprintf(l_buf, sizeof(l_buf), "%s: --.--s", I18n::get(STR_LABEL_LAST));
     }
     int last_w = u8g2->getStrWidth(l_buf);
-    u8g2->drawStr(376 - last_w, 142, l_buf);
+    u8g2->drawStr(376 - last_w, 140, l_buf);
   }
 
   // ==========================================
@@ -242,7 +241,7 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
     u8g2->drawBox(center_x, 190, bar_px, 10);
   }
 
-  // Right Pane: Alarms Grid (185 px width)
+  // Right Pane: Alarms Grid (185 px width, no header text)
   u8g2->drawRFrame(205, 162, 185, 52, 4);
 
   // Evaluate Base Alarm Conditions
@@ -276,36 +275,33 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
     { "LINK", icon_link_16x16 }   // Telemetry Wireless Link
   };
 
-  u8g2->setFont(u8g2_font_6x10_tr);
-  u8g2->drawStr(212, 172, "SYSTEM ALARMS");
-
   for (int i = 0; i < 5; i++) {
     int tx = 211 + (i * 35);
-    int ty = 175;
+    int ty = 169;
     int tw = 32;
-    int th = 34;
+    int th = 38;
 
     if (alm_active[i]) {
       // Lit Up Alarm (Inverted Solid Fill)
-      u8g2->drawRBox(tx, ty, tw, th, 2);
+      u8g2->drawRBox(tx, ty, tw, th, 3);
       u8g2->setDrawColor(0);
 
-      u8g2->drawXBMP(tx + 8, ty + 3, 16, 16, tiles[i].xbm);
+      u8g2->drawXBMP(tx + 8, ty + 4, 16, 16, tiles[i].xbm);
 
       u8g2->setFont(u8g2_font_5x8_tr);
       int lw = u8g2->getStrWidth(tiles[i].label);
-      u8g2->drawStr(tx + (tw - lw) / 2, ty + 30, tiles[i].label);
+      u8g2->drawStr(tx + (tw - lw) / 2, ty + 32, tiles[i].label);
 
       u8g2->setDrawColor(1);
     } else {
       // Normally OFF (Dim Outline Box)
-      u8g2->drawRFrame(tx, ty, tw, th, 2);
+      u8g2->drawRFrame(tx, ty, tw, th, 3);
 
-      u8g2->drawXBMP(tx + 8, ty + 3, 16, 16, tiles[i].xbm);
+      u8g2->drawXBMP(tx + 8, ty + 4, 16, 16, tiles[i].xbm);
 
       u8g2->setFont(u8g2_font_5x8_tr);
       int lw = u8g2->getStrWidth(tiles[i].label);
-      u8g2->drawStr(tx + (tw - lw) / 2, ty + 30, tiles[i].label);
+      u8g2->drawStr(tx + (tw - lw) / 2, ty + 32, tiles[i].label);
     }
   }
 
@@ -329,36 +325,28 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   // Right: Flashing WARN Alert or System Status (185 px width)
   if (any_warn) {
     bool flash_state = ((millis() / 300) % 2) == 0;
-    const char *reason = alm_warn[0] ? "WATER OVERHEAT" : 
-                        (alm_warn[1] ? "EGT OVERHEAT" : 
-                        (alm_warn[2] ? "ENGINE OVER-REV" : 
-                        (alm_warn[3] ? "BATTERY LOW" : "LINK LOST")));
+
+    u8g2->setFont(u8g2_font_helvB24_tr);
+    int w_warn = u8g2->getStrWidth("WARN");
+    int total_w = 24 + 10 + w_warn;
+    int start_x = 205 + (185 - total_w) / 2;
+    int icon_y = 222 + (50 - 24) / 2;
 
     if (flash_state) {
       // Solid Inverted Fill (Active Flashing Warning)
       u8g2->drawRBox(205, 222, 185, 50, 4);
       u8g2->setDrawColor(0);
 
-      u8g2->setFont(u8g2_font_helvB18_tr);
-      int w_warn = u8g2->getStrWidth("! WARN !");
-      u8g2->drawStr(205 + (185 - w_warn) / 2, 245, "! WARN !");
-
-      u8g2->setFont(u8g2_font_6x10_tr);
-      int w_reas = u8g2->getStrWidth(reason);
-      u8g2->drawStr(205 + (185 - w_reas) / 2, 263, reason);
+      u8g2->drawXBMP(start_x, icon_y, 24, 24, icon_warn_24x24);
+      u8g2->drawStr(start_x + 24 + 10, 222 + 37, "WARN");
 
       u8g2->setDrawColor(1);
     } else {
       // Outlined Frame (Flash Alternate Phase)
       u8g2->drawRFrame(205, 222, 185, 50, 4);
 
-      u8g2->setFont(u8g2_font_helvB18_tr);
-      int w_warn = u8g2->getStrWidth("! WARN !");
-      u8g2->drawStr(205 + (185 - w_warn) / 2, 245, "! WARN !");
-
-      u8g2->setFont(u8g2_font_6x10_tr);
-      int w_reas = u8g2->getStrWidth(reason);
-      u8g2->drawStr(205 + (185 - w_reas) / 2, 263, reason);
+      u8g2->drawXBMP(start_x, icon_y, 24, 24, icon_warn_24x24);
+      u8g2->drawStr(start_x + 24 + 10, 222 + 37, "WARN");
     }
   } else {
     // Normal System Status (Dim Outline Box)

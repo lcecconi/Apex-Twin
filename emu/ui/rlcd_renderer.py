@@ -26,6 +26,7 @@ from emu.ui.icons import (
     ICON_GLOBE_16X16,
     ICON_WRENCH_16X16,
     ICON_BACK_16X16,
+    ICON_WARN_24X24,
 )
 
 
@@ -388,12 +389,12 @@ class RlcdRenderer(QWidget):
                     else:
                         p.drawRoundedRect(116, 82, 46, 66, 3, 3)
 
-                    p.setFont(QFont("Monospace", 7))
-                    p.drawText(124, 94, I18n.get(StrId.LABEL_GEAR))
-
-                    p.setFont(QFont("SansSerif", 26, QFont.Bold))
                     gear_str = "N" if t.gear == 0 else str(t.gear)
-                    p.drawText(130, 134, gear_str)
+                    if t.gear == 0:
+                        p.setFont(QFont("SansSerif", 28, QFont.Bold))
+                    else:
+                        p.setFont(QFont("SansSerif", 38, QFont.Bold))
+                    p.drawText(QRectF(116, 82, 46, 66), Qt.AlignCenter, gear_str)
 
                     if shift_blink:
                         p.setPen(fg)
@@ -410,12 +411,12 @@ class RlcdRenderer(QWidget):
                     p.fillRect(10, 38, 160, 118, fg)
                     p.setPen(bg)
 
-                p.setFont(QFont("SansSerif", 9, QFont.Bold))
-                p.drawText(QRectF(10, 48, 160, 20), Qt.AlignCenter, I18n.get(StrId.LABEL_GEAR))
-
                 gear_str = "N" if t.gear == 0 else str(t.gear)
-                p.setFont(QFont("SansSerif", 48, QFont.Bold))
-                p.drawText(QRectF(10, 70, 160, 70), Qt.AlignCenter, gear_str)
+                if t.gear == 0:
+                    p.setFont(QFont("SansSerif", 48, QFont.Bold))
+                else:
+                    p.setFont(QFont("SansSerif", 72, QFont.Bold))
+                p.drawText(QRectF(10, 38, 160, 118), Qt.AlignCenter, gear_str)
 
                 if shift_blink:
                     p.setPen(fg)
@@ -431,8 +432,8 @@ class RlcdRenderer(QWidget):
             p.setFont(QFont("SansSerif", 30, QFont.Bold))
             p.drawText(184, 102, f"{lap_min:02d}:{lap_sec:02d}.{lap_cen:02d}")
 
-            # Best Lap reference (Inverted Badge)
-            p.setFont(QFont("SansSerif", 7, QFont.Bold))
+            # Best Lap reference (Inverted Badge - Double Size)
+            p.setFont(QFont("SansSerif", 10, QFont.Bold))
             if t.best_lap_time_ms > 0:
                 b_sec = (t.best_lap_time_ms % 60000) // 1000
                 b_cen = (t.best_lap_time_ms % 1000) // 10
@@ -442,20 +443,20 @@ class RlcdRenderer(QWidget):
 
             fm = p.fontMetrics()
             bw = fm.horizontalAdvance(best_str) + 4
-            p.fillRect(182, 126, bw, 18, fg)
+            p.fillRect(182, 122, bw, 22, fg)
             p.setPen(bg)
-            p.drawText(QRectF(182, 126, bw, 18), Qt.AlignCenter, best_str)
+            p.drawText(QRectF(182, 122, bw, 22), Qt.AlignCenter, best_str)
             p.setPen(fg)
 
-            # Last Lap reference (Normal text)
-            p.setFont(QFont("SansSerif", 7, QFont.Bold))
+            # Last Lap reference (Normal text - Double Size)
+            p.setFont(QFont("SansSerif", 10, QFont.Bold))
             if t.last_lap_time_ms > 0:
                 l_sec = (t.last_lap_time_ms % 60000) // 1000
                 l_cen = (t.last_lap_time_ms % 1000) // 10
-                last_str = f"{I18n.get(StrId.LABEL_LAST)} {l_sec:02d}.{l_cen:02d}s"
+                last_str = f"{I18n.get(StrId.LABEL_LAST)}: {l_sec:02d}.{l_cen:02d}s"
             else:
-                last_str = f"{I18n.get(StrId.LABEL_LAST)} --.--s"
-            p.drawText(QRectF(182 + bw + 4, 126, 380 - (182 + bw + 8), 18), Qt.AlignRight | Qt.AlignVCenter, last_str)
+                last_str = f"{I18n.get(StrId.LABEL_LAST)}: --.--s"
+            p.drawText(QRectF(182 + bw + 4, 122, 384 - (182 + bw + 4), 22), Qt.AlignRight | Qt.AlignVCenter, last_str)
         else:
             # Full-Width Lap Time Pane (380 px width)
             p.drawRoundedRect(10, 38, 380, 118, 4, 4)
@@ -468,8 +469,8 @@ class RlcdRenderer(QWidget):
             p.setFont(QFont("SansSerif", 42, QFont.Bold))
             p.drawText(QRectF(10, 64, 380, 52), Qt.AlignCenter, f"{lap_min:02d}:{lap_sec:02d}.{lap_cen:02d}")
 
-            # Best Lap reference (Inverted Badge)
-            p.setFont(QFont("SansSerif", 9, QFont.Bold))
+            # Best Lap reference (Inverted Badge - Double Size)
+            p.setFont(QFont("SansSerif", 12, QFont.Bold))
             if t.best_lap_time_ms > 0:
                 b_sec = (t.best_lap_time_ms % 60000) // 1000
                 b_cen = (t.best_lap_time_ms % 1000) // 10
@@ -479,19 +480,19 @@ class RlcdRenderer(QWidget):
 
             fm = p.fontMetrics()
             bw = fm.horizontalAdvance(best_str) + 6
-            p.fillRect(22, 126, bw, 22, fg)
+            p.fillRect(22, 122, bw, 24, fg)
             p.setPen(bg)
-            p.drawText(QRectF(22, 126, bw, 22), Qt.AlignCenter, best_str)
+            p.drawText(QRectF(22, 122, bw, 24), Qt.AlignCenter, best_str)
             p.setPen(fg)
 
-            # Last Lap reference (Normal text)
+            # Last Lap reference (Normal text - Double Size)
             if t.last_lap_time_ms > 0:
                 l_sec = (t.last_lap_time_ms % 60000) // 1000
                 l_cen = (t.last_lap_time_ms % 1000) // 10
                 last_str = f"{I18n.get(StrId.LABEL_LAST)}: {l_sec:02d}.{l_cen:02d}s"
             else:
                 last_str = f"{I18n.get(StrId.LABEL_LAST)}: --.--s"
-            p.drawText(QRectF(200, 126, 176, 22), Qt.AlignRight | Qt.AlignVCenter, last_str)
+            p.drawText(QRectF(200, 122, 176, 24), Qt.AlignRight | Qt.AlignVCenter, last_str)
 
         # 4. Predictive Delta (Left) & System Alarms (Right)
         # Left Pane: Predictive Delta Bar (185 px width)
@@ -513,7 +514,7 @@ class RlcdRenderer(QWidget):
         elif delta_px > 0:
             p.fillRect(center_x, 188, delta_px, 12, fg)
 
-        # Right Pane: Alarms Grid (185 px width)
+        # Right Pane: Alarms Grid (185 px width, no header text)
         p.drawRoundedRect(205, 162, 185, 52, 4, 4)
 
         alm_active = [
@@ -532,31 +533,28 @@ class RlcdRenderer(QWidget):
             ("LINK", ICON_LINK_16X16),
         ]
 
-        p.setFont(QFont("SansSerif", 7, QFont.Bold))
-        p.drawText(212, 172, "SYSTEM ALARMS")
-
         for i, (label, xbm) in enumerate(alarm_tiles):
             tx = 211 + (i * 35)
-            ty = 175
+            ty = 169
             tw = 32
-            th = 34
+            th = 38
 
             if alm_active[i]:
                 # Lit Up Alarm (Inverted Solid Fill)
                 p.fillRect(tx, ty, tw, th, fg)
-                draw_xbm(p, tx + 8, ty + 3, xbm, 16, 16, color=bg)
+                draw_xbm(p, tx + 8, ty + 4, xbm, 16, 16, color=bg)
 
                 p.setPen(bg)
                 p.setFont(QFont("Monospace", 6, QFont.Bold))
-                p.drawText(QRectF(tx, ty + 19, tw, 14), Qt.AlignCenter, label)
+                p.drawText(QRectF(tx, ty + 21, tw, 14), Qt.AlignCenter, label)
                 p.setPen(fg)
             else:
                 # Normally OFF (Outline Box)
                 p.drawRoundedRect(tx, ty, tw, th, 2, 2)
-                draw_xbm(p, tx + 8, ty + 3, xbm, 16, 16, color=fg)
+                draw_xbm(p, tx + 8, ty + 4, xbm, 16, 16, color=fg)
 
                 p.setFont(QFont("Monospace", 6, QFont.Bold))
-                p.drawText(QRectF(tx, ty + 19, tw, 14), Qt.AlignCenter, label)
+                p.drawText(QRectF(tx, ty + 21, tw, 14), Qt.AlignCenter, label)
 
         # 5. Bottom Engine (Left) & Alarm Banner (Right)
         # Left: Water & EGT Temp Pane (185 px width)
@@ -583,25 +581,26 @@ class RlcdRenderer(QWidget):
         # Right: Flashing WARN Alert or System Status (185 px width)
         if any_warn:
             flash_state = int(time.time() * 3.3) % 2 == 0
-            reason = "WATER OVERHEAT" if alm_warn[0] else (
-                     "EGT OVERHEAT" if alm_warn[1] else (
-                     "ENGINE OVER-REV" if alm_warn[2] else (
-                     "BATTERY LOW" if alm_warn[3] else "LINK LOST")))
+
+            p.setFont(QFont("SansSerif", 22, QFont.Bold))
+            fm = p.fontMetrics()
+            w_warn = fm.horizontalAdvance("WARN")
+            total_w = 24 + 10 + w_warn
+            start_x = int(205 + (185 - total_w) / 2)
+            icon_y = int(222 + (50 - 24) / 2)
 
             if flash_state:
                 p.fillRect(205, 222, 185, 50, fg)
+                draw_xbm(p, start_x, icon_y, ICON_WARN_24X24, 24, 24, color=bg)
                 p.setPen(bg)
-                p.setFont(QFont("SansSerif", 14, QFont.Bold))
-                p.drawText(QRectF(205, 224, 185, 24), Qt.AlignCenter, "! WARN !")
-                p.setFont(QFont("SansSerif", 7, QFont.Bold))
-                p.drawText(QRectF(205, 248, 185, 18), Qt.AlignCenter, reason)
+                p.setFont(QFont("SansSerif", 22, QFont.Bold))
+                p.drawText(QRectF(start_x + 34, 222, w_warn + 10, 50), Qt.AlignVCenter | Qt.AlignLeft, "WARN")
                 p.setPen(fg)
             else:
                 p.drawRoundedRect(205, 222, 185, 50, 4, 4)
-                p.setFont(QFont("SansSerif", 14, QFont.Bold))
-                p.drawText(QRectF(205, 224, 185, 24), Qt.AlignCenter, "! WARN !")
-                p.setFont(QFont("SansSerif", 7, QFont.Bold))
-                p.drawText(QRectF(205, 248, 185, 18), Qt.AlignCenter, reason)
+                draw_xbm(p, start_x, icon_y, ICON_WARN_24X24, 24, 24, color=fg)
+                p.setFont(QFont("SansSerif", 22, QFont.Bold))
+                p.drawText(QRectF(start_x + 34, 222, w_warn + 10, 50), Qt.AlignVCenter | Qt.AlignLeft, "WARN")
         else:
             p.drawRoundedRect(205, 222, 185, 50, 4, 4)
             p.setFont(QFont("SansSerif", 9, QFont.Bold))
