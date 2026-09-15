@@ -43,48 +43,50 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
 
 
   // ==========================================
-  // 2. SPEED & GEAR (CENTER-LEFT)
+  // 2 & 3. CENTER AREA (SPEED/GEAR & LAP TIME)
   // ==========================================
-  u8g2->drawRFrame(10, 38, 160, 118, 6);
+  bool has_left_pane = settings.show_speed || (settings.drive_type == DRIVE_SHIFTER_6SPEED);
 
-  if (settings.show_speed) {
-    float disp_speed = settings.use_kmh ? telemetry.speed_kmh : (telemetry.speed_kmh * 0.621371f);
-    const char *unit_str = settings.use_kmh ? "KM/H" : "MPH";
+  if (has_left_pane) {
+    // Left Pane: Speed & Gear (160 px width)
+    u8g2->drawRFrame(10, 38, 160, 118, 6);
 
-    if (settings.drive_type == DRIVE_SHIFTER_6SPEED) {
-      // 6-Speed Shifter Kart (Speed + Gear Panel)
-      u8g2->setFont(u8g2_font_logisoso50_tn);
-      snprintf(buf, sizeof(buf), "%03d", (int)disp_speed);
-      u8g2->drawStr(18, 114, buf);
+    if (settings.show_speed) {
+      float disp_speed = settings.use_kmh ? telemetry.speed_kmh : (telemetry.speed_kmh * 0.621371f);
+      const char *unit_str = settings.use_kmh ? "KM/H" : "MPH";
 
-      u8g2->setFont(u8g2_font_helvB10_tr);
-      u8g2->drawStr(118, 70, unit_str);
+      if (settings.drive_type == DRIVE_SHIFTER_6SPEED) {
+        // 6-Speed Shifter Kart (Speed + Gear Panel)
+        u8g2->setFont(u8g2_font_logisoso50_tn);
+        snprintf(buf, sizeof(buf), "%03d", (int)disp_speed);
+        u8g2->drawStr(18, 114, buf);
 
-      // Gear Box
-      u8g2->drawRFrame(116, 82, 46, 66, 4);
-      u8g2->setFont(u8g2_font_6x10_tr);
-      u8g2->drawStr(122, 94, I18n::get(STR_LABEL_GEAR));
-      u8g2->setFont(u8g2_font_logisoso32_tn);
-      if (telemetry.gear == 0) {
-        u8g2->setFont(u8g2_font_helvB18_tr);
-        u8g2->drawStr(132, 134, "N");
+        u8g2->setFont(u8g2_font_helvB10_tr);
+        u8g2->drawStr(118, 70, unit_str);
+
+        // Gear Box
+        u8g2->drawRFrame(116, 82, 46, 66, 4);
+        u8g2->setFont(u8g2_font_6x10_tr);
+        u8g2->drawStr(122, 94, I18n::get(STR_LABEL_GEAR));
+        u8g2->setFont(u8g2_font_logisoso32_tn);
+        if (telemetry.gear == 0) {
+          u8g2->setFont(u8g2_font_helvB18_tr);
+          u8g2->drawStr(132, 134, "N");
+        } else {
+          snprintf(buf, sizeof(buf), "%d", telemetry.gear);
+          u8g2->drawStr(130, 136, buf);
+        }
       } else {
-        snprintf(buf, sizeof(buf), "%d", telemetry.gear);
-        u8g2->drawStr(130, 136, buf);
+        // Single Speed (Direct Drive / Clutch) — Centered Large Speed Display
+        u8g2->setFont(u8g2_font_logisoso58_tn);
+        snprintf(buf, sizeof(buf), "%03d", (int)disp_speed);
+        u8g2->drawStr(32, 110, buf);
+
+        u8g2->setFont(u8g2_font_helvB10_tr);
+        u8g2->drawStr(66, 138, unit_str);
       }
     } else {
-      // Single Speed (Direct Drive / Clutch) — Centered Large Speed Display
-      u8g2->setFont(u8g2_font_logisoso58_tn);
-      snprintf(buf, sizeof(buf), "%03d", (int)disp_speed);
-      u8g2->drawStr(32, 110, buf);
-
-      u8g2->setFont(u8g2_font_helvB10_tr);
-      u8g2->drawStr(66, 138, unit_str);
-    }
-  } else {
-    // Speed Hidden Mode
-    if (settings.drive_type == DRIVE_SHIFTER_6SPEED) {
-      // Shifter Kart — Large Centered Gear Indicator
+      // Speed Hidden Mode (Shifter Kart Only) — Large Centered Gear Indicator
       u8g2->setFont(u8g2_font_helvB10_tr);
       u8g2->drawStr(66, 60, I18n::get(STR_LABEL_GEAR));
 
@@ -96,49 +98,78 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
         snprintf(buf, sizeof(buf), "%d", telemetry.gear);
         u8g2->drawStr(72, 126, buf);
       }
-    } else {
-      // Single Speed Kart — Prominent Numerical RPM Display
-      u8g2->setFont(u8g2_font_helvB10_tr);
-      u8g2->drawStr(68, 62, I18n::get(STR_LABEL_RPM));
+    }
 
-      u8g2->setFont(u8g2_font_logisoso38_tn);
-      snprintf(buf, sizeof(buf), "%u", telemetry.rpm);
-      int w = u8g2->getStrWidth(buf);
-      u8g2->drawStr(90 - (w / 2), 118, buf);
+    // Right Pane: Standard Lap Time (214 px width)
+    u8g2->drawRFrame(176, 38, 214, 118, 6);
+
+    u8g2->setFont(u8g2_font_6x10_tr);
+    snprintf(buf, sizeof(buf), "%s %02u  [%s %d]", 
+             I18n::get(STR_LABEL_LAP), telemetry.lap_number, 
+             I18n::get(STR_LABEL_SECTOR), telemetry.current_sector);
+    u8g2->drawStr(186, 54, buf);
+
+    // Active lap time
+    uint32_t active_lap_time = telemetry.current_lap_time_ms;
+    uint32_t lap_min = (active_lap_time / 60000);
+    uint32_t lap_sec = (active_lap_time % 60000) / 1000;
+    uint32_t lap_cen = (active_lap_time % 1000) / 10;
+
+    u8g2->setFont(u8g2_font_logisoso38_tn);
+    snprintf(buf, sizeof(buf), "%02lu:%02lu.%02lu", (unsigned long)lap_min, (unsigned long)lap_sec, (unsigned long)lap_cen);
+    u8g2->drawStr(184, 102, buf);
+
+    // Best Lap reference
+    u8g2->setFont(u8g2_font_helvB10_tr);
+    if (telemetry.best_lap_time_ms > 0) {
+      uint32_t b_sec = (telemetry.best_lap_time_ms % 60000) / 1000;
+      uint32_t b_cen = (telemetry.best_lap_time_ms % 1000) / 10;
+      snprintf(buf, sizeof(buf), "%s: %02lu.%02lus", I18n::get(STR_LABEL_BEST), (unsigned long)b_sec, (unsigned long)b_cen);
+    } else {
+      snprintf(buf, sizeof(buf), "%s: --.--s", I18n::get(STR_LABEL_BEST));
+    }
+    u8g2->drawStr(186, 138, buf);
+  } else {
+    // Full-Width Lap Time Pane (380 px width)
+    u8g2->drawRFrame(10, 38, 380, 118, 6);
+
+    u8g2->setFont(u8g2_font_helvB10_tr);
+    snprintf(buf, sizeof(buf), "%s %02u  [%s %d]", 
+             I18n::get(STR_LABEL_LAP), telemetry.lap_number, 
+             I18n::get(STR_LABEL_SECTOR), telemetry.current_sector);
+    u8g2->drawStr(24, 58, buf);
+
+    // Main Lap Time (Centered Large)
+    uint32_t active_lap_time = telemetry.current_lap_time_ms;
+    uint32_t lap_min = (active_lap_time / 60000);
+    uint32_t lap_sec = (active_lap_time % 60000) / 1000;
+    uint32_t lap_cen = (active_lap_time % 1000) / 10;
+
+    u8g2->setFont(u8g2_font_logisoso50_tn);
+    snprintf(buf, sizeof(buf), "%02lu:%02lu.%02lu", (unsigned long)lap_min, (unsigned long)lap_sec, (unsigned long)lap_cen);
+    int time_w = u8g2->getStrWidth(buf);
+    u8g2->drawStr(200 - (time_w / 2), 108, buf);
+
+    // Best Lap reference on bottom-left
+    u8g2->setFont(u8g2_font_helvB10_tr);
+    if (telemetry.best_lap_time_ms > 0) {
+      uint32_t b_sec = (telemetry.best_lap_time_ms % 60000) / 1000;
+      uint32_t b_cen = (telemetry.best_lap_time_ms % 1000) / 10;
+      snprintf(buf, sizeof(buf), "%s: %02lu.%02lus", I18n::get(STR_LABEL_BEST), (unsigned long)b_sec, (unsigned long)b_cen);
+    } else {
+      snprintf(buf, sizeof(buf), "%s: --.--s", I18n::get(STR_LABEL_BEST));
+    }
+    u8g2->drawStr(24, 142, buf);
+
+    // Last Lap reference on bottom-right
+    if (telemetry.last_lap_time_ms > 0) {
+      uint32_t l_sec = (telemetry.last_lap_time_ms % 60000) / 1000;
+      uint32_t l_cen = (telemetry.last_lap_time_ms % 1000) / 10;
+      snprintf(buf, sizeof(buf), "%s: %02lu.%02lus", I18n::get(STR_LABEL_LAST), (unsigned long)l_sec, (unsigned long)l_cen);
+      int last_w = u8g2->getStrWidth(buf);
+      u8g2->drawStr(376 - last_w, 142, buf);
     }
   }
-
-  // ==========================================
-  // 3. LAP TIME (CENTER-RIGHT)
-  // ==========================================
-  u8g2->drawRFrame(176, 38, 214, 118, 6);
-
-  u8g2->setFont(u8g2_font_6x10_tr);
-  snprintf(buf, sizeof(buf), "%s %02u  [%s %d]", 
-           I18n::get(STR_LABEL_LAP), telemetry.lap_number, 
-           I18n::get(STR_LABEL_SECTOR), telemetry.current_sector);
-  u8g2->drawStr(186, 54, buf);
-
-  // Active or last lap time
-  uint32_t active_lap_time = telemetry.current_lap_time_ms;
-  uint32_t lap_min = (active_lap_time / 60000);
-  uint32_t lap_sec = (active_lap_time % 60000) / 1000;
-  uint32_t lap_cen = (active_lap_time % 1000) / 10;
-
-  u8g2->setFont(u8g2_font_logisoso38_tn);
-  snprintf(buf, sizeof(buf), "%02lu:%02lu.%02lu", (unsigned long)lap_min, (unsigned long)lap_sec, (unsigned long)lap_cen);
-  u8g2->drawStr(184, 102, buf);
-
-  // Best Lap reference
-  u8g2->setFont(u8g2_font_helvB10_tr);
-  if (telemetry.best_lap_time_ms > 0) {
-    uint32_t b_sec = (telemetry.best_lap_time_ms % 60000) / 1000;
-    uint32_t b_cen = (telemetry.best_lap_time_ms % 1000) / 10;
-    snprintf(buf, sizeof(buf), "%s: %02lu.%02lus", I18n::get(STR_LABEL_BEST), (unsigned long)b_sec, (unsigned long)b_cen);
-  } else {
-    snprintf(buf, sizeof(buf), "%s: --.--s", I18n::get(STR_LABEL_BEST));
-  }
-  u8g2->drawStr(186, 138, buf);
 
   // ==========================================
   // 4. PREDICTIVE LAP TIME DELTA BAR

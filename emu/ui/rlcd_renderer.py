@@ -269,67 +269,87 @@ class RlcdRenderer(QWidget):
                 p.drawText(328, 32, f"MAX {s.max_rpm}")
 
 
-        # 2. Speed & Gear
-        p.drawRoundedRect(10, 38, 160, 118, 4, 4)
-        if s.show_speed:
-            disp_speed = t.speed_kmh if s.use_kmh else t.speed_kmh * 0.621371
-            speed_unit = "KM/H" if s.use_kmh else "MPH"
+        # 2 & 3. Speed/Gear & Lap Time
+        has_left_pane = s.show_speed or (s.drive_type == DriveType.SHIFTER_6SPEED)
 
-            if s.drive_type == DriveType.SHIFTER_6SPEED:
-                p.setFont(QFont("SansSerif", 42, QFont.Bold))
-                p.drawText(18, 115, f"{int(disp_speed):03d}")
+        if has_left_pane:
+            p.drawRoundedRect(10, 38, 160, 118, 4, 4)
+            if s.show_speed:
+                disp_speed = t.speed_kmh if s.use_kmh else t.speed_kmh * 0.621371
+                speed_unit = "KM/H" if s.use_kmh else "MPH"
 
-                p.setFont(QFont("SansSerif", 9, QFont.Bold))
-                p.drawText(118, 70, speed_unit)
+                if s.drive_type == DriveType.SHIFTER_6SPEED:
+                    p.setFont(QFont("SansSerif", 42, QFont.Bold))
+                    p.drawText(18, 115, f"{int(disp_speed):03d}")
 
-                p.drawRoundedRect(116, 82, 46, 66, 3, 3)
-                p.setFont(QFont("Monospace", 7))
-                p.drawText(124, 94, I18n.get(StrId.LABEL_GEAR))
+                    p.setFont(QFont("SansSerif", 9, QFont.Bold))
+                    p.drawText(118, 70, speed_unit)
 
-                p.setFont(QFont("SansSerif", 26, QFont.Bold))
-                gear_str = "N" if t.gear == 0 else str(t.gear)
-                p.drawText(130, 134, gear_str)
+                    p.drawRoundedRect(116, 82, 46, 66, 3, 3)
+                    p.setFont(QFont("Monospace", 7))
+                    p.drawText(124, 94, I18n.get(StrId.LABEL_GEAR))
+
+                    p.setFont(QFont("SansSerif", 26, QFont.Bold))
+                    gear_str = "N" if t.gear == 0 else str(t.gear)
+                    p.drawText(130, 134, gear_str)
+                else:
+                    # Single Speed (Direct Drive / Clutch) — Large Centered Speed
+                    p.setFont(QFont("SansSerif", 46, QFont.Bold))
+                    p.drawText(QRectF(10, 48, 160, 58), Qt.AlignCenter, f"{int(disp_speed):03d}")
+
+                    p.setFont(QFont("SansSerif", 10, QFont.Bold))
+                    p.drawText(QRectF(10, 116, 160, 24), Qt.AlignCenter, speed_unit)
             else:
-                # Single Speed (Direct Drive / Clutch) — Large Centered Speed
-                p.setFont(QFont("SansSerif", 46, QFont.Bold))
-                p.drawText(QRectF(10, 48, 160, 58), Qt.AlignCenter, f"{int(disp_speed):03d}")
-
-                p.setFont(QFont("SansSerif", 10, QFont.Bold))
-                p.drawText(QRectF(10, 116, 160, 24), Qt.AlignCenter, speed_unit)
-        else:
-            # Speed Hidden Mode
-            if s.drive_type == DriveType.SHIFTER_6SPEED:
+                # Speed Hidden Mode (Shifter Kart)
                 p.setFont(QFont("SansSerif", 9, QFont.Bold))
                 p.drawText(QRectF(10, 48, 160, 20), Qt.AlignCenter, I18n.get(StrId.LABEL_GEAR))
 
                 gear_str = "N" if t.gear == 0 else str(t.gear)
                 p.setFont(QFont("SansSerif", 48, QFont.Bold))
                 p.drawText(QRectF(10, 70, 160, 70), Qt.AlignCenter, gear_str)
+
+            # Standard Lap Time (Right Pane)
+            p.drawRoundedRect(176, 38, 214, 118, 4, 4)
+            p.setFont(QFont("Monospace", 8, QFont.Bold))
+            p.drawText(186, 54, f"{I18n.get(StrId.LABEL_LAP)} {t.lap_number:02d}  [{I18n.get(StrId.LABEL_SECTOR)} {t.current_sector}]")
+
+            lap_min = t.current_lap_time_ms // 60000
+            lap_sec = (t.current_lap_time_ms % 60000) // 1000
+            lap_cen = (t.current_lap_time_ms % 1000) // 10
+            p.setFont(QFont("SansSerif", 30, QFont.Bold))
+            p.drawText(184, 102, f"{lap_min:02d}:{lap_sec:02d}.{lap_cen:02d}")
+
+            p.setFont(QFont("SansSerif", 9, QFont.Bold))
+            if t.best_lap_time_ms > 0:
+                b_sec = (t.best_lap_time_ms % 60000) // 1000
+                b_cen = (t.best_lap_time_ms % 1000) // 10
+                p.drawText(186, 138, f"{I18n.get(StrId.LABEL_BEST)}: {b_sec:02d}.{b_cen:02d}s")
             else:
-                p.setFont(QFont("SansSerif", 9, QFont.Bold))
-                p.drawText(QRectF(10, 48, 160, 20), Qt.AlignCenter, I18n.get(StrId.LABEL_RPM))
-
-                p.setFont(QFont("SansSerif", 32, QFont.Bold))
-                p.drawText(QRectF(10, 72, 160, 50), Qt.AlignCenter, f"{t.rpm}")
-
-        # 3. Lap Time & Best
-        p.drawRoundedRect(176, 38, 214, 118, 4, 4)
-        p.setFont(QFont("Monospace", 8, QFont.Bold))
-        p.drawText(186, 54, f"{I18n.get(StrId.LABEL_LAP)} {t.lap_number:02d}  [{I18n.get(StrId.LABEL_SECTOR)} {t.current_sector}]")
-
-        lap_min = t.current_lap_time_ms // 60000
-        lap_sec = (t.current_lap_time_ms % 60000) // 1000
-        lap_cen = (t.current_lap_time_ms % 1000) // 10
-        p.setFont(QFont("SansSerif", 30, QFont.Bold))
-        p.drawText(184, 102, f"{lap_min:02d}:{lap_sec:02d}.{lap_cen:02d}")
-
-        p.setFont(QFont("SansSerif", 9, QFont.Bold))
-        if t.best_lap_time_ms > 0:
-            b_sec = (t.best_lap_time_ms % 60000) // 1000
-            b_cen = (t.best_lap_time_ms % 1000) // 10
-            p.drawText(186, 138, f"{I18n.get(StrId.LABEL_BEST)}: {b_sec:02d}.{b_cen:02d}s")
+                p.drawText(186, 138, f"{I18n.get(StrId.LABEL_BEST)}: --.--s")
         else:
-            p.drawText(186, 138, f"{I18n.get(StrId.LABEL_BEST)}: --.--s")
+            # Full-Width Lap Time Pane (380 px width)
+            p.drawRoundedRect(10, 38, 380, 118, 4, 4)
+            p.setFont(QFont("Monospace", 9, QFont.Bold))
+            p.drawText(24, 58, f"{I18n.get(StrId.LABEL_LAP)} {t.lap_number:02d}  [{I18n.get(StrId.LABEL_SECTOR)} {t.current_sector}]")
+
+            lap_min = t.current_lap_time_ms // 60000
+            lap_sec = (t.current_lap_time_ms % 60000) // 1000
+            lap_cen = (t.current_lap_time_ms % 1000) // 10
+            p.setFont(QFont("SansSerif", 42, QFont.Bold))
+            p.drawText(QRectF(10, 64, 380, 52), Qt.AlignCenter, f"{lap_min:02d}:{lap_sec:02d}.{lap_cen:02d}")
+
+            p.setFont(QFont("SansSerif", 9, QFont.Bold))
+            if t.best_lap_time_ms > 0:
+                b_sec = (t.best_lap_time_ms % 60000) // 1000
+                b_cen = (t.best_lap_time_ms % 1000) // 10
+                p.drawText(24, 142, f"{I18n.get(StrId.LABEL_BEST)}: {b_sec:02d}.{b_cen:02d}s")
+            else:
+                p.drawText(24, 142, f"{I18n.get(StrId.LABEL_BEST)}: --.--s")
+
+            if t.last_lap_time_ms > 0:
+                l_sec = (t.last_lap_time_ms % 60000) // 1000
+                l_cen = (t.last_lap_time_ms % 1000) // 10
+                p.drawText(QRectF(200, 126, 176, 24), Qt.AlignRight | Qt.AlignVCenter, f"{I18n.get(StrId.LABEL_LAST)}: {l_sec:02d}.{l_cen:02d}s")
 
         # 4. Predictive Delta Bar
         p.drawRoundedRect(10, 162, 380, 52, 4, 4)
