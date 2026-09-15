@@ -263,6 +263,8 @@ void MenuSystem::render(U8G2 *u8g2, const SystemSettings &settings, const Teleme
   }
 }
 
+#include "ui/icons.h"
+
 void MenuSystem::renderRootMenu(U8G2 *u8g2) {
   u8g2->setFont(u8g2_font_helvB10_tr);
 
@@ -277,16 +279,29 @@ void MenuSystem::renderRootMenu(U8G2 *u8g2) {
     "< Exit Menu >"
   };
 
+  const unsigned char *icons[ROOT_MENU_COUNT] = {
+    icon_kart_16,
+    icon_led_16,
+    icon_flag_16,
+    icon_sd_16,
+    icon_display_16,
+    icon_globe_16,
+    icon_wrench_16,
+    icon_exit_16
+  };
+
   for (int i = 0; i < ROOT_MENU_COUNT; i++) {
     int y = 50 + (i * 28);
     if (i == _cursor_idx) {
       u8g2->drawRBox(10, y - 18, 380, 24, 3);
       u8g2->setDrawColor(0);
-      u8g2->drawStr(22, y, items[i]);
+      u8g2->drawXBMP(18, y - 14, 16, 16, icons[i]);
+      u8g2->drawStr(42, y, items[i]);
       u8g2->drawStr(365, y, ">");
       u8g2->setDrawColor(1);
     } else {
-      u8g2->drawStr(22, y, items[i]);
+      u8g2->drawXBMP(18, y - 14, 16, 16, icons[i]);
+      u8g2->drawStr(42, y, items[i]);
     }
   }
 }

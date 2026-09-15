@@ -10,6 +10,21 @@ from PySide6.QtWidgets import QWidget
 
 from emu.core.telemetry_model import SystemSettings, TelemetrySnapshot, DriveType
 from emu.core.i18n import I18n, StrId
+from emu.ui.icons import (
+    IconRenderer,
+    ICON_KART_16,
+    ICON_LED_16,
+    ICON_FLAG_16,
+    ICON_SD_16,
+    ICON_DISPLAY_16,
+    ICON_GLOBE_16,
+    ICON_WRENCH_16,
+    ICON_EXIT_16,
+    ICON_TEMP_16,
+    ICON_EGT_16,
+    ICON_SHIFT_16,
+    ICON_SAT_16
+)
 
 
 class UiViewMode(IntEnum):
@@ -254,10 +269,7 @@ class RlcdRenderer(QWidget):
         p.drawText(14, 32, f"{I18n.get(StrId.LABEL_RPM)}: {t.rpm}")
 
         if t.rpm >= s.shift_rpm:
-            p.fillRect(300, 22, 90, 14, fg)
-            p.setPen(bg)
-            p.drawText(306, 33, I18n.get(StrId.WARN_SHIFT))
-            p.setPen(fg)
+            IconRenderer.draw_alarm_badge(p, 288, 18, 102, 16, ICON_SHIFT_16, I18n.get(StrId.WARN_SHIFT), True, bg, fg)
         else:
             p.drawText(328, 32, f"MAX {s.max_rpm}")
 
@@ -327,20 +339,40 @@ class RlcdRenderer(QWidget):
             p.fillRect(center_x, 194, delta_px, 10, fg)
 
         # 5. Bottom Engine Status Bar
-        p.drawLine(10, 222, 390, 222)
-        p.setFont(QFont("SansSerif", 9, QFont.Bold))
-        p.drawText(14, 244, f"{I18n.get(StrId.LABEL_WATER)}: {t.water_temp_c:.1f}°C")
+        p.drawLine(10, 220, 390, 220)
+
+        # Row 1: Water Temp, EGT, Track
         if t.water_temp_c >= s.water_temp_alarm_c:
-            p.fillRect(115, 232, 42, 16, fg)
-            p.setPen(bg)
-            p.drawText(120, 244, "WARN")
-            p.setPen(fg)
+            IconRenderer.draw_alarm_badge(p, 10, 224, 76, 20, ICON_TEMP_16, f"{t.water_temp_c:.1f}°", True, bg, fg)
+        else:
+            IconRenderer.draw_xbm(p, 10, 226, ICON_TEMP_16, fg)
+            p.setFont(QFont("SansSerif", 9, QFont.Bold))
+            p.drawText(28, 240, f"{t.water_temp_c:.1f}°C")
 
-        p.drawText(175, 244, f"{I18n.get(StrId.LABEL_EGT)}: {int(t.exhaust_temp_c)}°C")
+        if t.exhaust_temp_c >= s.exhaust_temp_alarm_c:
+            IconRenderer.draw_alarm_badge(p, 94, 224, 78, 20, ICON_EGT_16, f"{int(t.exhaust_temp_c)}°", True, bg, fg)
+        else:
+            IconRenderer.draw_xbm(p, 96, 226, ICON_EGT_16, fg)
+            p.setFont(QFont("SansSerif", 9, QFont.Bold))
+            p.drawText(114, 240, f"{int(t.exhaust_temp_c)}°C")
+
+        # Track Name
+        IconRenderer.draw_xbm(p, 184, 226, ICON_FLAG_16, fg)
         p.setFont(QFont("Monospace", 7))
-        p.drawText(275, 244, t.current_track_name[:18])
+        p.drawText(204, 239, t.current_track_name[:18])
 
-        p.drawText(14, 264, f"{I18n.get(StrId.LABEL_BAT)}: {t.battery_voltage:.2f}V ({t.battery_percent}%) | {I18n.get(StrId.STATUS_WIRELESS_OK)}")
+        # Row 2: Battery gauge, RF Signal, GPS Satellites
+        IconRenderer.draw_battery(p, 10, 252, t.battery_voltage, t.battery_percent, fg)
+        p.setFont(QFont("Monospace", 7))
+        p.drawText(36, 262, f"{t.battery_voltage:.2f}V {t.battery_percent}%")
+
+        rssi = t.link_rssi if t.link_rssi else -65
+        IconRenderer.draw_signal_bars(p, 150, 251, rssi, t.track_module_connected, fg)
+        status_txt = I18n.get(StrId.STATUS_WIRELESS_OK) if t.track_module_connected else I18n.get(StrId.STATUS_SIMULATION)
+        p.drawText(170, 262, f"Apex-Track: {status_txt}")
+
+        IconRenderer.draw_xbm(p, 318, 249, ICON_SAT_16, fg)
+        p.drawText(338, 262, f"{t.satellites_visible} SAT")
 
     def _render_telemetry(self, p: QPainter, bg: QColor, fg: QColor):
         t = self.telemetry
@@ -542,16 +574,28 @@ class RlcdRenderer(QWidget):
                 I18n.get(StrId.CAT_SENSORS_INFO),
                 "< Exit Menu >"
             ]
+            icons = [
+                ICON_KART_16,
+                ICON_LED_16,
+                ICON_FLAG_16,
+                ICON_SD_16,
+                ICON_DISPLAY_16,
+                ICON_GLOBE_16,
+                ICON_WRENCH_16,
+                ICON_EXIT_16
+            ]
             for i, text in enumerate(items):
                 y = 50 + (i * 28)
                 if i == self.cursor_idx:
                     p.fillRect(10, y - 18, 380, 24, fg)
+                    IconRenderer.draw_xbm(p, 18, y - 14, icons[i], bg)
                     p.setPen(bg)
-                    p.drawText(22, y, text)
+                    p.drawText(42, y, text)
                     p.drawText(365, y, ">")
                     p.setPen(fg)
                 else:
-                    p.drawText(22, y, text)
+                    IconRenderer.draw_xbm(p, 18, y - 14, icons[i], fg)
+                    p.drawText(42, y, text)
 
         elif self.menu_state == MenuState.MENU_RACE_SETUP:
             p.drawText(12, 46, I18n.get(StrId.CAT_RACE_CONFIG))
