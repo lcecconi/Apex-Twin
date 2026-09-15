@@ -9,30 +9,30 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   // 1. TOP TACHOMETER (RPM BAR GRAPH)
   // ==========================================
   if (settings.rpm_display_mode != RPM_DISP_LEDS_ONLY) {
-    // Outline bar: 380 px wide, 16 px tall
-    u8g2->drawFrame(10, 4, 380, 16);
+    // Wide Outline bar: 388 px wide, 26 px tall (Margins 6px)
+    u8g2->drawRFrame(6, 4, 388, 26, 3);
 
     // Shift light marker line at shift_rpm
-    int shift_x = 10 + (int)((uint32_t)settings.shift_rpm * 376 / settings.max_rpm);
-    if (shift_x < 386) {
-      u8g2->drawVLine(shift_x, 2, 20);
-      u8g2->drawVLine(shift_x + 1, 2, 20);
+    int shift_x = 6 + (int)((uint32_t)settings.shift_rpm * 384 / settings.max_rpm);
+    if (shift_x < 392) {
+      u8g2->drawVLine(shift_x, 2, 30);
+      u8g2->drawVLine(shift_x + 1, 2, 30);
     }
 
     // Fill current RPM
-    int rpm_fill = (int)((uint32_t)telemetry.rpm * 376 / settings.max_rpm);
-    if (rpm_fill > 376) rpm_fill = 376;
+    int rpm_fill = (int)((uint32_t)telemetry.rpm * 384 / settings.max_rpm);
+    if (rpm_fill > 384) rpm_fill = 384;
     if (rpm_fill > 0) {
-      u8g2->drawBox(12, 6, rpm_fill, 12);
+      u8g2->drawBox(8, 6, rpm_fill, 22);
     }
 
-    // Numerical RPM label below bar
-    u8g2->setFont(u8g2_font_6x10_tr);
-    snprintf(buf, sizeof(buf), "%s: %u", I18n::get(STR_LABEL_RPM), telemetry.rpm);
-    u8g2->drawStr(14, 32, buf);
-
-    snprintf(buf, sizeof(buf), "MAX %u", settings.max_rpm);
-    u8g2->drawStr(328, 32, buf);
+    // Current RPM numerical value printed onto the bar in XOR mode (no RPM/MAX text)
+    snprintf(buf, sizeof(buf), "%u", telemetry.rpm);
+    u8g2->setFont(u8g2_font_helvB14_tr);
+    int rw = u8g2->getStrWidth(buf);
+    u8g2->setDrawColor(2); // XOR mode
+    u8g2->drawStr(200 - (rw / 2), 23, buf);
+    u8g2->setDrawColor(1);
   }
 
 
@@ -52,36 +52,39 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
       const char *unit_str = settings.use_kmh ? "KM/H" : "MPH";
 
       if (settings.drive_type == DRIVE_SHIFTER_6SPEED) {
-        // 6-Speed Shifter Kart (Speed + Gear Panel)
-        u8g2->setFont(u8g2_font_logisoso50_tn);
-        snprintf(buf, sizeof(buf), "%03d", (int)disp_speed);
-        u8g2->drawStr(18, 114, buf);
-
-        u8g2->setFont(u8g2_font_helvB10_tr);
-        u8g2->drawStr(118, 70, unit_str);
-
-        // Gear Box
+        // 6-Speed Shifter Kart: Dominant Gear on LEFT, Speed on RIGHT
+        // Left: Gear Box (60 px width, 96 px height)
         if (shift_blink) {
-          u8g2->drawRBox(116, 82, 46, 66, 4);
+          u8g2->drawRBox(18, 50, 60, 96, 4);
           u8g2->setDrawColor(0);
         } else {
-          u8g2->drawRFrame(116, 82, 46, 66, 4);
+          u8g2->drawRFrame(18, 50, 60, 96, 4);
         }
 
         if (telemetry.gear == 0) {
-          u8g2->setFont(u8g2_font_helvB24_tr);
+          u8g2->setFont(u8g2_font_logisoso50_tr);
           int nw = u8g2->getStrWidth("N");
-          u8g2->drawStr(116 + (46 - nw) / 2, 126, "N");
+          u8g2->drawStr(18 + (60 - nw) / 2, 122, "N");
         } else {
-          u8g2->setFont(u8g2_font_logisoso50_tn);
+          u8g2->setFont(u8g2_font_logisoso58_tn);
           snprintf(buf, sizeof(buf), "%d", telemetry.gear);
           int gw = u8g2->getStrWidth(buf);
-          u8g2->drawStr(116 + (46 - gw) / 2, 136, buf);
+          u8g2->drawStr(18 + (60 - gw) / 2, 126, buf);
         }
 
         if (shift_blink) {
           u8g2->setDrawColor(1);
         }
+
+        // Right: Speed Display (Unit at top, Numeral centered below)
+        u8g2->setFont(u8g2_font_helvB10_tr);
+        int uw = u8g2->getStrWidth(unit_str);
+        u8g2->drawStr(82 + (82 - uw) / 2, 68, unit_str);
+
+        u8g2->setFont(u8g2_font_logisoso42_tn);
+        snprintf(buf, sizeof(buf), "%03d", (int)disp_speed);
+        int sw = u8g2->getStrWidth(buf);
+        u8g2->drawStr(82 + (82 - sw) / 2, 124, buf);
       } else {
         // Single Speed (Direct Drive / Clutch) — Centered Large Speed Display
         u8g2->setFont(u8g2_font_logisoso58_tn);

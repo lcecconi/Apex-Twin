@@ -348,21 +348,25 @@ class RlcdRenderer(QWidget):
         t = self.telemetry
         s = self.settings
 
-        # 1. Top Tachometer Bar
+        # 1. Top Tachometer Bar (Wider, no RPM/MAX text, RPM printed inside in XOR difference mode)
         if s.rpm_display_mode != RpmDisplayMode.LEDS_ONLY:
-            p.drawRect(10, 4, 380, 16)
-            shift_x = int(10 + (s.shift_rpm * 376 / max(1, s.max_rpm)))
-            if shift_x < 386:
-                p.drawLine(shift_x, 2, shift_x, 22)
+            p.drawRoundedRect(6, 4, 388, 26, 3, 3)
+            shift_x = int(6 + (s.shift_rpm * 384 / max(1, s.max_rpm)))
+            if shift_x < 392:
+                p.drawLine(shift_x, 2, shift_x, 30)
 
-            rpm_fill = int(t.rpm * 376 / max(1, s.max_rpm))
-            rpm_fill = max(0, min(376, rpm_fill))
+            rpm_fill = int(t.rpm * 384 / max(1, s.max_rpm))
+            rpm_fill = max(0, min(384, rpm_fill))
             if rpm_fill > 0:
-                p.fillRect(12, 6, rpm_fill, 12, fg)
+                p.fillRect(8, 6, rpm_fill, 22, fg)
 
-            p.setFont(QFont("Monospace", 8, QFont.Bold))
-            p.drawText(14, 32, f"{I18n.get(StrId.LABEL_RPM)}: {t.rpm}")
-            p.drawText(328, 32, f"MAX {s.max_rpm}")
+            # Draw current RPM printed directly onto the bar in Difference (XOR) mode
+            p.setFont(QFont("SansSerif", 13, QFont.Bold))
+            p.setCompositionMode(QPainter.CompositionMode_Difference)
+            p.setPen(QColor(255, 255, 255))
+            p.drawText(QRectF(6, 4, 388, 26), Qt.AlignCenter, str(t.rpm))
+            p.setCompositionMode(QPainter.CompositionMode_SourceOver)
+            p.setPen(fg)
 
 
         # 2 & 3. Speed/Gear & Lap Time
@@ -377,27 +381,30 @@ class RlcdRenderer(QWidget):
                 speed_unit = "KM/H" if s.use_kmh else "MPH"
 
                 if s.drive_type == DriveType.SHIFTER_6SPEED:
-                    p.setFont(QFont("SansSerif", 42, QFont.Bold))
-                    p.drawText(18, 115, f"{int(disp_speed):03d}")
-
-                    p.setFont(QFont("SansSerif", 9, QFont.Bold))
-                    p.drawText(118, 70, speed_unit)
-
+                    # 6-Speed Shifter Kart: Dominant Gear on LEFT, Speed on RIGHT
+                    # Left: Gear Box
                     if shift_blink:
-                        p.fillRect(116, 82, 46, 66, fg)
+                        p.fillRect(18, 50, 60, 96, fg)
                         p.setPen(bg)
                     else:
-                        p.drawRoundedRect(116, 82, 46, 66, 3, 3)
+                        p.drawRoundedRect(18, 50, 60, 96, 4, 4)
 
                     gear_str = "N" if t.gear == 0 else str(t.gear)
                     if t.gear == 0:
-                        p.setFont(QFont("SansSerif", 28, QFont.Bold))
+                        p.setFont(QFont("SansSerif", 42, QFont.Bold))
                     else:
-                        p.setFont(QFont("SansSerif", 38, QFont.Bold))
-                    p.drawText(QRectF(116, 82, 46, 66), Qt.AlignCenter, gear_str)
+                        p.setFont(QFont("SansSerif", 50, QFont.Bold))
+                    p.drawText(QRectF(18, 50, 60, 96), Qt.AlignCenter, gear_str)
 
                     if shift_blink:
                         p.setPen(fg)
+
+                    # Right: Speed Display
+                    p.setFont(QFont("SansSerif", 10, QFont.Bold))
+                    p.drawText(QRectF(82, 52, 82, 20), Qt.AlignCenter, speed_unit)
+
+                    p.setFont(QFont("SansSerif", 34, QFont.Bold))
+                    p.drawText(QRectF(82, 74, 82, 68), Qt.AlignCenter, f"{int(disp_speed):03d}")
                 else:
                     # Single Speed (Direct Drive / Clutch) — Large Centered Speed
                     p.setFont(QFont("SansSerif", 46, QFont.Bold))
