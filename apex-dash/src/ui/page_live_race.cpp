@@ -69,7 +69,7 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
         }
 
         // Right: Speed Display (Unit at top, Numeral centered below)
-        u8g2->setFont(u8g2_font_helvB10_tr);
+        u8g2->setFont(u8g2_font_helvB12_tr);
         int uw = u8g2->getStrWidth(unit_str);
         u8g2->drawStr(82 + (82 - uw) / 2, 68, unit_str);
 
@@ -83,7 +83,7 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
         snprintf(buf, sizeof(buf), "%03d", (int)disp_speed);
         u8g2->drawStr(32, 110, buf);
 
-        u8g2->setFont(u8g2_font_helvB10_tr);
+        u8g2->setFont(u8g2_font_helvB12_tr);
         u8g2->drawStr(66, 138, unit_str);
       }
     } else {
@@ -112,11 +112,11 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
     // Right Pane: Standard Lap Time (214 px width)
     u8g2->drawRFrame(176, 38, 214, 118, 6);
 
-    u8g2->setFont(u8g2_font_6x10_tr);
+    u8g2->setFont(u8g2_font_helvB10_tr);
     snprintf(buf, sizeof(buf), "%s %02u  [%s %d]", 
              I18n::get(STR_LABEL_LAP), telemetry.lap_number, 
              I18n::get(STR_LABEL_SECTOR), telemetry.current_sector);
-    u8g2->drawStr(186, 54, buf);
+    u8g2->drawStr(186, 56, buf);
 
     // Active lap time
     uint32_t active_lap_time = telemetry.current_lap_time_ms;
@@ -154,12 +154,12 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
       snprintf(l_buf, sizeof(l_buf), "%s: --.--s", I18n::get(STR_LABEL_LAST));
     }
     int l_w = u8g2->getStrWidth(l_buf);
-    u8g2->drawStr(384 - l_w, 138, l_buf);
+    u8g2->drawStr(386 - l_w, 138, l_buf);
   } else {
     // Full-Width Lap Time Pane (380 px width)
     u8g2->drawRFrame(10, 38, 380, 118, 6);
 
-    u8g2->setFont(u8g2_font_helvB10_tr);
+    u8g2->setFont(u8g2_font_helvB12_tr);
     snprintf(buf, sizeof(buf), "%s %02u  [%s %d]", 
              I18n::get(STR_LABEL_LAP), telemetry.lap_number, 
              I18n::get(STR_LABEL_SECTOR), telemetry.current_sector);
@@ -212,11 +212,11 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   u8g2->drawRFrame(10, 162, 185, 52, 4);
 
   // Header & Numerical Delta
-  u8g2->setFont(u8g2_font_6x10_tr);
+  u8g2->setFont(u8g2_font_helvB10_tr);
   snprintf(buf, sizeof(buf), "%s %s", I18n::get(STR_LABEL_PRED), I18n::get(STR_LABEL_DELTA));
   u8g2->drawStr(16, 178, buf);
 
-  u8g2->setFont(u8g2_font_helvB10_tr);
+  u8g2->setFont(u8g2_font_helvB12_tr);
   snprintf(buf, sizeof(buf), "%+0.2f s", telemetry.predictive_delta_s);
   int delta_w = u8g2->getStrWidth(buf);
   u8g2->drawStr(190 - delta_w, 178, buf);
@@ -294,12 +294,12 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   float e_temp = settings.use_celsius ? telemetry.exhaust_temp_c : (telemetry.exhaust_temp_c * 1.8f + 32.0f);
   const char *t_unit = settings.use_celsius ? "\xb0\x43" : "\xb0\x46";
 
-  u8g2->setFont(u8g2_font_helvB10_tr);
+  u8g2->setFont(u8g2_font_helvB12_tr);
   snprintf(buf, sizeof(buf), "%s: %.1f%s", I18n::get(STR_LABEL_WATER), w_temp, t_unit);
   u8g2->drawStr(18, 242, buf);
 
   snprintf(buf, sizeof(buf), "%s: %d%s", I18n::get(STR_LABEL_EGT), (int)e_temp, t_unit);
-  u8g2->drawStr(18, 262, buf);
+  u8g2->drawStr(18, 263, buf);
 
   // Right: Flashing WARN Alert or System Status (185 px width)
   if (any_warn) {
@@ -330,7 +330,7 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   } else {
     // Normal System Status (Dim Outline Box)
     u8g2->drawRFrame(205, 222, 185, 50, 4);
-    u8g2->setFont(u8g2_font_helvB10_tr);
+    u8g2->setFont(u8g2_font_helvB12_tr);
     int ok_w = u8g2->getStrWidth("[ ALL SYSTEMS OK ]");
     u8g2->drawStr(205 + (185 - ok_w) / 2, 252, "[ ALL SYSTEMS OK ]");
   }
@@ -339,7 +339,7 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   // 6. BOTTOM LINE (TRACK INFO & STATUS)
   // ==========================================
   u8g2->drawHLine(0, 276, 400);
-  u8g2->setFont(u8g2_font_6x10_tr);
+  u8g2->setFont(u8g2_font_helvB10_tr);
   snprintf(buf, sizeof(buf), "TRACK: %s", telemetry.current_track_name);
   u8g2->drawStr(8, 292, buf);
 

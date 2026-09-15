@@ -422,8 +422,8 @@ class RlcdRenderer(QWidget):
 
             # Standard Lap Time (Right Pane)
             p.drawRoundedRect(176, 38, 214, 118, 4, 4)
-            p.setFont(QFont("Monospace", 8, QFont.Bold))
-            p.drawText(186, 54, f"{I18n.get(StrId.LABEL_LAP)} {t.lap_number:02d}  [{I18n.get(StrId.LABEL_SECTOR)} {t.current_sector}]")
+            p.setFont(QFont("SansSerif", 9, QFont.Bold))
+            p.drawText(186, 56, f"{I18n.get(StrId.LABEL_LAP)} {t.lap_number:02d}  [{I18n.get(StrId.LABEL_SECTOR)} {t.current_sector}]")
 
             lap_min = t.current_lap_time_ms // 60000
             lap_sec = (t.current_lap_time_ms % 60000) // 1000
@@ -459,7 +459,7 @@ class RlcdRenderer(QWidget):
         else:
             # Full-Width Lap Time Pane (380 px width)
             p.drawRoundedRect(10, 38, 380, 118, 4, 4)
-            p.setFont(QFont("Monospace", 9, QFont.Bold))
+            p.setFont(QFont("SansSerif", 10, QFont.Bold))
             p.drawText(24, 58, f"{I18n.get(StrId.LABEL_LAP)} {t.lap_number:02d}  [{I18n.get(StrId.LABEL_SECTOR)} {t.current_sector}]")
 
             lap_min = t.current_lap_time_ms // 60000
@@ -496,10 +496,10 @@ class RlcdRenderer(QWidget):
         # 4. Predictive Delta (Left) & System Alarms (Right)
         # Left Pane: Predictive Delta Bar (185 px width)
         p.drawRoundedRect(10, 162, 185, 52, 4, 4)
-        p.setFont(QFont("SansSerif", 8, QFont.Bold))
+        p.setFont(QFont("SansSerif", 9, QFont.Bold))
         p.drawText(16, 178, f"{I18n.get(StrId.LABEL_PRED)} {I18n.get(StrId.LABEL_DELTA)}")
 
-        p.setFont(QFont("SansSerif", 9, QFont.Bold))
+        p.setFont(QFont("SansSerif", 10, QFont.Bold))
         p.drawText(QRectF(100, 164, 90, 16), Qt.AlignRight | Qt.AlignVCenter, f"{t.predictive_delta_s:+0.2f} s")
 
         center_x = 102
@@ -555,9 +555,9 @@ class RlcdRenderer(QWidget):
         e_temp = t.exhaust_temp_c if s.use_celsius else (t.exhaust_temp_c * 1.8 + 32.0)
         t_unit = "°C" if s.use_celsius else "°F"
 
-        p.setFont(QFont("SansSerif", 9, QFont.Bold))
+        p.setFont(QFont("SansSerif", 10, QFont.Bold))
         p.drawText(18, 242, f"{I18n.get(StrId.LABEL_WATER)}: {w_temp:.1f}{t_unit}")
-        p.drawText(18, 262, f"{I18n.get(StrId.LABEL_EGT)}: {int(e_temp)}{t_unit}")
+        p.drawText(18, 263, f"{I18n.get(StrId.LABEL_EGT)}: {int(e_temp)}{t_unit}")
 
         # Evaluate which alarms trigger the blinking WARN alert
         alm_warn = [
@@ -594,16 +594,16 @@ class RlcdRenderer(QWidget):
                 p.drawText(QRectF(start_x + 34, 222, w_warn + 10, 50), Qt.AlignVCenter | Qt.AlignLeft, "WARN")
         else:
             p.drawRoundedRect(205, 222, 185, 50, 4, 4)
-            p.setFont(QFont("SansSerif", 9, QFont.Bold))
+            p.setFont(QFont("SansSerif", 10, QFont.Bold))
             p.drawText(QRectF(205, 222, 185, 50), Qt.AlignCenter, "[ ALL SYSTEMS OK ]")
 
         # 6. Bottom Line (Track Info & Status)
         p.drawLine(0, 276, 400, 276)
-        p.setFont(QFont("Monospace", 7))
+        p.setFont(QFont("SansSerif", 8, QFont.Bold))
         p.drawText(8, 292, f"TRACK: {t.current_track_name}")
         link_str = "LINK OK" if t.track_module_connected else "SIM"
         right_str = f"BAT: {t.battery_voltage:.1f}V ({t.battery_percent}%) | {link_str}"
-        p.drawText(QRectF(220, 280, 172, 16), Qt.AlignRight | Qt.AlignVCenter, right_str)
+        p.drawText(QRectF(200, 280, 192, 16), Qt.AlignRight | Qt.AlignVCenter, right_str)
 
 
     def _render_telemetry(self, p: QPainter, bg: QColor, fg: QColor):
