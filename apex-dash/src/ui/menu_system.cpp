@@ -263,11 +263,12 @@ void MenuSystem::render(U8G2 *u8g2, const SystemSettings &settings, const Teleme
   }
 }
 
-#include "ui/icons.h"
+struct MenuIconGlyph {
+  const uint8_t *font;
+  uint16_t glyph;
+};
 
 void MenuSystem::renderRootMenu(U8G2 *u8g2) {
-  u8g2->setFont(u8g2_font_helvB10_tr);
-
   const char *items[ROOT_MENU_COUNT] = {
     I18n::get(STR_CAT_RACE_CONFIG),
     I18n::get(STR_CAT_RPM_ALARM),
@@ -279,15 +280,15 @@ void MenuSystem::renderRootMenu(U8G2 *u8g2) {
     "< Exit Menu >"
   };
 
-  const unsigned char *icons[ROOT_MENU_COUNT] = {
-    icon_kart_16,
-    icon_led_16,
-    icon_flag_16,
-    icon_sd_16,
-    icon_display_16,
-    icon_globe_16,
-    icon_wrench_16,
-    icon_exit_16
+  const MenuIconGlyph icons[ROOT_MENU_COUNT] = {
+    { u8g2_font_open_iconic_embedded_2x_t, 66 }, // Gear / Setup
+    { u8g2_font_open_iconic_thing_2x_t,    65 }, // Lightbulb / LED
+    { u8g2_font_open_iconic_thing_2x_t,    66 }, // Flag
+    { u8g2_font_open_iconic_embedded_2x_t, 69 }, // Storage / Disk
+    { u8g2_font_open_iconic_weather_2x_t,  69 }, // Sun / Contrast
+    { u8g2_font_open_iconic_app_2x_t,      68 }, // Globe / System
+    { u8g2_font_open_iconic_app_2x_t,      77 }, // Wrench / Tools
+    { u8g2_font_open_iconic_gui_2x_t,      69 }  // Exit / Back
   };
 
   for (int i = 0; i < ROOT_MENU_COUNT; i++) {
@@ -295,16 +296,21 @@ void MenuSystem::renderRootMenu(U8G2 *u8g2) {
     if (i == _cursor_idx) {
       u8g2->drawRBox(10, y - 18, 380, 24, 3);
       u8g2->setDrawColor(0);
-      u8g2->drawXBMP(18, y - 14, 16, 16, icons[i]);
+      u8g2->setFont(icons[i].font);
+      u8g2->drawGlyph(18, y + 1, icons[i].glyph);
+      u8g2->setFont(u8g2_font_helvB10_tr);
       u8g2->drawStr(42, y, items[i]);
       u8g2->drawStr(365, y, ">");
       u8g2->setDrawColor(1);
     } else {
-      u8g2->drawXBMP(18, y - 14, 16, 16, icons[i]);
+      u8g2->setFont(icons[i].font);
+      u8g2->drawGlyph(18, y + 1, icons[i].glyph);
+      u8g2->setFont(u8g2_font_helvB10_tr);
       u8g2->drawStr(42, y, items[i]);
     }
   }
 }
+
 
 void MenuSystem::renderRaceSetupMenu(U8G2 *u8g2, const SystemSettings &settings) {
   u8g2->setFont(u8g2_font_helvB10_tr);
