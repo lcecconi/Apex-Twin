@@ -173,7 +173,7 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings) {
 
   // --- 5. DISPLAY & BACKLIGHT ---
   if (_current_state == MENU_DISPLAY_PWM) {
-    int max_items = 5;
+    int max_items = 6;
     if (event == INPUT_NEXT) {
       _cursor_idx = (_cursor_idx + 1) % max_items;
     } else if (event == INPUT_PREV) {
@@ -184,10 +184,12 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings) {
         settings.backlight_percent = (settings.backlight_percent >= 100) ? 0 : (settings.backlight_percent + 25);
         if (_blMgr) _blMgr->setBrightness(settings.backlight_percent);
       } else if (_cursor_idx == 1) {
-        settings.inverted_display = !settings.inverted_display;
+        settings.show_speed = !settings.show_speed;
       } else if (_cursor_idx == 2) {
-        settings.use_kmh = !settings.use_kmh;
+        settings.inverted_display = !settings.inverted_display;
       } else if (_cursor_idx == 3) {
+        settings.use_kmh = !settings.use_kmh;
+      } else if (_cursor_idx == 4) {
         settings.use_celsius = !settings.use_celsius;
       } else {
         _current_state = MENU_ROOT;
@@ -449,18 +451,19 @@ void MenuSystem::renderDisplayPwmMenu(U8G2 *u8g2, const SystemSettings &settings
   u8g2->setFont(u8g2_font_helvB10_tr);
   u8g2->drawStr(12, 46, I18n::get(STR_CAT_DISPLAY_PWM));
 
-  char b0[64], b1[64], b2[64], b3[64];
+  char b0[64], b1[64], b2[64], b3[64], b4[64];
   snprintf(b0, sizeof(b0), "%s (GPIO 2): [%d%%]", I18n::get(STR_BACKLIGHT_PWM), settings.backlight_percent);
-  snprintf(b1, sizeof(b1), "%s: [%s]", I18n::get(STR_INVERT_DISP), settings.inverted_display ? "Black on Silver" : "Silver on Black");
-  snprintf(b2, sizeof(b2), "%s: [%s]", I18n::get(STR_UNITS_SPEED), settings.use_kmh ? "KM/H" : "MPH");
-  snprintf(b3, sizeof(b3), "%s: [%s]", I18n::get(STR_UNITS_TEMP), settings.use_celsius ? "\xb0\x43" : "\xb0\x46");
+  snprintf(b1, sizeof(b1), "%s: [%s]", I18n::get(STR_SHOW_SPEED), settings.show_speed ? "ENABLED" : "OFF");
+  snprintf(b2, sizeof(b2), "%s: [%s]", I18n::get(STR_INVERT_DISP), settings.inverted_display ? "Black on Silver" : "Silver on Black");
+  snprintf(b3, sizeof(b3), "%s: [%s]", I18n::get(STR_UNITS_SPEED), settings.use_kmh ? "KM/H" : "MPH");
+  snprintf(b4, sizeof(b4), "%s: [%s]", I18n::get(STR_UNITS_TEMP), settings.use_celsius ? "\xb0\x43" : "\xb0\x46");
 
-  const char *items[5] = { b0, b1, b2, b3, "< Return >" };
+  const char *items[6] = { b0, b1, b2, b3, b4, "< Return >" };
 
-  for (int i = 0; i < 5; i++) {
-    int y = 78 + (i * 35);
+  for (int i = 0; i < 6; i++) {
+    int y = 70 + (i * 28);
     if (i == _cursor_idx) {
-      u8g2->drawRBox(12, y - 20, 376, 28, 3);
+      u8g2->drawRBox(12, y - 18, 376, 22, 3);
       u8g2->setDrawColor(0);
       u8g2->drawStr(24, y, items[i]);
       u8g2->setDrawColor(1);

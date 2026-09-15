@@ -102,6 +102,7 @@ class SystemSettings:
     low_bat_alarm_v: float = 3.40
     use_kmh: bool = True
     use_celsius: bool = True
+    show_speed: bool = True
     inverted_display: bool = True  # High-contrast Black on Silver
     lap_hold_seconds: int = 5
     simulation_mode: bool = True

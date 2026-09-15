@@ -81,6 +81,7 @@ struct SystemSettings {
   float low_bat_alarm_v = 3.40f;
   bool use_kmh = true;
   bool use_celsius = true;
+  bool show_speed = true;
   bool inverted_display = true;
   uint8_t lap_hold_seconds = 5;
   bool simulation_mode = true; // Enabled when physical Apex-Track is offline

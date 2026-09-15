@@ -105,7 +105,7 @@ class RlcdRenderer(QWidget):
         elif self.menu_state == MenuState.MENU_STORAGE_PC:
             return 2
         elif self.menu_state == MenuState.MENU_DISPLAY_PWM:
-            return 5
+            return 6
         elif self.menu_state == MenuState.MENU_SYSTEM_LANG:
             return 3
         return 1
@@ -170,10 +170,12 @@ class RlcdRenderer(QWidget):
             if self.cursor_idx == 0:
                 self.settings.backlight_percent = 0 if self.settings.backlight_percent >= 100 else self.settings.backlight_percent + 25
             elif self.cursor_idx == 1:
-                self.settings.inverted_display = not self.settings.inverted_display
+                self.settings.show_speed = not self.settings.show_speed
             elif self.cursor_idx == 2:
-                self.settings.use_kmh = not self.settings.use_kmh
+                self.settings.inverted_display = not self.settings.inverted_display
             elif self.cursor_idx == 3:
+                self.settings.use_kmh = not self.settings.use_kmh
+            elif self.cursor_idx == 4:
                 self.settings.use_celsius = not self.settings.use_celsius
             else:
                 self.menu_state = MenuState.MENU_ROOT
@@ -269,30 +271,46 @@ class RlcdRenderer(QWidget):
 
         # 2. Speed & Gear
         p.drawRoundedRect(10, 38, 160, 118, 4, 4)
-        disp_speed = t.speed_kmh if s.use_kmh else t.speed_kmh * 0.621371
-        speed_unit = "KM/H" if s.use_kmh else "MPH"
+        if s.show_speed:
+            disp_speed = t.speed_kmh if s.use_kmh else t.speed_kmh * 0.621371
+            speed_unit = "KM/H" if s.use_kmh else "MPH"
 
-        if s.drive_type == DriveType.SHIFTER_6SPEED:
-            p.setFont(QFont("SansSerif", 42, QFont.Bold))
-            p.drawText(18, 115, f"{int(disp_speed):03d}")
+            if s.drive_type == DriveType.SHIFTER_6SPEED:
+                p.setFont(QFont("SansSerif", 42, QFont.Bold))
+                p.drawText(18, 115, f"{int(disp_speed):03d}")
 
-            p.setFont(QFont("SansSerif", 9, QFont.Bold))
-            p.drawText(118, 70, speed_unit)
+                p.setFont(QFont("SansSerif", 9, QFont.Bold))
+                p.drawText(118, 70, speed_unit)
 
-            p.drawRoundedRect(116, 82, 46, 66, 3, 3)
-            p.setFont(QFont("Monospace", 7))
-            p.drawText(124, 94, I18n.get(StrId.LABEL_GEAR))
+                p.drawRoundedRect(116, 82, 46, 66, 3, 3)
+                p.setFont(QFont("Monospace", 7))
+                p.drawText(124, 94, I18n.get(StrId.LABEL_GEAR))
 
-            p.setFont(QFont("SansSerif", 26, QFont.Bold))
-            gear_str = "N" if t.gear == 0 else str(t.gear)
-            p.drawText(130, 134, gear_str)
+                p.setFont(QFont("SansSerif", 26, QFont.Bold))
+                gear_str = "N" if t.gear == 0 else str(t.gear)
+                p.drawText(130, 134, gear_str)
+            else:
+                # Single Speed (Direct Drive / Clutch) — Large Centered Speed
+                p.setFont(QFont("SansSerif", 46, QFont.Bold))
+                p.drawText(QRectF(10, 48, 160, 58), Qt.AlignCenter, f"{int(disp_speed):03d}")
+
+                p.setFont(QFont("SansSerif", 10, QFont.Bold))
+                p.drawText(QRectF(10, 116, 160, 24), Qt.AlignCenter, speed_unit)
         else:
-            # Single Speed (Direct Drive / Clutch) — Large Centered Speed
-            p.setFont(QFont("SansSerif", 46, QFont.Bold))
-            p.drawText(QRectF(10, 48, 160, 58), Qt.AlignCenter, f"{int(disp_speed):03d}")
+            # Speed Hidden Mode
+            if s.drive_type == DriveType.SHIFTER_6SPEED:
+                p.setFont(QFont("SansSerif", 9, QFont.Bold))
+                p.drawText(QRectF(10, 48, 160, 20), Qt.AlignCenter, I18n.get(StrId.LABEL_GEAR))
 
-            p.setFont(QFont("SansSerif", 10, QFont.Bold))
-            p.drawText(QRectF(10, 116, 160, 24), Qt.AlignCenter, speed_unit)
+                gear_str = "N" if t.gear == 0 else str(t.gear)
+                p.setFont(QFont("SansSerif", 48, QFont.Bold))
+                p.drawText(QRectF(10, 70, 160, 70), Qt.AlignCenter, gear_str)
+            else:
+                p.setFont(QFont("SansSerif", 9, QFont.Bold))
+                p.drawText(QRectF(10, 48, 160, 20), Qt.AlignCenter, I18n.get(StrId.LABEL_RPM))
+
+                p.setFont(QFont("SansSerif", 32, QFont.Bold))
+                p.drawText(QRectF(10, 72, 160, 50), Qt.AlignCenter, f"{t.rpm}")
 
         # 3. Lap Time & Best
         p.drawRoundedRect(176, 38, 214, 118, 4, 4)
@@ -611,15 +629,16 @@ class RlcdRenderer(QWidget):
             p.drawText(12, 46, I18n.get(StrId.CAT_DISPLAY_PWM))
             items = [
                 f"{I18n.get(StrId.BACKLIGHT_PWM)}: [{self.settings.backlight_percent}%]",
+                f"{I18n.get(StrId.SHOW_SPEED)}: [{'ENABLED' if self.settings.show_speed else 'OFF'}]",
                 f"{I18n.get(StrId.INVERT_DISP)}: [{'Black/Silver' if self.settings.inverted_display else 'Silver/Black'}]",
                 f"{I18n.get(StrId.UNITS_SPEED)}: [{'KM/H' if self.settings.use_kmh else 'MPH'}]",
                 f"{I18n.get(StrId.UNITS_TEMP)}: [{'°C' if self.settings.use_celsius else '°F'}]",
                 "< Return >"
             ]
             for i, text in enumerate(items):
-                y = 78 + (i * 35)
+                y = 70 + (i * 28)
                 if i == self.cursor_idx:
-                    p.fillRect(12, y - 20, 376, 28, fg)
+                    p.fillRect(12, y - 18, 376, 24, fg)
                     p.setPen(bg)
                     p.drawText(24, y, text)
                     p.setPen(fg)

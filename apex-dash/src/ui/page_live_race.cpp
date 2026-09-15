@@ -47,38 +47,65 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   // ==========================================
   u8g2->drawRFrame(10, 38, 160, 118, 6);
 
-  float disp_speed = settings.use_kmh ? telemetry.speed_kmh : (telemetry.speed_kmh * 0.621371f);
-  const char *unit_str = settings.use_kmh ? "KM/H" : "MPH";
+  if (settings.show_speed) {
+    float disp_speed = settings.use_kmh ? telemetry.speed_kmh : (telemetry.speed_kmh * 0.621371f);
+    const char *unit_str = settings.use_kmh ? "KM/H" : "MPH";
 
-  if (settings.drive_type == DRIVE_SHIFTER_6SPEED) {
-    // 6-Speed Shifter Kart (Speed + Gear Panel)
-    u8g2->setFont(u8g2_font_logisoso50_tn);
-    snprintf(buf, sizeof(buf), "%03d", (int)disp_speed);
-    u8g2->drawStr(18, 114, buf);
+    if (settings.drive_type == DRIVE_SHIFTER_6SPEED) {
+      // 6-Speed Shifter Kart (Speed + Gear Panel)
+      u8g2->setFont(u8g2_font_logisoso50_tn);
+      snprintf(buf, sizeof(buf), "%03d", (int)disp_speed);
+      u8g2->drawStr(18, 114, buf);
 
-    u8g2->setFont(u8g2_font_helvB10_tr);
-    u8g2->drawStr(118, 70, unit_str);
+      u8g2->setFont(u8g2_font_helvB10_tr);
+      u8g2->drawStr(118, 70, unit_str);
 
-    // Gear Box
-    u8g2->drawRFrame(116, 82, 46, 66, 4);
-    u8g2->setFont(u8g2_font_6x10_tr);
-    u8g2->drawStr(122, 94, I18n::get(STR_LABEL_GEAR));
-    u8g2->setFont(u8g2_font_logisoso32_tn);
-    if (telemetry.gear == 0) {
-      u8g2->setFont(u8g2_font_helvB18_tr);
-      u8g2->drawStr(132, 134, "N");
+      // Gear Box
+      u8g2->drawRFrame(116, 82, 46, 66, 4);
+      u8g2->setFont(u8g2_font_6x10_tr);
+      u8g2->drawStr(122, 94, I18n::get(STR_LABEL_GEAR));
+      u8g2->setFont(u8g2_font_logisoso32_tn);
+      if (telemetry.gear == 0) {
+        u8g2->setFont(u8g2_font_helvB18_tr);
+        u8g2->drawStr(132, 134, "N");
+      } else {
+        snprintf(buf, sizeof(buf), "%d", telemetry.gear);
+        u8g2->drawStr(130, 136, buf);
+      }
     } else {
-      snprintf(buf, sizeof(buf), "%d", telemetry.gear);
-      u8g2->drawStr(130, 136, buf);
+      // Single Speed (Direct Drive / Clutch) — Centered Large Speed Display
+      u8g2->setFont(u8g2_font_logisoso58_tn);
+      snprintf(buf, sizeof(buf), "%03d", (int)disp_speed);
+      u8g2->drawStr(32, 110, buf);
+
+      u8g2->setFont(u8g2_font_helvB10_tr);
+      u8g2->drawStr(66, 138, unit_str);
     }
   } else {
-    // Single Speed (Direct Drive / Clutch) — Centered Large Speed Display
-    u8g2->setFont(u8g2_font_logisoso58_tn);
-    snprintf(buf, sizeof(buf), "%03d", (int)disp_speed);
-    u8g2->drawStr(32, 110, buf);
+    // Speed Hidden Mode
+    if (settings.drive_type == DRIVE_SHIFTER_6SPEED) {
+      // Shifter Kart — Large Centered Gear Indicator
+      u8g2->setFont(u8g2_font_helvB10_tr);
+      u8g2->drawStr(66, 60, I18n::get(STR_LABEL_GEAR));
 
-    u8g2->setFont(u8g2_font_helvB10_tr);
-    u8g2->drawStr(66, 138, unit_str);
+      if (telemetry.gear == 0) {
+        u8g2->setFont(u8g2_font_helvB24_tr);
+        u8g2->drawStr(78, 120, "N");
+      } else {
+        u8g2->setFont(u8g2_font_logisoso58_tn);
+        snprintf(buf, sizeof(buf), "%d", telemetry.gear);
+        u8g2->drawStr(72, 126, buf);
+      }
+    } else {
+      // Single Speed Kart — Prominent Numerical RPM Display
+      u8g2->setFont(u8g2_font_helvB10_tr);
+      u8g2->drawStr(68, 62, I18n::get(STR_LABEL_RPM));
+
+      u8g2->setFont(u8g2_font_logisoso38_tn);
+      snprintf(buf, sizeof(buf), "%u", telemetry.rpm);
+      int w = u8g2->getStrWidth(buf);
+      u8g2->drawStr(90 - (w / 2), 118, buf);
+    }
   }
 
   // ==========================================

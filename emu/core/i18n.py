@@ -34,6 +34,7 @@ class StrId(Enum):
     TRACK_SD_LOAD = "TRACK_SD_LOAD"
     USB_MSC_START = "USB_MSC_START"
     LANGUAGE = "LANGUAGE"
+    SHOW_SPEED = "SHOW_SPEED"
     INVERT_DISP = "INVERT_DISP"
     UNITS_SPEED = "UNITS_SPEED"
     UNITS_TEMP = "UNITS_TEMP"
@@ -99,6 +100,7 @@ STRINGS = {
         StrId.TRACK_SD_LOAD: "Reload Tracks from SD",
         StrId.USB_MSC_START: "Start PC USB Drive",
         StrId.LANGUAGE: "Language",
+        StrId.SHOW_SPEED: "Show Speed",
         StrId.INVERT_DISP: "Display Polarity",
         StrId.UNITS_SPEED: "Speed Unit",
         StrId.UNITS_TEMP: "Temp Unit",
@@ -158,6 +160,7 @@ STRINGS = {
         StrId.TRACK_SD_LOAD: "Ricarica Piste da SD",
         StrId.USB_MSC_START: "Avvia Storage USB PC",
         StrId.LANGUAGE: "Lingua",
+        StrId.SHOW_SPEED: "Mostra Velocita",
         StrId.INVERT_DISP: "Polarita Display",
         StrId.UNITS_SPEED: "Unita Velocita",
         StrId.UNITS_TEMP: "Unita Temperatura",
@@ -217,6 +220,7 @@ STRINGS = {
         StrId.TRACK_SD_LOAD: "Recharger Pistes SD",
         StrId.USB_MSC_START: "Lancer Disque USB PC",
         StrId.LANGUAGE: "Langue",
+        StrId.SHOW_SPEED: "Afficher Vitesse",
         StrId.INVERT_DISP: "Polarite Ecran",
         StrId.UNITS_SPEED: "Unite Vitesse",
         StrId.UNITS_TEMP: "Unite Temperature",
@@ -277,6 +281,7 @@ STRINGS = {
         StrId.TRACK_SD_LOAD: "Strecken von SD Laden",
         StrId.USB_MSC_START: "PC USB-Speicher Starten",
         StrId.LANGUAGE: "Sprache",
+        StrId.SHOW_SPEED: "Geschw. Anzeigen",
         StrId.INVERT_DISP: "Farbinversion",
         StrId.UNITS_SPEED: "Geschw.-Einheit",
         StrId.UNITS_TEMP: "Temp.-Einheit",

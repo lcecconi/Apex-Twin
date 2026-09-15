@@ -21,6 +21,7 @@ void StorageManager::loadSettings(SystemSettings &settings) {
   settings.exhaust_temp_alarm_c = _prefs.getFloat("egt_alarm", settings.exhaust_temp_alarm_c);
   settings.use_kmh = _prefs.getBool("use_kmh", settings.use_kmh);
   settings.use_celsius = _prefs.getBool("use_celsius", settings.use_celsius);
+  settings.show_speed = _prefs.getBool("show_spd", settings.show_speed);
   settings.inverted_display = _prefs.getBool("inverted", settings.inverted_display);
   settings.simulation_mode = _prefs.getBool("sim_mode", settings.simulation_mode);
   settings.language = _prefs.getUChar("lang", settings.language);
@@ -46,6 +47,7 @@ void StorageManager::saveSettings(const SystemSettings &settings) {
   _prefs.putFloat("egt_alarm", settings.exhaust_temp_alarm_c);
   _prefs.putBool("use_kmh", settings.use_kmh);
   _prefs.putBool("use_celsius", settings.use_celsius);
+  _prefs.putBool("show_spd", settings.show_speed);
   _prefs.putBool("inverted", settings.inverted_display);
   _prefs.putBool("sim_mode", settings.simulation_mode);
   _prefs.putUChar("lang", settings.language);
