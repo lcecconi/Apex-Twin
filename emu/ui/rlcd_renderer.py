@@ -348,37 +348,25 @@ class RlcdRenderer(QWidget):
         t = self.telemetry
         s = self.settings
 
-        # 1. Top Tachometer Bar (Wider, no RPM/MAX text, blinks when max_rpm crossed)
+        # 1. Top Tachometer Bar (Wider, no RPM/MAX text, RPM printed inside in XOR difference mode)
         if s.rpm_display_mode != RpmDisplayMode.LEDS_ONLY:
-            is_max_rpm = (t.rpm >= s.max_rpm and s.max_rpm > 0)
-            rpm_blink = is_max_rpm and (int(time.time() * 6.6) % 2 == 0)
-
+            p.drawRoundedRect(6, 4, 388, 26, 3, 3)
             shift_x = int(6 + (s.shift_rpm * 384 / max(1, s.max_rpm)))
+            if shift_x < 392:
+                p.drawLine(shift_x, 2, shift_x, 30)
+
             rpm_fill = int(t.rpm * 384 / max(1, s.max_rpm))
             rpm_fill = max(0, min(384, rpm_fill))
+            if rpm_fill > 0:
+                p.fillRect(8, 6, rpm_fill, 22, fg)
 
-            if rpm_blink:
-                # Solid inverted flash when MAX RPM threshold is crossed
-                p.fillRect(6, 4, 388, 26, fg)
-                p.setPen(bg)
-                p.setFont(QFont("SansSerif", 13, QFont.Bold))
-                p.drawText(QRectF(6, 4, 388, 26), Qt.AlignCenter, str(t.rpm))
-                p.setPen(fg)
-            else:
-                p.drawRoundedRect(6, 4, 388, 26, 3, 3)
-                if shift_x < 392:
-                    p.drawLine(shift_x, 2, shift_x, 30)
-
-                if rpm_fill > 0:
-                    p.fillRect(8, 6, rpm_fill, 22, fg)
-
-                # Draw current RPM printed directly onto the bar in Difference (XOR) mode
-                p.setFont(QFont("SansSerif", 13, QFont.Bold))
-                p.setCompositionMode(QPainter.CompositionMode_Difference)
-                p.setPen(QColor(255, 255, 255))
-                p.drawText(QRectF(6, 4, 388, 26), Qt.AlignCenter, str(t.rpm))
-                p.setCompositionMode(QPainter.CompositionMode_SourceOver)
-                p.setPen(fg)
+            # Draw current RPM printed directly onto the bar in Difference (XOR) mode
+            p.setFont(QFont("SansSerif", 13, QFont.Bold))
+            p.setCompositionMode(QPainter.CompositionMode_Difference)
+            p.setPen(QColor(255, 255, 255))
+            p.drawText(QRectF(6, 4, 388, 26), Qt.AlignCenter, str(t.rpm))
+            p.setCompositionMode(QPainter.CompositionMode_SourceOver)
+            p.setPen(fg)
 
 
         # 2 & 3. Speed/Gear & Lap Time
