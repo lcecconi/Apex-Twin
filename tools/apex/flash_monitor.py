@@ -1,7 +1,7 @@
 """
 Apex-Twin: Firmware Builder, Flasher, and Live Serial Monitor Tool
 Targets both Apex-Dash (Steering Wheel unit) and Apex-Track (Chassis unit).
-Provides both a modern graphical interface (PySide6) and a command-line interface.
+Provides intelligent auto-port detection, PySide6 GUI, and command-line interfaces.
 """
 
 import argparse
@@ -41,7 +41,6 @@ def resolve_target(target: str) -> tuple[str, Path]:
         return "Apex-Dash (Display Unit)", REPO_ROOT / "apex-dash"
     elif t in ["track", "apex-track", "chassis"]:
         track_dir = REPO_ROOT / "apex-track"
-        # If apex-track folder doesn't have platformio.ini yet, fall back to repo root if configured
         if not (track_dir / "platformio.ini").exists() and (REPO_ROOT / "platformio.ini").exists():
             return "Apex-Track (Chassis Unit)", REPO_ROOT
         return "Apex-Track (Chassis Unit)", track_dir
@@ -60,19 +59,80 @@ def find_platformio_cmd() -> list:
     return ["pio"]
 
 
-def list_serial_ports() -> list:
-    """Return list of available serial port device paths and descriptions."""
-    ports = []
+def get_usb_serial_ports() -> list:
+    """Return list of connected USB serial ports with rich metadata, filtering unpopulated PC ports."""
+    valid_ports = []
     if HAS_SERIAL:
         for p in serial.tools.list_ports.comports():
-            desc = f"{p.device} ({p.description})" if p.description else p.device
-            ports.append((p.device, desc))
+            # Skip empty hardware IDs / legacy ttyS ports with no USB vendor
+            if (p.device.startswith("/dev/ttyS") or p.device.startswith("COM") and not p.vid) and not p.hwid:
+                continue
+            if p.hwid == "n/a" and p.vid is None:
+                continue
+            valid_ports.append(p)
     else:
-        # Fallback for Linux /dev/ttyACM* and /dev/ttyUSB*
+        # Linux fallback for /dev/ttyACM* and /dev/ttyUSB*
         for dev in sorted(list(Path("/dev").glob("ttyACM*")) + list(Path("/dev").glob("ttyUSB*"))):
-            ports.append((str(dev), str(dev)))
+            dummy = type("DummyPort", (), {
+                "device": str(dev),
+                "description": str(dev),
+                "vid": None,
+                "pid": None,
+                "manufacturer": "Unknown"
+            })()
+            valid_ports.append(dummy)
 
-    return ports
+    return valid_ports
+
+
+def list_serial_ports() -> list:
+    """Return list of available serial port device paths and descriptions."""
+    ports = get_usb_serial_ports()
+    result = []
+    for p in ports:
+        desc = getattr(p, "description", p.device)
+        vid = getattr(p, "vid", None)
+        pid = getattr(p, "pid", None)
+        if vid and pid:
+            desc = f"{p.device} ({desc} [{hex(vid)}:{hex(pid)}])"
+        else:
+            desc = f"{p.device} ({desc})" if desc != p.device else p.device
+        result.append((p.device, desc))
+    return result
+
+
+def find_target_port(target: str = "dash") -> tuple[str, str]:
+    """
+    Intelligently find and return the best matching serial port for the target module.
+    Returns: (port_device, port_description)
+    """
+    ports = get_usb_serial_ports()
+    if not ports:
+        return "/dev/ttyACM0", "Default fallback (/dev/ttyACM0)"
+
+    target_clean = (target or "dash").lower()
+
+    if "dash" in target_clean:
+        # Apex-Dash: Native ESP32-S3 USB Serial/JTAG (VID: 0x303A, PID: 0x1001) or /dev/ttyACM*
+        for p in ports:
+            vid = getattr(p, "vid", None)
+            pid = getattr(p, "pid", None)
+            if vid == 0x303A and pid == 0x1001:
+                return p.device, f"{p.device} (Espressif ESP32-S3 USB-JTAG [{hex(vid)}:{hex(pid)}])"
+        for p in ports:
+            if "ACM" in p.device:
+                return p.device, f"{p.device} ({getattr(p, 'description', p.device)})"
+
+    elif "track" in target_clean:
+        # Apex-Track: External USB-UART bridges (CP210x, CH340, FTDI, CH9102) or /dev/ttyUSB*
+        for p in ports:
+            desc = (getattr(p, "description", "") or "").lower()
+            if "USB" in p.device or any(x in desc for x in ["cp210", "ch340", "ftdi", "ch910", "uart"]):
+                return p.device, f"{p.device} ({getattr(p, 'description', p.device)})"
+
+    # Default to first available USB device
+    first = ports[0]
+    return first.device, f"{first.device} ({getattr(first, 'description', first.device)})"
 
 
 def run_command_stream(cmd: list, cwd: Path, output_callback=None, cancel_event=None) -> int:
@@ -126,17 +186,12 @@ def run_cli(args):
     print(f"Target:   {target_display_name} ({target_dir.name})")
     print(f"Platform: {' '.join(pio_cmd)}")
 
-    # 1. Port detection if flashing or monitoring
+    # 1. Automatic target-specific port detection if flashing or monitoring
     port = getattr(args, "port", None)
     need_port = getattr(args, "flash", False) or getattr(args, "monitor", False) or getattr(args, "erase", False)
     if need_port and not port:
-        ports = list_serial_ports()
-        if ports:
-            port = ports[0][0]
-            print(f"Auto-detected port: {port}")
-        else:
-            print("[WARN] No serial ports detected! Defaulting to /dev/ttyACM0")
-            port = "/dev/ttyACM0"
+        port, desc = find_target_port(raw_target)
+        print(f"Auto-detected port: {desc}")
 
     # 2. Erase Flash
     if getattr(args, "erase", False):
@@ -301,11 +356,12 @@ def run_pyside_gui(initial_target: str = "dash"):
                 self.combo_target.setCurrentIndex(1)
             else:
                 self.combo_target.setCurrentIndex(0)
+            self.combo_target.currentIndexChanged.connect(self.on_target_changed)
             top_layout.addWidget(self.combo_target)
 
             top_layout.addWidget(QLabel("Serial Port:"))
             self.combo_port = QComboBox()
-            self.combo_port.setMinimumWidth(220)
+            self.combo_port.setMinimumWidth(260)
             top_layout.addWidget(self.combo_port)
 
             btn_refresh = QPushButton("🔄 Refresh")
@@ -389,16 +445,31 @@ def run_pyside_gui(initial_target: str = "dash"):
             self.setStatusBar(self.status_bar)
             self.status_bar.showMessage("Ready — Select module, port, and click Build & Flash")
 
+        def on_target_changed(self):
+            target_key = "track" if self.combo_target.currentIndex() == 1 else "dash"
+            best_port, _ = find_target_port(target_key)
+            for i in range(self.combo_port.count()):
+                if self.combo_port.itemData(i) == best_port:
+                    self.combo_port.setCurrentIndex(i)
+                    break
+
         def refresh_ports(self):
             self.combo_port.clear()
             ports = list_serial_ports()
+            target_key = "track" if self.combo_target.currentIndex() == 1 else "dash"
+            best_port, _ = find_target_port(target_key)
+            best_idx = 0
+
             if ports:
-                for dev, desc in ports:
+                for idx, (dev, desc) in enumerate(ports):
                     self.combo_port.addItem(desc, dev)
-                self.status_bar.showMessage(f"Found {len(ports)} serial port(s)")
+                    if dev == best_port:
+                        best_idx = idx
+                self.combo_port.setCurrentIndex(best_idx)
+                self.status_bar.showMessage(f"Found {len(ports)} USB serial port(s)")
             else:
                 self.combo_port.addItem("No ports detected (/dev/ttyACM0)", "/dev/ttyACM0")
-                self.status_bar.showMessage("No serial ports detected.")
+                self.status_bar.showMessage("No USB serial ports detected.")
 
         def get_selected_port(self) -> str:
             return self.combo_port.currentData() or "/dev/ttyACM0"
