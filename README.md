@@ -1,5 +1,10 @@
 # Apex-Twin
 
+> [!WARNING]
+> ### ⚠️ WORK IN PROGRESS — NOT YET FUNCTIONAL
+> **Apex-Twin is currently under active development and is NOT yet fully functional or ready for on-track racing use.**  
+> Hardware pinouts, communication protocols, firmware interfaces, and telemetry schemas are subject to ongoing changes.
+
 **Apex-Twin** is an open-source, dual-module telemetry, data logging, and live racing display ecosystem for go-karts.
 
 The system is split into two specialized modules:
