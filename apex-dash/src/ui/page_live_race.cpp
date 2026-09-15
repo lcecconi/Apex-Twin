@@ -119,16 +119,33 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
     snprintf(buf, sizeof(buf), "%02lu:%02lu.%02lu", (unsigned long)lap_min, (unsigned long)lap_sec, (unsigned long)lap_cen);
     u8g2->drawStr(184, 102, buf);
 
-    // Best Lap reference
-    u8g2->setFont(u8g2_font_helvB10_tr);
+    // Best Lap reference (Inverted Badge)
+    char b_buf[32], l_buf[32];
     if (telemetry.best_lap_time_ms > 0) {
       uint32_t b_sec = (telemetry.best_lap_time_ms % 60000) / 1000;
       uint32_t b_cen = (telemetry.best_lap_time_ms % 1000) / 10;
-      snprintf(buf, sizeof(buf), "%s: %02lu.%02lus", I18n::get(STR_LABEL_BEST), (unsigned long)b_sec, (unsigned long)b_cen);
+      snprintf(b_buf, sizeof(b_buf), " %s %02lu.%02lus ", I18n::get(STR_LABEL_BEST), (unsigned long)b_sec, (unsigned long)b_cen);
     } else {
-      snprintf(buf, sizeof(buf), "%s: --.--s", I18n::get(STR_LABEL_BEST));
+      snprintf(b_buf, sizeof(b_buf), " %s --.--s ", I18n::get(STR_LABEL_BEST));
     }
-    u8g2->drawStr(186, 138, buf);
+
+    u8g2->setFont(u8g2_font_6x10_tr);
+    int b_w = u8g2->getStrWidth(b_buf);
+    u8g2->drawRBox(182, 128, b_w, 16, 2);
+    u8g2->setDrawColor(0);
+    u8g2->drawStr(182, 140, b_buf);
+    u8g2->setDrawColor(1);
+
+    // Last Lap reference (Normal text)
+    if (telemetry.last_lap_time_ms > 0) {
+      uint32_t l_sec = (telemetry.last_lap_time_ms % 60000) / 1000;
+      uint32_t l_cen = (telemetry.last_lap_time_ms % 1000) / 10;
+      snprintf(l_buf, sizeof(l_buf), "%s %02lu.%02lus", I18n::get(STR_LABEL_LAST), (unsigned long)l_sec, (unsigned long)l_cen);
+    } else {
+      snprintf(l_buf, sizeof(l_buf), "%s --.--s", I18n::get(STR_LABEL_LAST));
+    }
+    int l_w = u8g2->getStrWidth(l_buf);
+    u8g2->drawStr(380 - l_w, 140, l_buf);
   } else {
     // Full-Width Lap Time Pane (380 px width)
     u8g2->drawRFrame(10, 38, 380, 118, 6);
@@ -150,25 +167,33 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
     int time_w = u8g2->getStrWidth(buf);
     u8g2->drawStr(200 - (time_w / 2), 108, buf);
 
-    // Best Lap reference on bottom-left
-    u8g2->setFont(u8g2_font_helvB10_tr);
+    // Best Lap reference on bottom-left (Inverted Badge)
+    char b_buf[32], l_buf[32];
     if (telemetry.best_lap_time_ms > 0) {
       uint32_t b_sec = (telemetry.best_lap_time_ms % 60000) / 1000;
       uint32_t b_cen = (telemetry.best_lap_time_ms % 1000) / 10;
-      snprintf(buf, sizeof(buf), "%s: %02lu.%02lus", I18n::get(STR_LABEL_BEST), (unsigned long)b_sec, (unsigned long)b_cen);
+      snprintf(b_buf, sizeof(b_buf), " %s %02lu.%02lus ", I18n::get(STR_LABEL_BEST), (unsigned long)b_sec, (unsigned long)b_cen);
     } else {
-      snprintf(buf, sizeof(buf), "%s: --.--s", I18n::get(STR_LABEL_BEST));
+      snprintf(b_buf, sizeof(b_buf), " %s --.--s ", I18n::get(STR_LABEL_BEST));
     }
-    u8g2->drawStr(24, 142, buf);
 
-    // Last Lap reference on bottom-right
+    u8g2->setFont(u8g2_font_helvB10_tr);
+    int b_w = u8g2->getStrWidth(b_buf);
+    u8g2->drawRBox(22, 127, b_w, 20, 3);
+    u8g2->setDrawColor(0);
+    u8g2->drawStr(22, 142, b_buf);
+    u8g2->setDrawColor(1);
+
+    // Last Lap reference on bottom-right (Normal text)
     if (telemetry.last_lap_time_ms > 0) {
       uint32_t l_sec = (telemetry.last_lap_time_ms % 60000) / 1000;
       uint32_t l_cen = (telemetry.last_lap_time_ms % 1000) / 10;
-      snprintf(buf, sizeof(buf), "%s: %02lu.%02lus", I18n::get(STR_LABEL_LAST), (unsigned long)l_sec, (unsigned long)l_cen);
-      int last_w = u8g2->getStrWidth(buf);
-      u8g2->drawStr(376 - last_w, 142, buf);
+      snprintf(l_buf, sizeof(l_buf), "%s: %02lu.%02lus", I18n::get(STR_LABEL_LAST), (unsigned long)l_sec, (unsigned long)l_cen);
+    } else {
+      snprintf(l_buf, sizeof(l_buf), "%s: --.--s", I18n::get(STR_LABEL_LAST));
     }
+    int last_w = u8g2->getStrWidth(l_buf);
+    u8g2->drawStr(376 - last_w, 142, l_buf);
   }
 
   // ==========================================

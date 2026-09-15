@@ -319,13 +319,31 @@ class RlcdRenderer(QWidget):
             p.setFont(QFont("SansSerif", 30, QFont.Bold))
             p.drawText(184, 102, f"{lap_min:02d}:{lap_sec:02d}.{lap_cen:02d}")
 
-            p.setFont(QFont("SansSerif", 9, QFont.Bold))
+            # Best Lap reference (Inverted Badge)
+            p.setFont(QFont("SansSerif", 7, QFont.Bold))
             if t.best_lap_time_ms > 0:
                 b_sec = (t.best_lap_time_ms % 60000) // 1000
                 b_cen = (t.best_lap_time_ms % 1000) // 10
-                p.drawText(186, 138, f"{I18n.get(StrId.LABEL_BEST)}: {b_sec:02d}.{b_cen:02d}s")
+                best_str = f" {I18n.get(StrId.LABEL_BEST)} {b_sec:02d}.{b_cen:02d}s "
             else:
-                p.drawText(186, 138, f"{I18n.get(StrId.LABEL_BEST)}: --.--s")
+                best_str = f" {I18n.get(StrId.LABEL_BEST)} --.--s "
+
+            fm = p.fontMetrics()
+            bw = fm.horizontalAdvance(best_str) + 4
+            p.fillRect(182, 126, bw, 18, fg)
+            p.setPen(bg)
+            p.drawText(QRectF(182, 126, bw, 18), Qt.AlignCenter, best_str)
+            p.setPen(fg)
+
+            # Last Lap reference (Normal text)
+            p.setFont(QFont("SansSerif", 7, QFont.Bold))
+            if t.last_lap_time_ms > 0:
+                l_sec = (t.last_lap_time_ms % 60000) // 1000
+                l_cen = (t.last_lap_time_ms % 1000) // 10
+                last_str = f"{I18n.get(StrId.LABEL_LAST)} {l_sec:02d}.{l_cen:02d}s"
+            else:
+                last_str = f"{I18n.get(StrId.LABEL_LAST)} --.--s"
+            p.drawText(QRectF(182 + bw + 4, 126, 380 - (182 + bw + 8), 18), Qt.AlignRight | Qt.AlignVCenter, last_str)
         else:
             # Full-Width Lap Time Pane (380 px width)
             p.drawRoundedRect(10, 38, 380, 118, 4, 4)
@@ -338,18 +356,30 @@ class RlcdRenderer(QWidget):
             p.setFont(QFont("SansSerif", 42, QFont.Bold))
             p.drawText(QRectF(10, 64, 380, 52), Qt.AlignCenter, f"{lap_min:02d}:{lap_sec:02d}.{lap_cen:02d}")
 
+            # Best Lap reference (Inverted Badge)
             p.setFont(QFont("SansSerif", 9, QFont.Bold))
             if t.best_lap_time_ms > 0:
                 b_sec = (t.best_lap_time_ms % 60000) // 1000
                 b_cen = (t.best_lap_time_ms % 1000) // 10
-                p.drawText(24, 142, f"{I18n.get(StrId.LABEL_BEST)}: {b_sec:02d}.{b_cen:02d}s")
+                best_str = f" {I18n.get(StrId.LABEL_BEST)} {b_sec:02d}.{b_cen:02d}s "
             else:
-                p.drawText(24, 142, f"{I18n.get(StrId.LABEL_BEST)}: --.--s")
+                best_str = f" {I18n.get(StrId.LABEL_BEST)} --.--s "
 
+            fm = p.fontMetrics()
+            bw = fm.horizontalAdvance(best_str) + 6
+            p.fillRect(22, 126, bw, 22, fg)
+            p.setPen(bg)
+            p.drawText(QRectF(22, 126, bw, 22), Qt.AlignCenter, best_str)
+            p.setPen(fg)
+
+            # Last Lap reference (Normal text)
             if t.last_lap_time_ms > 0:
                 l_sec = (t.last_lap_time_ms % 60000) // 1000
                 l_cen = (t.last_lap_time_ms % 1000) // 10
-                p.drawText(QRectF(200, 126, 176, 24), Qt.AlignRight | Qt.AlignVCenter, f"{I18n.get(StrId.LABEL_LAST)}: {l_sec:02d}.{l_cen:02d}s")
+                last_str = f"{I18n.get(StrId.LABEL_LAST)}: {l_sec:02d}.{l_cen:02d}s"
+            else:
+                last_str = f"{I18n.get(StrId.LABEL_LAST)}: --.--s"
+            p.drawText(QRectF(200, 126, 176, 22), Qt.AlignRight | Qt.AlignVCenter, last_str)
 
         # 4. Predictive Delta Bar
         p.drawRoundedRect(10, 162, 380, 52, 4, 4)
