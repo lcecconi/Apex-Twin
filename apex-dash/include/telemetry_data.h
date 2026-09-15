@@ -94,5 +94,11 @@ struct SystemSettings {
   bool led_shift_enable = true;
   bool led_alarm_enable = true;
   uint8_t backlight_percent = 0; // 0 - 100% (PWM to external driver)
+  bool warn_trigger_water = true;
+  bool warn_trigger_egt = true;
+  bool warn_trigger_rev = true;
+  bool warn_trigger_battery = true;
+  bool warn_trigger_link = true;
 };
+
 

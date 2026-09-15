@@ -115,4 +115,9 @@ class SystemSettings:
     led_shift_enable: bool = True
     led_alarm_enable: bool = True
     backlight_percent: int = 0     # 0-100%
+    warn_trigger_water: bool = True
+    warn_trigger_egt: bool = True
+    warn_trigger_rev: bool = True
+    warn_trigger_battery: bool = True
+    warn_trigger_link: bool = True
 

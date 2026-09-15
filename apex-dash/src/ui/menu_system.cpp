@@ -98,6 +98,9 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings) {
   if (event == INPUT_BACK_MENU) {
     if (_current_state == MENU_ROOT) {
       closeMenu();
+    } else if (_current_state == MENU_WARN_TRIGGERS) {
+      _current_state = MENU_LEDS_ALARMS;
+      _cursor_idx = 7;
     } else {
       _current_state = MENU_ROOT;
       _cursor_idx = 0;
@@ -148,7 +151,7 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings) {
 
   // --- 2. SHIFT LIGHTS & ALARMS ---
   if (_current_state == MENU_LEDS_ALARMS) {
-    int max_items = 8;
+    int max_items = 9;
     if (event == INPUT_NEXT) {
       _cursor_idx = (_cursor_idx + 1) % max_items;
     } else if (event == INPUT_PREV) {
@@ -170,6 +173,9 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings) {
         _edit_mode = true;
       } else if (_cursor_idx == 6) {
         _edit_mode = true;
+      } else if (_cursor_idx == 7) {
+        _current_state = MENU_WARN_TRIGGERS;
+        _cursor_idx = 0;
       } else {
         _current_state = MENU_ROOT;
         _cursor_idx = 1;
@@ -177,6 +183,47 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings) {
     }
     return true;
   }
+
+  // --- 2b. WARN BLINKING TRIGGERS SUBMENU ---
+  if (_current_state == MENU_WARN_TRIGGERS) {
+    int max_items = 8;
+    if (event == INPUT_NEXT) {
+      _cursor_idx = (_cursor_idx + 1) % max_items;
+    } else if (event == INPUT_PREV) {
+      _cursor_idx = (_cursor_idx - 1 + max_items) % max_items;
+    } else if (event == INPUT_SELECT) {
+      if (_cursor_idx == 0) {
+        settings.warn_trigger_water = !settings.warn_trigger_water;
+      } else if (_cursor_idx == 1) {
+        settings.warn_trigger_egt = !settings.warn_trigger_egt;
+      } else if (_cursor_idx == 2) {
+        settings.warn_trigger_rev = !settings.warn_trigger_rev;
+      } else if (_cursor_idx == 3) {
+        settings.warn_trigger_battery = !settings.warn_trigger_battery;
+      } else if (_cursor_idx == 4) {
+        settings.warn_trigger_link = !settings.warn_trigger_link;
+      } else if (_cursor_idx == 5) {
+        // Enable All
+        settings.warn_trigger_water = true;
+        settings.warn_trigger_egt = true;
+        settings.warn_trigger_rev = true;
+        settings.warn_trigger_battery = true;
+        settings.warn_trigger_link = true;
+      } else if (_cursor_idx == 6) {
+        // Disable All
+        settings.warn_trigger_water = false;
+        settings.warn_trigger_egt = false;
+        settings.warn_trigger_rev = false;
+        settings.warn_trigger_battery = false;
+        settings.warn_trigger_link = false;
+      } else {
+        _current_state = MENU_LEDS_ALARMS;
+        _cursor_idx = 7;
+      }
+    }
+    return true;
+  }
+
 
 
   // --- 3. TRACK & GPS DATABASE ---
@@ -315,7 +362,9 @@ void MenuSystem::render(U8G2 *u8g2, const SystemSettings &settings, const Teleme
     case MENU_SYSTEM_LANG: renderSystemLangMenu(u8g2, settings); break;
     case MENU_DIAGNOSTICS_COUNTERS: renderDiagnosticsCountersMenu(u8g2, telemetry); break;
     case MENU_USB_MSC_SCREEN: renderUsbMscScreen(u8g2); break;
+    case MENU_WARN_TRIGGERS: renderWarnTriggersMenu(u8g2, settings); break;
   }
+
 
   // Footer Navigation
   if (_current_state != MENU_USB_MSC_SCREEN) {
@@ -439,7 +488,38 @@ void MenuSystem::renderLedsAlarmsMenu(U8G2 *u8g2, const SystemSettings &settings
     snprintf(b6, sizeof(b6), "Over-Rev Alarm: [%u RPM]", settings.over_rev_rpm);
   }
 
-  const char *items[8] = { b0, b1, b2, b3, b4, b5, b6, "< Return >" };
+  const char *items[9] = { b0, b1, b2, b3, b4, b5, b6, "WARN Alert Triggers >", "< Return >" };
+
+  for (int i = 0; i < 9; i++) {
+    int y = 64 + (i * 23);
+    if (i == _cursor_idx) {
+      u8g2->drawRBox(12, y - 16, 376, 20, 3);
+      u8g2->setDrawColor(0);
+      u8g2->drawStr(24, y, items[i]);
+      u8g2->setDrawColor(1);
+    } else {
+      u8g2->drawStr(24, y, items[i]);
+    }
+  }
+}
+
+void MenuSystem::renderWarnTriggersMenu(U8G2 *u8g2, const SystemSettings &settings) {
+  u8g2->setFont(u8g2_font_helvB10_tr);
+  u8g2->drawStr(12, 44, "WARN BLINKING TRIGGERS");
+
+  char b0[64], b1[64], b2[64], b3[64], b4[64];
+  snprintf(b0, sizeof(b0), "WARN on Water Temp:   [%s]", settings.warn_trigger_water ? "ENABLED" : "OFF");
+  snprintf(b1, sizeof(b1), "WARN on Exhaust (EGT): [%s]", settings.warn_trigger_egt ? "ENABLED" : "OFF");
+  snprintf(b2, sizeof(b2), "WARN on Over-Rev:      [%s]", settings.warn_trigger_rev ? "ENABLED" : "OFF");
+  snprintf(b3, sizeof(b3), "WARN on Low Battery:   [%s]", settings.warn_trigger_battery ? "ENABLED" : "OFF");
+  snprintf(b4, sizeof(b4), "WARN on Link Lost:     [%s]", settings.warn_trigger_link ? "ENABLED" : "OFF");
+
+  const char *items[8] = {
+    b0, b1, b2, b3, b4,
+    "[ Enable All Triggers ]",
+    "[ Disable All Triggers ]",
+    "< Return to Alarms Menu >"
+  };
 
   for (int i = 0; i < 8; i++) {
     int y = 66 + (i * 26);
@@ -453,6 +533,7 @@ void MenuSystem::renderLedsAlarmsMenu(U8G2 *u8g2, const SystemSettings &settings
     }
   }
 }
+
 
 
 

@@ -46,6 +46,8 @@ class MenuState(IntEnum):
     MENU_SYSTEM_LANG = 6
     MENU_DIAGNOSTICS = 7
     MENU_USB_MSC_SCREEN = 8
+    MENU_WARN_TRIGGERS = 9
+
 
 
 class RlcdRenderer(QWidget):
@@ -153,6 +155,9 @@ class RlcdRenderer(QWidget):
         else:
             if self.menu_state == MenuState.MENU_ROOT or self.menu_state == MenuState.MENU_USB_MSC_SCREEN:
                 self.menu_active = False
+            elif self.menu_state == MenuState.MENU_WARN_TRIGGERS:
+                self.menu_state = MenuState.MENU_LEDS_ALARMS
+                self.cursor_idx = 7
             else:
                 self.menu_state = MenuState.MENU_ROOT
                 self.cursor_idx = 0
@@ -164,6 +169,8 @@ class RlcdRenderer(QWidget):
         elif self.menu_state == MenuState.MENU_RACE_SETUP:
             return 5
         elif self.menu_state == MenuState.MENU_LEDS_ALARMS:
+            return 9
+        elif self.menu_state == MenuState.MENU_WARN_TRIGGERS:
             return 8
         elif self.menu_state == MenuState.MENU_TRACK_GPS:
             return 6
@@ -219,9 +226,39 @@ class RlcdRenderer(QWidget):
                 self.settings.led_alarm_enable = not self.settings.led_alarm_enable
             elif self.cursor_idx in (5, 6):
                 self.edit_mode = True
+            elif self.cursor_idx == 7:
+                self.menu_state = MenuState.MENU_WARN_TRIGGERS
+                self.cursor_idx = 0
             else:
                 self.menu_state = MenuState.MENU_ROOT
                 self.cursor_idx = 1
+        elif self.menu_state == MenuState.MENU_WARN_TRIGGERS:
+            if self.cursor_idx == 0:
+                self.settings.warn_trigger_water = not self.settings.warn_trigger_water
+            elif self.cursor_idx == 1:
+                self.settings.warn_trigger_egt = not self.settings.warn_trigger_egt
+            elif self.cursor_idx == 2:
+                self.settings.warn_trigger_rev = not self.settings.warn_trigger_rev
+            elif self.cursor_idx == 3:
+                self.settings.warn_trigger_battery = not self.settings.warn_trigger_battery
+            elif self.cursor_idx == 4:
+                self.settings.warn_trigger_link = not self.settings.warn_trigger_link
+            elif self.cursor_idx == 5:
+                self.settings.warn_trigger_water = True
+                self.settings.warn_trigger_egt = True
+                self.settings.warn_trigger_rev = True
+                self.settings.warn_trigger_battery = True
+                self.settings.warn_trigger_link = True
+            elif self.cursor_idx == 6:
+                self.settings.warn_trigger_water = False
+                self.settings.warn_trigger_egt = False
+                self.settings.warn_trigger_rev = False
+                self.settings.warn_trigger_battery = False
+                self.settings.warn_trigger_link = False
+            else:
+                self.menu_state = MenuState.MENU_LEDS_ALARMS
+                self.cursor_idx = 7
+
 
         elif self.menu_state == MenuState.MENU_STORAGE_PC:
             if self.cursor_idx == 0:
@@ -512,52 +549,65 @@ class RlcdRenderer(QWidget):
 
         # 5. Bottom Engine (Left) & Alarm Banner (Right)
         # Left: Water & EGT Temp Pane (185 px width)
-        p.drawRoundedRect(10, 224, 185, 50, 4, 4)
+        p.drawRoundedRect(10, 222, 185, 50, 4, 4)
 
         w_temp = t.water_temp_c if s.use_celsius else (t.water_temp_c * 1.8 + 32.0)
         e_temp = t.exhaust_temp_c if s.use_celsius else (t.exhaust_temp_c * 1.8 + 32.0)
         t_unit = "°C" if s.use_celsius else "°F"
 
         p.setFont(QFont("SansSerif", 9, QFont.Bold))
-        p.drawText(16, 243, f"{I18n.get(StrId.LABEL_WATER)}: {w_temp:.1f}{t_unit}")
-        p.drawText(16, 264, f"{I18n.get(StrId.LABEL_EGT)}: {int(e_temp)}{t_unit}")
+        p.drawText(18, 242, f"{I18n.get(StrId.LABEL_WATER)}: {w_temp:.1f}{t_unit}")
+        p.drawText(18, 262, f"{I18n.get(StrId.LABEL_EGT)}: {int(e_temp)}{t_unit}")
 
-        p.setFont(QFont("Monospace", 7))
-        p.drawText(112, 264, f"{t.battery_voltage:.1f}V ({t.battery_percent}%)")
+        # Evaluate which alarms trigger the blinking WARN alert
+        alm_warn = [
+            alm_active[0] and s.warn_trigger_water,
+            alm_active[1] and s.warn_trigger_egt,
+            alm_active[2] and s.warn_trigger_rev,
+            alm_active[3] and s.warn_trigger_battery,
+            alm_active[4] and s.warn_trigger_link,
+        ]
+        any_warn = any(alm_warn)
 
-        # Right: Flashing WARN Alert or Track Status (185 px width)
-        any_alarm = any(alm_active)
-        if any_alarm:
+        # Right: Flashing WARN Alert or System Status (185 px width)
+        if any_warn:
             import time
             flash_state = int(time.time() * 3.3) % 2 == 0
-            reason = "WATER OVERHEAT" if alm_active[0] else (
-                     "EGT OVERHEAT" if alm_active[1] else (
-                     "ENGINE OVER-REV" if alm_active[2] else (
-                     "BATTERY LOW" if alm_active[3] else "LINK LOST")))
+            reason = "WATER OVERHEAT" if alm_warn[0] else (
+                     "EGT OVERHEAT" if alm_warn[1] else (
+                     "ENGINE OVER-REV" if alm_warn[2] else (
+                     "BATTERY LOW" if alm_warn[3] else "LINK LOST")))
 
             if flash_state:
-                p.fillRect(205, 224, 185, 50, fg)
+                p.fillRect(205, 222, 185, 50, fg)
                 p.setPen(bg)
                 p.setFont(QFont("SansSerif", 14, QFont.Bold))
-                p.drawText(QRectF(205, 226, 185, 24), Qt.AlignCenter, "! WARN !")
+                p.drawText(QRectF(205, 224, 185, 24), Qt.AlignCenter, "! WARN !")
                 p.setFont(QFont("SansSerif", 7, QFont.Bold))
-                p.drawText(QRectF(205, 250, 185, 18), Qt.AlignCenter, reason)
+                p.drawText(QRectF(205, 248, 185, 18), Qt.AlignCenter, reason)
                 p.setPen(fg)
             else:
-                p.drawRoundedRect(205, 224, 185, 50, 4, 4)
+                p.drawRoundedRect(205, 222, 185, 50, 4, 4)
                 p.setFont(QFont("SansSerif", 14, QFont.Bold))
-                p.drawText(QRectF(205, 226, 185, 24), Qt.AlignCenter, "! WARN !")
+                p.drawText(QRectF(205, 224, 185, 24), Qt.AlignCenter, "! WARN !")
                 p.setFont(QFont("SansSerif", 7, QFont.Bold))
-                p.drawText(QRectF(205, 250, 185, 18), Qt.AlignCenter, reason)
+                p.drawText(QRectF(205, 248, 185, 18), Qt.AlignCenter, reason)
         else:
-            p.drawRoundedRect(205, 224, 185, 50, 4, 4)
-            p.setFont(QFont("Monospace", 7))
-            p.drawText(214, 241, "TRACK:")
+            p.drawRoundedRect(205, 222, 185, 50, 4, 4)
             p.setFont(QFont("SansSerif", 9, QFont.Bold))
-            p.drawText(214, 262, t.current_track_name[:18])
+            p.drawText(QRectF(205, 222, 185, 50), Qt.AlignCenter, "[ ALL SYSTEMS OK ]")
+
+        # 6. Bottom Line (Track Info & Status)
+        p.drawLine(0, 276, 400, 276)
+        p.setFont(QFont("Monospace", 7))
+        p.drawText(8, 292, f"TRACK: {t.current_track_name}")
+        link_str = "LINK OK" if t.track_module_connected else "SIM"
+        right_str = f"BAT: {t.battery_voltage:.1f}V ({t.battery_percent}%) | {link_str}"
+        p.drawText(QRectF(220, 280, 172, 16), Qt.AlignRight | Qt.AlignVCenter, right_str)
 
 
     def _render_telemetry(self, p: QPainter, bg: QColor, fg: QColor):
+
         t = self.telemetry
         s = self.settings
         p.setFont(QFont("SansSerif", 9, QFont.Bold))
@@ -814,7 +864,30 @@ class RlcdRenderer(QWidget):
                 f"Alarm LEDs: [{'ON' if self.settings.led_alarm_enable else 'OFF'}]",
                 b5,
                 b6,
+                "WARN Alert Triggers >",
                 "< Return >"
+            ]
+            for i, text in enumerate(items):
+                y = 64 + (i * 23)
+                if i == self.cursor_idx:
+                    p.fillRect(12, y - 16, 376, 20, fg)
+                    p.setPen(bg)
+                    p.drawText(24, y, text)
+                    p.setPen(fg)
+                else:
+                    p.drawText(24, y, text)
+
+        elif self.menu_state == MenuState.MENU_WARN_TRIGGERS:
+            p.drawText(12, 44, "WARN BLINKING TRIGGERS")
+            items = [
+                f"WARN on Water Temp:   [{'ENABLED' if self.settings.warn_trigger_water else 'OFF'}]",
+                f"WARN on Exhaust (EGT): [{'ENABLED' if self.settings.warn_trigger_egt else 'OFF'}]",
+                f"WARN on Over-Rev:      [{'ENABLED' if self.settings.warn_trigger_rev else 'OFF'}]",
+                f"WARN on Low Battery:   [{'ENABLED' if self.settings.warn_trigger_battery else 'OFF'}]",
+                f"WARN on Link Lost:     [{'ENABLED' if self.settings.warn_trigger_link else 'OFF'}]",
+                "[ Enable All Triggers ]",
+                "[ Disable All Triggers ]",
+                "< Return to Alarms Menu >"
             ]
             for i, text in enumerate(items):
                 y = 66 + (i * 26)
@@ -889,7 +962,11 @@ class RlcdRenderer(QWidget):
 
 
     def _render_footer(self, p: QPainter, bg: QColor, fg: QColor):
+        if self.current_view == UiViewMode.VIEW_LIVE_RACE:
+            return  # Live Race HUD renders Track & Status on the bottom line
+
         p.drawLine(0, 276, 400, 276)
         p.setFont(QFont("Monospace", 7))
         views = ["RACE HUD", "TELEMETRY", "PADDOCK", "DATA RECALL"]
         p.drawText(6, 292, f"KEY: [{views[self.current_view]} {self.current_view+1}/4] | BOOT (Long): Menu | Enter: Invert")
+

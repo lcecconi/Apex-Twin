@@ -64,6 +64,10 @@ void UiManager::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const Tel
 }
 
 void UiManager::renderFooter(U8G2 *u8g2, const TelemetrySnapshot &telemetry) {
+  if (_current_view == VIEW_LIVE_RACE) {
+    return; // PageLiveRace renders Track info & status on the bottom line
+  }
+
   u8g2->drawHLine(0, 276, 400);
   u8g2->setFont(u8g2_font_6x10_tr);
 
@@ -79,3 +83,4 @@ void UiManager::renderFooter(U8G2 *u8g2, const TelemetrySnapshot &telemetry) {
            view_names[_current_view], _current_view + 1);
   u8g2->drawStr(6, 292, buf);
 }
+

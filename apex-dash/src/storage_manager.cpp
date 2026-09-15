@@ -30,6 +30,11 @@ void StorageManager::loadSettings(SystemSettings &settings) {
   settings.led_shift_enable = _prefs.getBool("led_shift_en", settings.led_shift_enable);
   settings.led_alarm_enable = _prefs.getBool("led_alarm_en", settings.led_alarm_enable);
   settings.backlight_percent = _prefs.getUChar("backlight_pct", settings.backlight_percent);
+  settings.warn_trigger_water = _prefs.getBool("w_water", settings.warn_trigger_water);
+  settings.warn_trigger_egt = _prefs.getBool("w_egt", settings.warn_trigger_egt);
+  settings.warn_trigger_rev = _prefs.getBool("w_rev", settings.warn_trigger_rev);
+  settings.warn_trigger_battery = _prefs.getBool("w_bat", settings.warn_trigger_battery);
+  settings.warn_trigger_link = _prefs.getBool("w_link", settings.warn_trigger_link);
 
   String track = _prefs.getString("track", String(settings.selected_track));
   strncpy(settings.selected_track, track.c_str(), sizeof(settings.selected_track) - 1);
@@ -56,7 +61,13 @@ void StorageManager::saveSettings(const SystemSettings &settings) {
   _prefs.putBool("led_shift_en", settings.led_shift_enable);
   _prefs.putBool("led_alarm_en", settings.led_alarm_enable);
   _prefs.putUChar("backlight_pct", settings.backlight_percent);
+  _prefs.putBool("w_water", settings.warn_trigger_water);
+  _prefs.putBool("w_egt", settings.warn_trigger_egt);
+  _prefs.putBool("w_rev", settings.warn_trigger_rev);
+  _prefs.putBool("w_bat", settings.warn_trigger_battery);
+  _prefs.putBool("w_link", settings.warn_trigger_link);
   _prefs.putString("track", String(settings.selected_track));
   _prefs.putString("track_file", String(settings.selected_track_file));
 }
+
 
