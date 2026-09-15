@@ -34,6 +34,66 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings) {
     return true;
   }
 
+  // Handle Edit Mode Adjustments
+  if (_edit_mode) {
+    if (event == INPUT_NEXT) {
+      // Increase parameter (+500 RPM / +step)
+      if (_current_state == MENU_RACE_SETUP) {
+        if (_cursor_idx == 1) { // Max RPM (8000..22000 in 500 steps)
+          if (settings.max_rpm < 22000) settings.max_rpm += 500;
+        } else if (_cursor_idx == 2) { // Shift RPM (6000..20000 in 500 steps)
+          if (settings.shift_rpm < 20000) settings.shift_rpm += 500;
+        } else if (_cursor_idx == 3) { // Over-Rev Limit (8000..22000 in 500 steps)
+          if (settings.over_rev_rpm < 22000) settings.over_rev_rpm += 500;
+        }
+      } else if (_current_state == MENU_LEDS_ALARMS) {
+        if (_cursor_idx == 0) { // LED Brightness (10..100 in 10 steps)
+          if (settings.led_brightness < 100) settings.led_brightness += 10;
+          if (_ledMgr) _ledMgr->setBrightness(settings.led_brightness);
+        } else if (_cursor_idx == 5) { // Water Temp Alarm (40..95 in 5 steps)
+          if (settings.water_temp_alarm_c < 95.0f) settings.water_temp_alarm_c += 5.0f;
+        } else if (_cursor_idx == 6) { // Over-Rev Alarm (8000..22000 in 500 steps)
+          if (settings.over_rev_rpm < 22000) settings.over_rev_rpm += 500;
+        }
+      } else if (_current_state == MENU_DISPLAY_PWM) {
+        if (_cursor_idx == 0) { // Backlight PWM (0..100 in 10 steps)
+          if (settings.backlight_percent < 100) settings.backlight_percent += 10;
+          if (_blMgr) _blMgr->setBrightness(settings.backlight_percent);
+        }
+      }
+      return true;
+    } else if (event == INPUT_PREV) {
+      // Decrease parameter (-500 RPM / -step)
+      if (_current_state == MENU_RACE_SETUP) {
+        if (_cursor_idx == 1) { // Max RPM
+          if (settings.max_rpm > 8000) settings.max_rpm -= 500;
+        } else if (_cursor_idx == 2) { // Shift RPM
+          if (settings.shift_rpm > 6000) settings.shift_rpm -= 500;
+        } else if (_cursor_idx == 3) { // Over-Rev Limit
+          if (settings.over_rev_rpm > 8000) settings.over_rev_rpm -= 500;
+        }
+      } else if (_current_state == MENU_LEDS_ALARMS) {
+        if (_cursor_idx == 0) { // LED Brightness
+          if (settings.led_brightness > 10) settings.led_brightness -= 10;
+          if (_ledMgr) _ledMgr->setBrightness(settings.led_brightness);
+        } else if (_cursor_idx == 5) { // Water Temp Alarm
+          if (settings.water_temp_alarm_c > 40.0f) settings.water_temp_alarm_c -= 5.0f;
+        } else if (_cursor_idx == 6) { // Over-Rev Alarm
+          if (settings.over_rev_rpm > 8000) settings.over_rev_rpm -= 500;
+        }
+      } else if (_current_state == MENU_DISPLAY_PWM) {
+        if (_cursor_idx == 0) { // Backlight PWM
+          if (settings.backlight_percent > 0) settings.backlight_percent -= 10;
+          if (_blMgr) _blMgr->setBrightness(settings.backlight_percent);
+        }
+      }
+      return true;
+    } else if (event == INPUT_SELECT || event == INPUT_BACK_MENU) {
+      _edit_mode = false;
+      return true;
+    }
+  }
+
   // Handle Global Back
   if (event == INPUT_BACK_MENU) {
     if (_current_state == MENU_ROOT) {
@@ -68,7 +128,7 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings) {
 
   // --- 1. RACE & KART SETUP ---
   if (_current_state == MENU_RACE_SETUP) {
-    int max_items = 4;
+    int max_items = 5;
     if (event == INPUT_NEXT) {
       _cursor_idx = (_cursor_idx + 1) % max_items;
     } else if (event == INPUT_PREV) {
@@ -76,10 +136,8 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings) {
     } else if (event == INPUT_SELECT) {
       if (_cursor_idx == 0) {
         settings.drive_type = (DriveType)((settings.drive_type + 1) % 3);
-      } else if (_cursor_idx == 1) {
-        settings.max_rpm = (settings.max_rpm >= 20000) ? 14000 : (settings.max_rpm + 2000);
-      } else if (_cursor_idx == 2) {
-        settings.shift_rpm = (settings.shift_rpm >= 16000) ? 12000 : (settings.shift_rpm + 500);
+      } else if (_cursor_idx == 1 || _cursor_idx == 2 || _cursor_idx == 3) {
+        _edit_mode = true;
       } else {
         _current_state = MENU_ROOT;
         _cursor_idx = 0;
@@ -90,16 +148,14 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings) {
 
   // --- 2. SHIFT LIGHTS & ALARMS ---
   if (_current_state == MENU_LEDS_ALARMS) {
-    int max_items = 7;
+    int max_items = 8;
     if (event == INPUT_NEXT) {
       _cursor_idx = (_cursor_idx + 1) % max_items;
     } else if (event == INPUT_PREV) {
       _cursor_idx = (_cursor_idx - 1 + max_items) % max_items;
     } else if (event == INPUT_SELECT) {
       if (_cursor_idx == 0) {
-        // LED Brightness: 20% -> 40% -> 60% -> 80% -> 100%
-        settings.led_brightness = (settings.led_brightness >= 100) ? 20 : (settings.led_brightness + 20);
-        if (_ledMgr) _ledMgr->setBrightness(settings.led_brightness);
+        _edit_mode = true;
       } else if (_cursor_idx == 1) {
         // RPM Display Mode: Both -> Display Only -> LEDs Only
         settings.rpm_display_mode = (RpmDisplayMode)((settings.rpm_display_mode + 1) % 3);
@@ -111,8 +167,9 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings) {
       } else if (_cursor_idx == 4) {
         settings.led_alarm_enable = !settings.led_alarm_enable;
       } else if (_cursor_idx == 5) {
-        // Water temp alarm threshold: 55 -> 60 -> 65 -> 70 -> 75
-        settings.water_temp_alarm_c = (settings.water_temp_alarm_c >= 75.0f) ? 55.0f : (settings.water_temp_alarm_c + 5.0f);
+        _edit_mode = true;
+      } else if (_cursor_idx == 6) {
+        _edit_mode = true;
       } else {
         _current_state = MENU_ROOT;
         _cursor_idx = 1;
@@ -181,9 +238,7 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings) {
       _cursor_idx = (_cursor_idx - 1 + max_items) % max_items;
     } else if (event == INPUT_SELECT) {
       if (_cursor_idx == 0) {
-        // Backlight PWM: 0% -> 25% -> 50% -> 75% -> 100%
-        settings.backlight_percent = (settings.backlight_percent >= 100) ? 0 : (settings.backlight_percent + 25);
-        if (_blMgr) _blMgr->setBrightness(settings.backlight_percent);
+        _edit_mode = true;
       } else if (_cursor_idx == 1) {
         settings.show_speed = !settings.show_speed;
       } else if (_cursor_idx == 2) {
@@ -266,7 +321,11 @@ void MenuSystem::render(U8G2 *u8g2, const SystemSettings &settings, const Teleme
   if (_current_state != MENU_USB_MSC_SCREEN) {
     u8g2->drawHLine(0, 276, 400);
     u8g2->setFont(u8g2_font_6x10_tr);
-    u8g2->drawStr(8, 292, "KEY: Next/Change | BOOT: Select | Long BOOT: Back");
+    if (_edit_mode) {
+      u8g2->drawStr(8, 292, "KEY: + / Inc (+500) | BOOT: - / Dec (-500) | Long: Save");
+    } else {
+      u8g2->drawStr(8, 292, "KEY: Next | BOOT: Prev | Long KEY: Edit/Select | Long BOOT: Back");
+    }
   }
 }
 
@@ -319,17 +378,30 @@ void MenuSystem::renderRaceSetupMenu(U8G2 *u8g2, const SystemSettings &settings)
   const char *drive_str = (settings.drive_type == DRIVE_SHIFTER_6SPEED) ? I18n::get(STR_DRIVE_SHIFTER) :
                           ((settings.drive_type == DRIVE_CLUTCH) ? I18n::get(STR_DRIVE_CLUTCH) : I18n::get(STR_DRIVE_DIRECT));
 
-  char b0[64], b1[64], b2[64];
+  char b0[64], b1[64], b2[64], b3[64];
   snprintf(b0, sizeof(b0), "%s: %s", I18n::get(STR_DRIVE_TYPE), drive_str);
-  snprintf(b1, sizeof(b1), "%s: %u RPM", I18n::get(STR_MAX_RPM), settings.max_rpm);
-  snprintf(b2, sizeof(b2), "%s: %u RPM", I18n::get(STR_SHIFT_RPM), settings.shift_rpm);
+  if (_edit_mode && _cursor_idx == 1) {
+    snprintf(b1, sizeof(b1), "%s: [- %u RPM +]", I18n::get(STR_MAX_RPM), settings.max_rpm);
+  } else {
+    snprintf(b1, sizeof(b1), "%s: %u RPM", I18n::get(STR_MAX_RPM), settings.max_rpm);
+  }
+  if (_edit_mode && _cursor_idx == 2) {
+    snprintf(b2, sizeof(b2), "%s: [- %u RPM +]", I18n::get(STR_SHIFT_RPM), settings.shift_rpm);
+  } else {
+    snprintf(b2, sizeof(b2), "%s: %u RPM", I18n::get(STR_SHIFT_RPM), settings.shift_rpm);
+  }
+  if (_edit_mode && _cursor_idx == 3) {
+    snprintf(b3, sizeof(b3), "Over-Rev Alarm: [- %u RPM +]", settings.over_rev_rpm);
+  } else {
+    snprintf(b3, sizeof(b3), "Over-Rev Alarm: %u RPM", settings.over_rev_rpm);
+  }
 
-  const char *items[4] = { b0, b1, b2, "< Return >" };
+  const char *items[5] = { b0, b1, b2, b3, "< Return >" };
 
-  for (int i = 0; i < 4; i++) {
-    int y = 84 + (i * 38);
+  for (int i = 0; i < 5; i++) {
+    int y = 74 + (i * 32);
     if (i == _cursor_idx) {
-      u8g2->drawRBox(12, y - 22, 376, 32, 4);
+      u8g2->drawRBox(12, y - 20, 376, 26, 4);
       u8g2->setDrawColor(0);
       u8g2->drawStr(24, y, items[i]);
       u8g2->setDrawColor(1);
@@ -341,25 +413,38 @@ void MenuSystem::renderRaceSetupMenu(U8G2 *u8g2, const SystemSettings &settings)
 
 void MenuSystem::renderLedsAlarmsMenu(U8G2 *u8g2, const SystemSettings &settings) {
   u8g2->setFont(u8g2_font_helvB10_tr);
-  u8g2->drawStr(12, 46, I18n::get(STR_CAT_RPM_ALARM));
+  u8g2->drawStr(12, 44, I18n::get(STR_CAT_RPM_ALARM));
 
   const char *rpm_mode_str = (settings.rpm_display_mode == RPM_DISP_BOTH) ? I18n::get(STR_RPM_DISP_BOTH) :
                              ((settings.rpm_display_mode == RPM_DISP_DISPLAY_ONLY) ? I18n::get(STR_RPM_DISP_DISPLAY) : I18n::get(STR_RPM_DISP_LEDS));
 
-  char b0[64], b1[64], b2[64], b3[64], b4[64], b5[64];
-  snprintf(b0, sizeof(b0), "%s: [%d%%]", I18n::get(STR_LED_BRIGHTNESS), settings.led_brightness);
+  char b0[64], b1[64], b2[64], b3[64], b4[64], b5[64], b6[64];
+  if (_edit_mode && _cursor_idx == 0) {
+    snprintf(b0, sizeof(b0), "%s: [- %d%% +]", I18n::get(STR_LED_BRIGHTNESS), settings.led_brightness);
+  } else {
+    snprintf(b0, sizeof(b0), "%s: [%d%%]", I18n::get(STR_LED_BRIGHTNESS), settings.led_brightness);
+  }
   snprintf(b1, sizeof(b1), "%s: [%s]", I18n::get(STR_RPM_DISP_MODE), rpm_mode_str);
   snprintf(b2, sizeof(b2), "%s [Click to run]", I18n::get(STR_LED_TEST));
   snprintf(b3, sizeof(b3), "Shift LEDs (5x): [%s]", settings.led_shift_enable ? "ENABLED" : "OFF");
   snprintf(b4, sizeof(b4), "Alarm LEDs (2x): [%s]", settings.led_alarm_enable ? "ENABLED" : "OFF");
-  snprintf(b5, sizeof(b5), "%s: [%.0f \xb0\x43]", I18n::get(STR_WATER_ALARM), settings.water_temp_alarm_c);
+  if (_edit_mode && _cursor_idx == 5) {
+    snprintf(b5, sizeof(b5), "%s: [- %.0f \xb0\x43 +]", I18n::get(STR_WATER_ALARM), settings.water_temp_alarm_c);
+  } else {
+    snprintf(b5, sizeof(b5), "%s: [%.0f \xb0\x43]", I18n::get(STR_WATER_ALARM), settings.water_temp_alarm_c);
+  }
+  if (_edit_mode && _cursor_idx == 6) {
+    snprintf(b6, sizeof(b6), "Over-Rev Alarm: [- %u RPM +]", settings.over_rev_rpm);
+  } else {
+    snprintf(b6, sizeof(b6), "Over-Rev Alarm: [%u RPM]", settings.over_rev_rpm);
+  }
 
-  const char *items[7] = { b0, b1, b2, b3, b4, b5, "< Return >" };
+  const char *items[8] = { b0, b1, b2, b3, b4, b5, b6, "< Return >" };
 
-  for (int i = 0; i < 7; i++) {
-    int y = 70 + (i * 28);
+  for (int i = 0; i < 8; i++) {
+    int y = 66 + (i * 26);
     if (i == _cursor_idx) {
-      u8g2->drawRBox(12, y - 18, 376, 24, 3);
+      u8g2->drawRBox(12, y - 17, 376, 22, 3);
       u8g2->setDrawColor(0);
       u8g2->drawStr(24, y, items[i]);
       u8g2->setDrawColor(1);
@@ -368,6 +453,7 @@ void MenuSystem::renderLedsAlarmsMenu(U8G2 *u8g2, const SystemSettings &settings
     }
   }
 }
+
 
 
 void MenuSystem::renderTrackGpsMenu(U8G2 *u8g2, const SystemSettings &settings) {
@@ -446,7 +532,11 @@ void MenuSystem::renderDisplayPwmMenu(U8G2 *u8g2, const SystemSettings &settings
   u8g2->drawStr(12, 46, I18n::get(STR_CAT_DISPLAY_PWM));
 
   char b0[64], b1[64], b2[64], b3[64], b4[64];
-  snprintf(b0, sizeof(b0), "%s (GPIO 2): [%d%%]", I18n::get(STR_BACKLIGHT_PWM), settings.backlight_percent);
+  if (_edit_mode && _cursor_idx == 0) {
+    snprintf(b0, sizeof(b0), "%s: [- %d%% +]", I18n::get(STR_BACKLIGHT_PWM), settings.backlight_percent);
+  } else {
+    snprintf(b0, sizeof(b0), "%s (GPIO 2): [%d%%]", I18n::get(STR_BACKLIGHT_PWM), settings.backlight_percent);
+  }
   snprintf(b1, sizeof(b1), "%s: [%s]", I18n::get(STR_SHOW_SPEED), settings.show_speed ? "ENABLED" : "OFF");
   snprintf(b2, sizeof(b2), "%s: [%s]", I18n::get(STR_INVERT_DISP), settings.inverted_display ? "Black on Silver" : "Silver on Black");
   snprintf(b3, sizeof(b3), "%s: [%s]", I18n::get(STR_UNITS_SPEED), settings.use_kmh ? "KM/H" : "MPH");

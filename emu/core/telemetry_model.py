@@ -95,7 +95,7 @@ class TelemetrySnapshot:
 class SystemSettings:
     drive_type: DriveType = DriveType.SHIFTER_6SPEED
     max_rpm: int = 16000
-    shift_rpm: int = 14200
+    shift_rpm: int = 14000
     over_rev_rpm: int = 15500
     water_temp_alarm_c: float = 65.0
     exhaust_temp_alarm_c: float = 640.0

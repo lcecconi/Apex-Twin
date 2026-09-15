@@ -57,6 +57,7 @@ class RlcdRenderer(QWidget):
 
         self.current_view = UiViewMode.VIEW_LIVE_RACE
         self.menu_active = False
+        self.edit_mode = False
         self.menu_state = MenuState.MENU_ROOT
         self.cursor_idx = 0
 
@@ -70,33 +71,81 @@ class RlcdRenderer(QWidget):
 
     # --- Button / Input Navigation Handlers ---
     def handle_key_short(self):
-        """KEY Button Short Press (Next Page in Race / Next Item in Menu)"""
+        """KEY Button Short Press (Next Page in Race / Next Item or + Increase in Menu)"""
         if self.menu_active:
-            max_items = self._get_menu_item_count()
-            self.cursor_idx = (self.cursor_idx + 1) % max_items
+            if self.edit_mode:
+                # Increase parameter (+500 RPM / +step)
+                if self.menu_state == MenuState.MENU_RACE_SETUP:
+                    if self.cursor_idx == 1:
+                        self.settings.max_rpm = min(22000, self.settings.max_rpm + 500)
+                    elif self.cursor_idx == 2:
+                        self.settings.shift_rpm = min(20000, self.settings.shift_rpm + 500)
+                    elif self.cursor_idx == 3:
+                        self.settings.over_rev_rpm = min(22000, self.settings.over_rev_rpm + 500)
+                elif self.menu_state == MenuState.MENU_LEDS_ALARMS:
+                    if self.cursor_idx == 0:
+                        self.settings.led_brightness = min(100, self.settings.led_brightness + 10)
+                    elif self.cursor_idx == 5:
+                        self.settings.water_temp_alarm_c = min(95.0, self.settings.water_temp_alarm_c + 5.0)
+                    elif self.cursor_idx == 6:
+                        self.settings.over_rev_rpm = min(22000, self.settings.over_rev_rpm + 500)
+                elif self.menu_state == MenuState.MENU_DISPLAY_PWM:
+                    if self.cursor_idx == 0:
+                        self.settings.backlight_percent = min(100, self.settings.backlight_percent + 10)
+            else:
+                max_items = self._get_menu_item_count()
+                self.cursor_idx = (self.cursor_idx + 1) % max_items
         else:
             self.current_view = UiViewMode((self.current_view + 1) % 4)
         self.update()
 
     def handle_key_long(self):
-        """KEY Button Long Press (Invert Polarity in Race / Select in Menu)"""
+        """KEY Button Long Press (Invert Polarity in Race / Select / Save in Menu)"""
         if self.menu_active:
-            self._handle_menu_select()
+            if self.edit_mode:
+                self.edit_mode = False
+            else:
+                self._handle_menu_select()
         else:
             self.settings.inverted_display = not self.settings.inverted_display
         self.update()
 
     def handle_boot_short(self):
-        """BOOT Button Short Press (Prev Page in Race / Prev Item in Menu)"""
+        """BOOT Button Short Press (Prev Page in Race / Prev Item or - Decrease in Menu)"""
         if self.menu_active:
-            max_items = self._get_menu_item_count()
-            self.cursor_idx = (self.cursor_idx - 1 + max_items) % max_items
+            if self.edit_mode:
+                # Decrease parameter (-500 RPM / -step)
+                if self.menu_state == MenuState.MENU_RACE_SETUP:
+                    if self.cursor_idx == 1:
+                        self.settings.max_rpm = max(8000, self.settings.max_rpm - 500)
+                    elif self.cursor_idx == 2:
+                        self.settings.shift_rpm = max(6000, self.settings.shift_rpm - 500)
+                    elif self.cursor_idx == 3:
+                        self.settings.over_rev_rpm = max(8000, self.settings.over_rev_rpm - 500)
+                elif self.menu_state == MenuState.MENU_LEDS_ALARMS:
+                    if self.cursor_idx == 0:
+                        self.settings.led_brightness = max(10, self.settings.led_brightness - 10)
+                    elif self.cursor_idx == 5:
+                        self.settings.water_temp_alarm_c = max(40.0, self.settings.water_temp_alarm_c - 5.0)
+                    elif self.cursor_idx == 6:
+                        self.settings.over_rev_rpm = max(8000, self.settings.over_rev_rpm - 500)
+                elif self.menu_state == MenuState.MENU_DISPLAY_PWM:
+                    if self.cursor_idx == 0:
+                        self.settings.backlight_percent = max(0, self.settings.backlight_percent - 10)
+            else:
+                max_items = self._get_menu_item_count()
+                self.cursor_idx = (self.cursor_idx - 1 + max_items) % max_items
         else:
             self.current_view = UiViewMode((self.current_view - 1 + 4) % 4)
         self.update()
 
     def handle_boot_long(self):
-        """BOOT Button Long Press (Open/Exit Menu)"""
+        """BOOT Button Long Press (Open/Exit Menu or Exit Edit Mode)"""
+        if self.edit_mode:
+            self.edit_mode = False
+            self.update()
+            return
+
         if not self.menu_active:
             self.menu_active = True
             self.menu_state = MenuState.MENU_ROOT
@@ -113,9 +162,9 @@ class RlcdRenderer(QWidget):
         if self.menu_state == MenuState.MENU_ROOT:
             return 8
         elif self.menu_state == MenuState.MENU_RACE_SETUP:
-            return 4
+            return 5
         elif self.menu_state == MenuState.MENU_LEDS_ALARMS:
-            return 7
+            return 8
         elif self.menu_state == MenuState.MENU_TRACK_GPS:
             return 6
         elif self.menu_state == MenuState.MENU_STORAGE_PC:
@@ -154,24 +203,22 @@ class RlcdRenderer(QWidget):
         elif self.menu_state == MenuState.MENU_RACE_SETUP:
             if self.cursor_idx == 0:
                 self.settings.drive_type = DriveType((self.settings.drive_type + 1) % 3)
-            elif self.cursor_idx == 1:
-                self.settings.max_rpm = 14000 if self.settings.max_rpm >= 20000 else self.settings.max_rpm + 2000
-            elif self.cursor_idx == 2:
-                self.settings.shift_rpm = 12000 if self.settings.shift_rpm >= 16000 else self.settings.shift_rpm + 500
+            elif self.cursor_idx in (1, 2, 3):
+                self.edit_mode = True
             else:
                 self.menu_state = MenuState.MENU_ROOT
                 self.cursor_idx = 0
         elif self.menu_state == MenuState.MENU_LEDS_ALARMS:
             if self.cursor_idx == 0:
-                self.settings.led_brightness = 20 if self.settings.led_brightness >= 100 else self.settings.led_brightness + 20
+                self.edit_mode = True
             elif self.cursor_idx == 1:
                 self.settings.rpm_display_mode = RpmDisplayMode((self.settings.rpm_display_mode + 1) % 3)
             elif self.cursor_idx == 3:
                 self.settings.led_shift_enable = not self.settings.led_shift_enable
             elif self.cursor_idx == 4:
                 self.settings.led_alarm_enable = not self.settings.led_alarm_enable
-            elif self.cursor_idx == 5:
-                self.settings.water_temp_alarm_c = 55.0 if self.settings.water_temp_alarm_c >= 75.0 else self.settings.water_temp_alarm_c + 5.0
+            elif self.cursor_idx in (5, 6):
+                self.edit_mode = True
             else:
                 self.menu_state = MenuState.MENU_ROOT
                 self.cursor_idx = 1
@@ -184,7 +231,7 @@ class RlcdRenderer(QWidget):
                 self.cursor_idx = 3
         elif self.menu_state == MenuState.MENU_DISPLAY_PWM:
             if self.cursor_idx == 0:
-                self.settings.backlight_percent = 0 if self.settings.backlight_percent >= 100 else self.settings.backlight_percent + 25
+                self.edit_mode = True
             elif self.cursor_idx == 1:
                 self.settings.show_speed = not self.settings.show_speed
             elif self.cursor_idx == 2:
@@ -206,6 +253,7 @@ class RlcdRenderer(QWidget):
         elif self.menu_state in (MenuState.MENU_TRACK_GPS, MenuState.MENU_DIAGNOSTICS, MenuState.MENU_USB_MSC_SCREEN):
             self.menu_state = MenuState.MENU_ROOT
             self.cursor_idx = 0
+
 
     # --- Paint Event ---
     def paintEvent(self, event):
@@ -727,16 +775,22 @@ class RlcdRenderer(QWidget):
             p.drawText(12, 46, I18n.get(StrId.CAT_RACE_CONFIG))
             drive_str = I18n.get(StrId.DRIVE_SHIFTER) if self.settings.drive_type == DriveType.SHIFTER_6SPEED else (
                 I18n.get(StrId.DRIVE_CLUTCH) if self.settings.drive_type == DriveType.CLUTCH else I18n.get(StrId.DRIVE_DIRECT))
+            
+            b1 = f"{I18n.get(StrId.MAX_RPM)}: [- {self.settings.max_rpm} RPM +]" if (self.edit_mode and self.cursor_idx == 1) else f"{I18n.get(StrId.MAX_RPM)}: {self.settings.max_rpm} RPM"
+            b2 = f"{I18n.get(StrId.SHIFT_RPM)}: [- {self.settings.shift_rpm} RPM +]" if (self.edit_mode and self.cursor_idx == 2) else f"{I18n.get(StrId.SHIFT_RPM)}: {self.settings.shift_rpm} RPM"
+            b3 = f"Over-Rev Alarm: [- {self.settings.over_rev_rpm} RPM +]" if (self.edit_mode and self.cursor_idx == 3) else f"Over-Rev Alarm: {self.settings.over_rev_rpm} RPM"
+            
             items = [
                 f"{I18n.get(StrId.DRIVE_TYPE)}: {drive_str}",
-                f"{I18n.get(StrId.MAX_RPM)}: {self.settings.max_rpm} RPM",
-                f"{I18n.get(StrId.SHIFT_RPM)}: {self.settings.shift_rpm} RPM",
+                b1,
+                b2,
+                b3,
                 "< Return >"
             ]
             for i, text in enumerate(items):
-                y = 84 + (i * 38)
+                y = 74 + (i * 32)
                 if i == self.cursor_idx:
-                    p.fillRect(12, y - 22, 376, 32, fg)
+                    p.fillRect(12, y - 20, 376, 26, fg)
                     p.setPen(bg)
                     p.drawText(24, y, text)
                     p.setPen(fg)
@@ -744,22 +798,28 @@ class RlcdRenderer(QWidget):
                     p.drawText(24, y, text)
 
         elif self.menu_state == MenuState.MENU_LEDS_ALARMS:
-            p.drawText(12, 46, I18n.get(StrId.CAT_RPM_ALARM))
+            p.drawText(12, 44, I18n.get(StrId.CAT_RPM_ALARM))
             rpm_mode_str = I18n.get(StrId.RPM_DISP_BOTH) if self.settings.rpm_display_mode == RpmDisplayMode.BOTH else (
                 I18n.get(StrId.RPM_DISP_DISPLAY) if self.settings.rpm_display_mode == RpmDisplayMode.DISPLAY_ONLY else I18n.get(StrId.RPM_DISP_LEDS))
+            
+            b0 = f"{I18n.get(StrId.LED_BRIGHTNESS)}: [- {self.settings.led_brightness}% +]" if (self.edit_mode and self.cursor_idx == 0) else f"{I18n.get(StrId.LED_BRIGHTNESS)}: [{self.settings.led_brightness}%]"
+            b5 = f"{I18n.get(StrId.WATER_ALARM)}: [- {self.settings.water_temp_alarm_c:.0f}°C +]" if (self.edit_mode and self.cursor_idx == 5) else f"{I18n.get(StrId.WATER_ALARM)}: [{self.settings.water_temp_alarm_c:.0f}°C]"
+            b6 = f"Over-Rev Alarm: [- {self.settings.over_rev_rpm} RPM +]" if (self.edit_mode and self.cursor_idx == 6) else f"Over-Rev Alarm: [{self.settings.over_rev_rpm} RPM]"
+
             items = [
-                f"{I18n.get(StrId.LED_BRIGHTNESS)}: [{self.settings.led_brightness}%]",
+                b0,
                 f"{I18n.get(StrId.RPM_DISP_MODE)}: [{rpm_mode_str}]",
                 f"{I18n.get(StrId.LED_TEST)} [Click to run]",
                 f"Shift LEDs: [{'ON' if self.settings.led_shift_enable else 'OFF'}]",
                 f"Alarm LEDs: [{'ON' if self.settings.led_alarm_enable else 'OFF'}]",
-                f"{I18n.get(StrId.WATER_ALARM)}: [{self.settings.water_temp_alarm_c:.0f}°C]",
+                b5,
+                b6,
                 "< Return >"
             ]
             for i, text in enumerate(items):
-                y = 70 + (i * 28)
+                y = 66 + (i * 26)
                 if i == self.cursor_idx:
-                    p.fillRect(12, y - 18, 376, 24, fg)
+                    p.fillRect(12, y - 17, 376, 22, fg)
                     p.setPen(bg)
                     p.drawText(24, y, text)
                     p.setPen(fg)
@@ -769,8 +829,9 @@ class RlcdRenderer(QWidget):
 
         elif self.menu_state == MenuState.MENU_DISPLAY_PWM:
             p.drawText(12, 46, I18n.get(StrId.CAT_DISPLAY_PWM))
+            b0 = f"{I18n.get(StrId.BACKLIGHT_PWM)}: [- {self.settings.backlight_percent}% +]" if (self.edit_mode and self.cursor_idx == 0) else f"{I18n.get(StrId.BACKLIGHT_PWM)} (GPIO 2): [{self.settings.backlight_percent}%]"
             items = [
-                f"{I18n.get(StrId.BACKLIGHT_PWM)}: [{self.settings.backlight_percent}%]",
+                b0,
                 f"{I18n.get(StrId.SHOW_SPEED)}: [{'ENABLED' if self.settings.show_speed else 'OFF'}]",
                 f"{I18n.get(StrId.INVERT_DISP)}: [{'Black/Silver' if self.settings.inverted_display else 'Silver/Black'}]",
                 f"{I18n.get(StrId.UNITS_SPEED)}: [{'KM/H' if self.settings.use_kmh else 'MPH'}]",
@@ -816,6 +877,16 @@ class RlcdRenderer(QWidget):
             p.setPen(bg)
             p.drawText(80, 217, "PRESS BOOT/KEY TO EXIT")
             p.setPen(fg)
+
+        # Menu Footer Navigation
+        if self.menu_state != MenuState.MENU_USB_MSC_SCREEN:
+            p.drawLine(0, 276, 400, 276)
+            p.setFont(QFont("Monospace", 7))
+            if self.edit_mode:
+                p.drawText(8, 292, "KEY: + / Inc (+500) | BOOT: - / Dec (-500) | Long: Save")
+            else:
+                p.drawText(8, 292, "KEY: Next | BOOT: Prev | Long KEY: Edit/Select | Long BOOT: Back")
+
 
     def _render_footer(self, p: QPainter, bg: QColor, fg: QColor):
         p.drawLine(0, 276, 400, 276)

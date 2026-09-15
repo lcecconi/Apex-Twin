@@ -37,6 +37,7 @@ public:
 
 private:
   bool _active = false;
+  bool _edit_mode = false;
   MenuState _current_state = MENU_ROOT;
   int8_t _cursor_idx = 0;
 
