@@ -360,18 +360,13 @@ class RlcdRenderer(QWidget):
 
             p.setFont(QFont("Monospace", 8, QFont.Bold))
             p.drawText(14, 32, f"{I18n.get(StrId.LABEL_RPM)}: {t.rpm}")
-
-            if t.rpm >= s.shift_rpm:
-                p.fillRect(300, 22, 90, 14, fg)
-                p.setPen(bg)
-                p.drawText(306, 33, I18n.get(StrId.WARN_SHIFT))
-                p.setPen(fg)
-            else:
-                p.drawText(328, 32, f"MAX {s.max_rpm}")
+            p.drawText(328, 32, f"MAX {s.max_rpm}")
 
 
         # 2 & 3. Speed/Gear & Lap Time
         has_left_pane = s.show_speed or (s.drive_type == DriveType.SHIFTER_6SPEED)
+        is_shift = (t.rpm >= s.shift_rpm and s.shift_rpm > 0)
+        shift_blink = is_shift and (int(time.time() * 6.6) % 2 == 0)
 
         if has_left_pane:
             p.drawRoundedRect(10, 38, 160, 118, 4, 4)
@@ -386,13 +381,21 @@ class RlcdRenderer(QWidget):
                     p.setFont(QFont("SansSerif", 9, QFont.Bold))
                     p.drawText(118, 70, speed_unit)
 
-                    p.drawRoundedRect(116, 82, 46, 66, 3, 3)
+                    if shift_blink:
+                        p.fillRect(116, 82, 46, 66, fg)
+                        p.setPen(bg)
+                    else:
+                        p.drawRoundedRect(116, 82, 46, 66, 3, 3)
+
                     p.setFont(QFont("Monospace", 7))
                     p.drawText(124, 94, I18n.get(StrId.LABEL_GEAR))
 
                     p.setFont(QFont("SansSerif", 26, QFont.Bold))
                     gear_str = "N" if t.gear == 0 else str(t.gear)
                     p.drawText(130, 134, gear_str)
+
+                    if shift_blink:
+                        p.setPen(fg)
                 else:
                     # Single Speed (Direct Drive / Clutch) — Large Centered Speed
                     p.setFont(QFont("SansSerif", 46, QFont.Bold))
@@ -402,12 +405,19 @@ class RlcdRenderer(QWidget):
                     p.drawText(QRectF(10, 116, 160, 24), Qt.AlignCenter, speed_unit)
             else:
                 # Speed Hidden Mode (Shifter Kart)
+                if shift_blink:
+                    p.fillRect(10, 38, 160, 118, fg)
+                    p.setPen(bg)
+
                 p.setFont(QFont("SansSerif", 9, QFont.Bold))
                 p.drawText(QRectF(10, 48, 160, 20), Qt.AlignCenter, I18n.get(StrId.LABEL_GEAR))
 
                 gear_str = "N" if t.gear == 0 else str(t.gear)
                 p.setFont(QFont("SansSerif", 48, QFont.Bold))
                 p.drawText(QRectF(10, 70, 160, 70), Qt.AlignCenter, gear_str)
+
+                if shift_blink:
+                    p.setPen(fg)
 
             # Standard Lap Time (Right Pane)
             p.drawRoundedRect(176, 38, 214, 118, 4, 4)

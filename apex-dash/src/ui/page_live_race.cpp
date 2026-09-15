@@ -31,15 +31,8 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
     snprintf(buf, sizeof(buf), "%s: %u", I18n::get(STR_LABEL_RPM), telemetry.rpm);
     u8g2->drawStr(14, 32, buf);
 
-    if (telemetry.rpm >= settings.shift_rpm) {
-      u8g2->drawRBox(300, 22, 90, 14, 2);
-      u8g2->setDrawColor(0);
-      u8g2->drawStr(305, 33, I18n::get(STR_WARN_SHIFT));
-      u8g2->setDrawColor(1);
-    } else {
-      snprintf(buf, sizeof(buf), "MAX %u", settings.max_rpm);
-      u8g2->drawStr(328, 32, buf);
-    }
+    snprintf(buf, sizeof(buf), "MAX %u", settings.max_rpm);
+    u8g2->drawStr(328, 32, buf);
   }
 
 
@@ -47,6 +40,8 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   // 2 & 3. CENTER AREA (SPEED/GEAR & LAP TIME)
   // ==========================================
   bool has_left_pane = settings.show_speed || (settings.drive_type == DRIVE_SHIFTER_6SPEED);
+  bool is_shift = (telemetry.rpm >= settings.shift_rpm && settings.shift_rpm > 0);
+  bool shift_blink = is_shift && (((millis() / 150) % 2) == 0);
 
   if (has_left_pane) {
     // Left Pane: Speed & Gear (160 px width)
@@ -66,7 +61,13 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
         u8g2->drawStr(118, 70, unit_str);
 
         // Gear Box
-        u8g2->drawRFrame(116, 82, 46, 66, 4);
+        if (shift_blink) {
+          u8g2->drawRBox(116, 82, 46, 66, 4);
+          u8g2->setDrawColor(0);
+        } else {
+          u8g2->drawRFrame(116, 82, 46, 66, 4);
+        }
+
         u8g2->setFont(u8g2_font_6x10_tr);
         u8g2->drawStr(122, 94, I18n::get(STR_LABEL_GEAR));
         u8g2->setFont(u8g2_font_logisoso32_tn);
@@ -76,6 +77,10 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
         } else {
           snprintf(buf, sizeof(buf), "%d", telemetry.gear);
           u8g2->drawStr(130, 136, buf);
+        }
+
+        if (shift_blink) {
+          u8g2->setDrawColor(1);
         }
       } else {
         // Single Speed (Direct Drive / Clutch) — Centered Large Speed Display
@@ -88,6 +93,11 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
       }
     } else {
       // Speed Hidden Mode (Shifter Kart Only) — Large Centered Gear Indicator
+      if (shift_blink) {
+        u8g2->drawRBox(10, 38, 160, 118, 6);
+        u8g2->setDrawColor(0);
+      }
+
       u8g2->setFont(u8g2_font_helvB10_tr);
       u8g2->drawStr(66, 60, I18n::get(STR_LABEL_GEAR));
 
@@ -98,6 +108,10 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
         u8g2->setFont(u8g2_font_logisoso58_tn);
         snprintf(buf, sizeof(buf), "%d", telemetry.gear);
         u8g2->drawStr(72, 126, buf);
+      }
+
+      if (shift_blink) {
+        u8g2->setDrawColor(1);
       }
     }
 
