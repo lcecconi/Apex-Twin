@@ -73,8 +73,8 @@ struct TelemetrySnapshot {
 
 struct SystemSettings {
   DriveType drive_type = DRIVE_SHIFTER_6SPEED;
-  uint16_t max_rpm = 16000;
-  uint16_t shift_rpm = 14000;
+  uint16_t max_rpm = 14000;
+  uint16_t shift_rpm = 13000;
   uint16_t over_rev_rpm = 15500;
   float water_temp_alarm_c = 65.0f;
   float exhaust_temp_alarm_c = 640.0f;

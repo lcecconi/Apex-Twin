@@ -9,30 +9,43 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   // 1. TOP TACHOMETER (RPM BAR GRAPH)
   // ==========================================
   if (settings.rpm_display_mode != RPM_DISP_LEDS_ONLY) {
-    // Wide Outline bar: 388 px wide, 26 px tall (Margins 6px)
-    u8g2->drawRFrame(6, 4, 388, 26, 3);
+    bool is_max_rpm = (telemetry.rpm >= settings.max_rpm && settings.max_rpm > 0);
+    bool rpm_blink = is_max_rpm && (((millis() / 150) % 2) == 0);
 
     // Shift light marker line at shift_rpm
     int shift_x = 6 + (int)((uint32_t)settings.shift_rpm * 384 / settings.max_rpm);
-    if (shift_x < 392) {
-      u8g2->drawVLine(shift_x, 2, 30);
-      u8g2->drawVLine(shift_x + 1, 2, 30);
-    }
 
     // Fill current RPM
     int rpm_fill = (int)((uint32_t)telemetry.rpm * 384 / settings.max_rpm);
     if (rpm_fill > 384) rpm_fill = 384;
-    if (rpm_fill > 0) {
-      u8g2->drawBox(8, 6, rpm_fill, 22);
-    }
 
-    // Current RPM numerical value printed onto the bar in XOR mode (no RPM/MAX text)
     snprintf(buf, sizeof(buf), "%u", telemetry.rpm);
     u8g2->setFont(u8g2_font_helvB14_tr);
     int rw = u8g2->getStrWidth(buf);
-    u8g2->setDrawColor(2); // XOR mode
-    u8g2->drawStr(200 - (rw / 2), 23, buf);
-    u8g2->setDrawColor(1);
+
+    if (rpm_blink) {
+      // Inverted solid flashing bar when MAX RPM threshold is crossed
+      u8g2->drawRBox(6, 4, 388, 26, 3);
+      u8g2->setDrawColor(0);
+      u8g2->drawStr(200 - (rw / 2), 23, buf);
+      u8g2->setDrawColor(1);
+    } else {
+      // Normal bar frame & fill
+      u8g2->drawRFrame(6, 4, 388, 26, 3);
+
+      if (shift_x < 392) {
+        u8g2->drawVLine(shift_x, 2, 30);
+        u8g2->drawVLine(shift_x + 1, 2, 30);
+      }
+
+      if (rpm_fill > 0) {
+        u8g2->drawBox(8, 6, rpm_fill, 22);
+      }
+
+      u8g2->setDrawColor(2); // XOR mode
+      u8g2->drawStr(200 - (rw / 2), 23, buf);
+      u8g2->setDrawColor(1);
+    }
   }
 
 
