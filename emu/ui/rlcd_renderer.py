@@ -624,7 +624,20 @@ class RlcdRenderer(QWidget):
         # 6. Bottom Line (Track Info & Status)
         p.drawLine(0, 276, 400, 276)
         p.setFont(QFont("SansSerif", 8, QFont.Bold))
-        p.drawText(8, 292, f"TRACK: {t.current_track_name}")
+        if t.track_error_code != 0:
+            err_map = {
+                1: "ERR: NO GPS FIX",
+                2: "ERR: IMU FAULT",
+                3: "ERR: SD CARD FAIL",
+                4: "ERR: EGT SENSOR",
+                5: "ERR: H2O SENSOR",
+                6: "ERR: CAN BUS FAIL",
+                7: "ERR: LOW MEMORY",
+            }
+            err_text = err_map.get(t.track_error_code, f"ERR: CODE #{t.track_error_code}")
+            p.drawText(8, 292, err_text)
+        else:
+            p.drawText(8, 292, f"TRACK: {t.current_track_name}")
 
         blink_1hz = (int(time.time() * 2.0) % 2) == 0
         show_bat = (t.battery_percent >= 10) or blink_1hz

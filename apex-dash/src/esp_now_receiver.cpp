@@ -65,6 +65,7 @@ bool EspNowReceiver::applyLatestTelemetry(TelemetrySnapshot &target) {
   target.best_lap_time_ms = _latest_packet.best_lap_time_ms;
   target.predictive_delta_s = _latest_packet.predictive_delta_s;
   target.current_sector = _latest_packet.sector;
+  target.track_error_code = _latest_packet.error_code;
 
   return true;
 }

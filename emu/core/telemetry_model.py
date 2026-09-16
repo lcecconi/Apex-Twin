@@ -95,6 +95,7 @@ class TelemetrySnapshot:
     link_rssi: int = -54
     engine_total_hours_sec: int = 52400   # ~14.5 hours
     piston_hours_sec: int = 18600         # ~5.1 hours
+    track_error_code: int = 0             # 0 = OK, >0 = Apex-Track error code
 
     # Lap History buffer for Data Recall
     lap_history: List[LapRecord] = field(default_factory=list)

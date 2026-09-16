@@ -337,7 +337,24 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   // ==========================================
   u8g2->drawHLine(0, 276, 400);
   u8g2->setFont(u8g2_font_helvB10_tr);
-  snprintf(buf, sizeof(buf), "TRACK: %s", telemetry.current_track_name);
+  if (telemetry.track_error_code != 0) {
+    static const char* const err_strings[] = {
+      "ERR: NO GPS FIX",
+      "ERR: IMU FAULT",
+      "ERR: SD CARD FAIL",
+      "ERR: EGT SENSOR",
+      "ERR: H2O SENSOR",
+      "ERR: CAN BUS FAIL",
+      "ERR: LOW MEMORY"
+    };
+    if (telemetry.track_error_code >= 1 && telemetry.track_error_code <= 7) {
+      snprintf(buf, sizeof(buf), "%s", err_strings[telemetry.track_error_code - 1]);
+    } else {
+      snprintf(buf, sizeof(buf), "ERR: CODE #%u", telemetry.track_error_code);
+    }
+  } else {
+    snprintf(buf, sizeof(buf), "TRACK: %s", telemetry.current_track_name);
+  }
   u8g2->drawStr(8, 292, buf);
 
   bool blink_1hz = ((millis() / 500) % 2) == 0;

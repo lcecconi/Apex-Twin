@@ -39,6 +39,7 @@ struct __attribute__((packed)) ApexTrackTelemetryPacket {
   uint32_t best_lap_time_ms;
   float predictive_delta_s;
   uint8_t sector;
+  uint16_t error_code;
 };
 
 class EspNowReceiver {

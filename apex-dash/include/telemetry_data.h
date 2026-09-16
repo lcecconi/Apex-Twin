@@ -69,6 +69,18 @@ struct TelemetrySnapshot {
   int8_t link_rssi;
   uint32_t engine_total_hours_sec;
   uint32_t piston_hours_sec;
+  uint16_t track_error_code; // 0 = OK, >0 = Error code from Apex-Track
+};
+
+enum TrackErrorCode : uint16_t {
+  TRACK_ERR_NONE = 0,
+  TRACK_ERR_GPS_NO_FIX = 1,
+  TRACK_ERR_IMU_FAULT = 2,
+  TRACK_ERR_SD_CARD = 3,
+  TRACK_ERR_SENSOR_EGT = 4,
+  TRACK_ERR_SENSOR_H2O = 5,
+  TRACK_ERR_CAN_BUS = 6,
+  TRACK_ERR_LOW_MEM = 7
 };
 
 enum AlarmType : uint8_t {
