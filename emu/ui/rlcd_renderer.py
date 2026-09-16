@@ -35,10 +35,10 @@ from emu.ui.icons import (
 class UiViewMode(IntEnum):
 
     VIEW_LIVE_RACE = 0
-    VIEW_TELEMETRY = 1
-    VIEW_GPS_PADDOCK = 2
-    VIEW_DATA_RECALL = 3
-    VIEW_SHUMACHER = 4
+    VIEW_SHUMACHER = 1
+    VIEW_TELEMETRY = 2
+    VIEW_GPS_PADDOCK = 3
+    VIEW_DATA_RECALL = 4
 
 
 class MenuState(IntEnum):
@@ -1326,6 +1326,6 @@ class RlcdRenderer(QWidget):
 
         p.drawLine(0, 276, 400, 276)
         p.setFont(QFont("Monospace", 7))
-        views = ["RACE HUD", "TELEMETRY", "PADDOCK", "DATA RECALL", "SCHUMACHER"]
+        views = ["RACE HUD", "SCHUMACHER", "TELEMETRY", "PADDOCK", "DATA RECALL"]
         p.drawText(6, 292, f"KEY: [{views[self.current_view]} {self.current_view+1}/5] | BOOT (Long): Menu | Enter: Invert")
 
