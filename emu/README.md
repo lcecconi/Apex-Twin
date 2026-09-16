@@ -9,11 +9,12 @@ A high-fidelity Python/PySide6 desktop emulator for **Apex-Dash**, reproducing t
 ### 🖥️ Display & Hardware Emulation
 * **Pixel-accurate $400 \times 300$ Reflective LCD**:
   * Emulates the Sitronix ST7305 reflective display with true monochrome dot rendering and high-contrast dark/silver polarity inversion.
-  * **4 Racing HUD Pages**:
+  * **5 Racing HUD Pages**:
     1. **Live Race HUD**: Giant rolling speed, curved progressive RPM tachometer, gear indicator, lap time, predictive time delta ($\pm\Delta$), and split delta.
-    2. **Detailed Telemetry**: RPM, Speed, Water Temp, Exhaust Gas Temp (EGT), Lateral G-Force, Battery Voltage, GPS Satellites & RSSI.
-    3. **Paddock & GPS Status**: Coordinates (Lat/Lon), HDOP, Fix Type, Current Track detection, Total Engine Hours, and Piston Run Time.
-    4. **Data Recall**: Lap summary table with sector splits (S1, S2, S3), maximum speed, max RPM, max water temperature, and best lap highlights.
+    2. **Schumacher 3-Speedometer HUD**: Historical Benetton B192–B194 telemetry view featuring 3 speed dials ($V_{min}$ corner apex hold, $V_{act}$ live speed, $V_{max}$ previous straight top speed hold) plus lap timing and unified alarms.
+    3. **Detailed Telemetry**: RPM, Speed, Water Temp, Exhaust Gas Temp (EGT), Lateral G-Force, Battery Voltage, GPS Satellites & RSSI.
+    4. **Paddock & GPS Status**: Coordinates (Lat/Lon), HDOP, Fix Type, Current Track detection, Total Engine Hours, and Piston Run Time.
+    5. **Data Recall**: Lap summary table with sector splits (S1, S2, S3), maximum speed, max RPM, max water temperature, and best lap highlights.
   * **7 Interactive Setup Submenus**:
     1. Race Setup (Drive type KZ/Rotax/Direct, Over-rev limit, Lap Hold time).
     2. LEDs & Alarms (Shift light threshold, Water temp alarm, EGT alarm, LED brightness, Test pattern).
@@ -76,7 +77,7 @@ python3 emu/main.py --replay session_lonato_kz.csv
 | **`Esc`** or **`Shift+Space`** / BOOT Hold (>0.5s) | Enter Setup Menu | Exit / Back to Previous Menu |
 | **`Enter`** or **`Down`** / KEY Click | Next HUD Page | Move Cursor Down |
 | **`I`** or **`Shift+Enter`** / KEY Hold (>0.5s) | Invert Silver/Black Screen | Select / Toggle Item |
-| **`1`**, **`2`**, **`3`**, **`4`** | Direct Jump to HUD Page 1..4 | - |
+| **`1`**, **`2`**, **`3`**, **`4`**, **`5`** | Direct Jump to HUD Page 1..5 | - |
 | **`Tab`** | Trigger Start/Finish Gate (New Lap) | - |
 | **Right-Click** on Button | Instant Long-Press Trigger | Instant Select / Enter |
 
