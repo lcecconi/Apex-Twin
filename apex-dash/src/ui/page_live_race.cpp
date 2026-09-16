@@ -212,19 +212,22 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   static uint8_t _prev_sector = 0;
   static uint16_t _prev_lap = 0;
   static uint32_t _prev_best_lap = 0;
+  static float _prev_delta_val = 999.0f;
   static uint32_t _delta_flash_start_ms = 0;
 
+  float delta_val = telemetry.predictive_delta_s;
   if ((telemetry.current_sector != _prev_sector && _prev_sector != 0) ||
       (telemetry.lap_number != _prev_lap && _prev_lap != 0) ||
-      (telemetry.best_lap_time_ms != _prev_best_lap && _prev_best_lap != 0)) {
+      (telemetry.best_lap_time_ms != _prev_best_lap && _prev_best_lap != 0) ||
+      (fabs(delta_val - _prev_delta_val) > 0.001f && _prev_delta_val < 900.0f)) {
     _delta_flash_start_ms = millis();
   }
   _prev_sector = telemetry.current_sector;
   _prev_lap = telemetry.lap_number;
   _prev_best_lap = telemetry.best_lap_time_ms;
+  _prev_delta_val = delta_val;
 
   char delta_buf[32];
-  float delta_val = telemetry.predictive_delta_s;
   if (telemetry.best_lap_time_ms > 0 || fabs(delta_val) > 0.001f) {
     if (delta_val >= 0.0f) {
       snprintf(delta_buf, sizeof(delta_buf), "+ %.2f", delta_val);

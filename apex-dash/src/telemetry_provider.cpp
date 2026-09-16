@@ -228,9 +228,12 @@ void TelemetryProvider::updateSimulation(const SystemSettings &settings) {
   float target_egt = 420.0f + (_snapshot.rpm / (float)settings.max_rpm) * 195.0f;
   _snapshot.exhaust_temp_c += (target_egt - _snapshot.exhaust_temp_c) * 0.4f * dt_sec;
 
-  // Predictive delta: smoothly oscillates around -0.40s to +0.25s
-  float progress_ratio = _sim_track_progress_m / TRACK_LENGTH_METERS;
-  _snapshot.predictive_delta_s = -0.32f + 0.55f * sinf(progress_ratio * 2.0f * 3.14159f);
+  // Predictive delta: updates every 3.0s so animations and values are clearly visible
+  if (now - _last_delta_sim_ms >= 3000) {
+    _last_delta_sim_ms = now;
+    float progress_ratio = _sim_track_progress_m / TRACK_LENGTH_METERS;
+    _snapshot.predictive_delta_s = -0.32f + 0.55f * sinf(progress_ratio * 2.0f * 3.14159f);
+  }
 }
 
 void TelemetryProvider::update(const DeviceSensorsData &local_sensors, const SystemSettings &settings) {

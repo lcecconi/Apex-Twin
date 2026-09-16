@@ -41,6 +41,7 @@ private:
   float _sim_track_progress_m = 0.0f;
   uint32_t _lap_start_ms = 0;
   uint32_t _last_sim_update_ms = 0;
+  uint32_t _last_delta_sim_ms = 0;
   float _sim_throttle = 1.0f;
 
   void updateSimulation(const SystemSettings &settings);

@@ -525,17 +525,18 @@ class RlcdRenderer(QWidget):
             p.drawText(QRectF(200, 122, 176, 24), Qt.AlignRight | Qt.AlignVCenter, last_str)
 
         # 4. Predictive Delta (Left) & System Alarms (Right)
-        # Left Pane: Predictive Delta (185 px width)
         now_ts = time.time()
+        delta_val = t.predictive_delta_s
         if ((t.current_sector != self._prev_sector and self._prev_sector != 0) or
             (t.lap_number != self._prev_lap and self._prev_lap != 0) or
-            (t.best_lap_time_ms != self._prev_best_lap and self._prev_best_lap != 0)):
+            (t.best_lap_time_ms != self._prev_best_lap and self._prev_best_lap != 0) or
+            (hasattr(self, "_prev_delta_val") and abs(delta_val - self._prev_delta_val) > 0.001 and self._prev_delta_val < 900.0)):
             self._delta_flash_start_time = now_ts
         self._prev_sector = t.current_sector
         self._prev_lap = t.lap_number
         self._prev_best_lap = t.best_lap_time_ms
+        self._prev_delta_val = delta_val
 
-        delta_val = t.predictive_delta_s
         if t.best_lap_time_ms > 0 or abs(delta_val) > 0.001:
             if delta_val >= 0.0:
                 delta_str = f"+ {delta_val:.2f}"

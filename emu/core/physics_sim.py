@@ -112,8 +112,16 @@ class PhysicsSimulator:
                 snapshot.rpm = min(settings.max_rpm, int(14000 + (snapshot.speed_kmh - 120.0) * 220.0))
             snapshot.lateral_g = 0.1 * math.sin(omega * 7.0)
 
-        # Predictive Delta (fluctuating smoothly +/- 0.4s)
-        snapshot.predictive_delta_s = round(-0.35 * math.sin(omega * 2.0 + 0.8) + 0.12 * math.cos(omega * 5.0), 2)
+        # Predictive Delta (updates every 3.0 seconds so animations and values are clearly visible)
+        if not hasattr(self, "_last_delta_update_s"):
+            self._last_delta_update_s = 0.0
+            self._current_sim_delta = -0.22
+
+        if (now - self._last_delta_update_s) >= 3.0:
+            self._last_delta_update_s = now
+            self._current_sim_delta = round(-0.35 * math.sin(omega * 2.0 + 0.8) + 0.12 * math.cos(omega * 5.0), 2)
+
+        snapshot.predictive_delta_s = self._current_sim_delta
 
         # Engine & Environmental
         snapshot.water_temp_c = round(56.2 + 2.5 * math.sin(omega * 1.5), 1)
