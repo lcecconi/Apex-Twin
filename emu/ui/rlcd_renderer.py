@@ -581,12 +581,12 @@ class RlcdRenderer(QWidget):
         eng_min = (t.engine_total_hours_sec % 3600) // 60
         draw_xbm(p, 104, 228, ICON_ENGINE_16X16, 16, 16, color=fg)
         p.setFont(QFont("SansSerif", 9, QFont.Bold))
-        p.drawText(124, 241, f"{eng_hrs}h{eng_min:02d}")
+        p.drawText(124, 241, f"{eng_hrs:02d}h{eng_min:02d}")
 
         sess_hrs = t.session_time_sec // 3600
         sess_min = (t.session_time_sec % 3600) // 60
         draw_xbm(p, 104, 249, ICON_STOPWATCH_16X16, 16, 16, color=fg)
-        p.drawText(124, 263, f"{sess_hrs}h{sess_min:02d}")
+        p.drawText(124, 263, f"{sess_hrs:02d}h{sess_min:02d}")
 
         # Right: Unified Flashing Warning / Status Panel (185 x 110 px)
         if top_alarm_id >= 0:
