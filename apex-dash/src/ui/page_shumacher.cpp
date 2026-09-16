@@ -3,57 +3,80 @@
 #include "i18n.h"
 #include <math.h>
 
-void PageShumacher::updateSpeedTracking(float speed, float lon_g, float lat_g) {
+void PageShumacher::updateSpeedTracking(float speed, float lon_g, float lat_g, uint32_t now) {
   _current_speed = speed;
-  if (_tracking_min > 900.0f) _tracking_min = speed;
-  if (_tracking_max < 1.0f) _tracking_max = speed;
 
-  // Corner entry detection: lateral G > 0.6G or braking lon_g < -0.3G
-  if (fabsf(lat_g) > 0.6f || lon_g < -0.3f) {
-    if (!_in_corner) {
-      // Transition from straight to corner: straight peak is locked
-      if (_tracking_max > 20.0f) {
-        _held_vmax = _tracking_max;
+  // Detect braking or heavy cornering (going for brakes / entering corner)
+  bool is_braking = (lon_g < -0.25f);
+  bool is_cornering = (fabsf(lat_g) > 0.60f);
+
+  if (is_braking || is_cornering) {
+    if (!_braking_or_cornering) {
+      // Driver just went for the brakes:
+      // 1. Lock the maximum speed achieved on the previous straight
+      if (_current_straight_max > 20.0f) {
+        _held_vmax = _current_straight_max;
       }
-      _tracking_max = speed;
-      _tracking_min = speed;
-      _in_corner = true;
-      _in_straight = false;
+      // 2. Reset corner minimum tracking for the new corner
+      _current_corner_min = speed;
+      _braking_or_cornering = true;
+      _flat_throttle_start_ms = 0;
+      _straight_tracking_active = false;
     }
-    if (speed < _tracking_min) {
-      _tracking_min = speed;
+
+    if (speed < _current_corner_min) {
+      _current_corner_min = speed;
     }
-  } else if (lon_g > 0.15f || (speed > _tracking_min + 4.0f && fabsf(lat_g) < 0.4f)) {
-    // Transition from corner to straight acceleration: corner min is locked
-    if (!_in_straight) {
-      if (_tracking_min < 900.0f && _tracking_min > 5.0f) {
-        _held_vmin = _tracking_min;
+  } else if (lon_g > 0.10f || (speed > _current_corner_min + 3.0f && fabsf(lat_g) < 0.35f)) {
+    // Driver is accelerating out of the corner / on the straight:
+    if (_braking_or_cornering) {
+      // Corner completed: lock the apex minimum speed (held until next braking)
+      if (_current_corner_min > 5.0f && _current_corner_min < 900.0f) {
+        _held_vmin = _current_corner_min;
       }
-      _tracking_min = 999.0f;
-      _tracking_max = speed;
-      _in_straight = true;
-      _in_corner = false;
+      _braking_or_cornering = false;
+      _flat_throttle_start_ms = now;
+      _straight_tracking_active = false;
     }
-    if (speed > _tracking_max) {
-      _tracking_max = speed;
+
+    // On straight: keep holding previous straight max until flat on throttle for ~1.8s
+    if (!_straight_tracking_active) {
+      if (_flat_throttle_start_ms > 0 && (now - _flat_throttle_start_ms >= 1800)) {
+        _straight_tracking_active = true;
+        _current_straight_max = speed;
+      }
+    } else {
+      if (speed > _current_straight_max) {
+        _current_straight_max = speed;
+      }
     }
   } else {
-    if (speed < _tracking_min) _tracking_min = speed;
-    if (speed > _tracking_max) _tracking_max = speed;
+    // Neutral coasting or steady state
+    if (_braking_or_cornering && speed < _current_corner_min) {
+      _current_corner_min = speed;
+    }
+    if (_straight_tracking_active && speed > _current_straight_max) {
+      _current_straight_max = speed;
+    }
   }
 }
 
 void PageShumacher::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const SystemSettings &settings) {
   char buf[48];
+  uint32_t now = millis();
 
   // Update dynamic min/max corner speed tracking
-  updateSpeedTracking(telemetry.speed_kmh, telemetry.longitudinal_g, telemetry.lateral_g);
+  updateSpeedTracking(telemetry.speed_kmh, telemetry.longitudinal_g, telemetry.lateral_g, now);
+
+  // Determine displayed speed values
+  float disp_vmin_val = _braking_or_cornering ? _current_corner_min : _held_vmin;
+  float disp_vmax_val = _straight_tracking_active ? _current_straight_max : _held_vmax;
 
   // Unit conversion
   float unit_mult = settings.use_kmh ? 1.0f : 0.621371f;
   float disp_live = telemetry.speed_kmh * unit_mult;
-  float disp_vmin = _held_vmin * unit_mult;
-  float disp_vmax = _held_vmax * unit_mult;
+  float disp_vmin = disp_vmin_val * unit_mult;
+  float disp_vmax = disp_vmax_val * unit_mult;
 
   // ==========================================
   // 1. TOP TACHOMETER (RPM BAR GRAPH)

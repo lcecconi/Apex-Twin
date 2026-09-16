@@ -77,13 +77,14 @@ class RlcdRenderer(QWidget):
         self._prev_best_lap = 0
         self._delta_flash_start_time = 0.0
 
-        # Schumacher 3-Speedometer Tracking
-        self._tracking_min = 999.0
-        self._tracking_max = 0.0
+        # Schumacher 3-Speedometer Tracking (Willem Toet / Benetton F1 logic)
         self._held_vmin = 48.0
         self._held_vmax = 124.0
-        self._in_corner = False
-        self._in_straight = False
+        self._current_corner_min = 48.0
+        self._current_straight_max = 124.0
+        self._braking_or_cornering = False
+        self._flat_throttle_start_time = 0.0
+        self._straight_tracking_active = False
 
     def set_data(self, telemetry: TelemetrySnapshot, settings: SystemSettings):
         self.telemetry = telemetry
@@ -888,37 +889,47 @@ class RlcdRenderer(QWidget):
         p.drawText(20, 252, "Session Consistency Index: 98.4 %")
 
     def _update_speed_tracking(self, speed: float, lon_g: float, lat_g: float):
-        if self._tracking_min > 900.0:
-            self._tracking_min = speed
-        if self._tracking_max < 1.0:
-            self._tracking_max = speed
+        now = time.time()
+        is_braking = (lon_g < -0.25)
+        is_cornering = (abs(lat_g) > 0.60)
 
-        # Corner entry detection: lateral G > 0.6G or braking lon_g < -0.3G
-        if abs(lat_g) > 0.6 or lon_g < -0.3:
-            if not self._in_corner:
-                if self._tracking_max > 20.0:
-                    self._held_vmax = self._tracking_max
-                self._tracking_max = speed
-                self._tracking_min = speed
-                self._in_corner = True
-                self._in_straight = False
-            if speed < self._tracking_min:
-                self._tracking_min = speed
-        elif lon_g > 0.15 or (speed > self._tracking_min + 4.0 and abs(lat_g) < 0.4):
-            if not self._in_straight:
-                if 5.0 < self._tracking_min < 900.0:
-                    self._held_vmin = self._tracking_min
-                self._tracking_min = 999.0
-                self._tracking_max = speed
-                self._in_straight = True
-                self._in_corner = False
-            if speed > self._tracking_max:
-                self._tracking_max = speed
+        if is_braking or is_cornering:
+            if not self._braking_or_cornering:
+                # Driver went for the brakes: lock top speed from previous straight
+                if self._current_straight_max > 20.0:
+                    self._held_vmax = self._current_straight_max
+                # Reset corner minimum tracking for the new corner
+                self._current_corner_min = speed
+                self._braking_or_cornering = True
+                self._flat_throttle_start_time = 0.0
+                self._straight_tracking_active = False
+
+            if speed < self._current_corner_min:
+                self._current_corner_min = speed
+
+        elif lon_g > 0.10 or (speed > self._current_corner_min + 3.0 and abs(lat_g) < 0.35):
+            # Driver is accelerating out of the corner / on the straight
+            if self._braking_or_cornering:
+                # Corner completed: lock apex minimum speed (held until next braking)
+                if 5.0 < self._current_corner_min < 900.0:
+                    self._held_vmin = self._current_corner_min
+                self._braking_or_cornering = False
+                self._flat_throttle_start_time = now
+                self._straight_tracking_active = False
+
+            # On straight: hold previous straight max until flat on throttle for ~1.8s
+            if not self._straight_tracking_active:
+                if self._flat_throttle_start_time > 0 and (now - self._flat_throttle_start_time >= 1.8):
+                    self._straight_tracking_active = True
+                    self._current_straight_max = speed
+            else:
+                if speed > self._current_straight_max:
+                    self._current_straight_max = speed
         else:
-            if speed < self._tracking_min:
-                self._tracking_min = speed
-            if speed > self._tracking_max:
-                self._tracking_max = speed
+            if self._braking_or_cornering and speed < self._current_corner_min:
+                self._current_corner_min = speed
+            if self._straight_tracking_active and speed > self._current_straight_max:
+                self._current_straight_max = speed
 
     def _render_shumacher(self, p: QPainter, bg: QColor, fg: QColor):
         t = self.telemetry
@@ -926,10 +937,13 @@ class RlcdRenderer(QWidget):
 
         self._update_speed_tracking(t.speed_kmh, t.longitudinal_g, t.lateral_g)
 
+        disp_vmin_val = self._current_corner_min if self._braking_or_cornering else self._held_vmin
+        disp_vmax_val = self._current_straight_max if self._straight_tracking_active else self._held_vmax
+
         unit_mult = 1.0 if s.use_kmh else 0.621371
         disp_live = t.speed_kmh * unit_mult
-        disp_vmin = self._held_vmin * unit_mult
-        disp_vmax = self._held_vmax * unit_mult
+        disp_vmin = disp_vmin_val * unit_mult
+        disp_vmax = disp_vmax_val * unit_mult
 
         # 1. Top Tachometer (RPM Bar Graph)
         if s.rpm_display_mode != RpmDisplayMode.LEDS_ONLY:

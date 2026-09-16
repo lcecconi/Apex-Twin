@@ -10,12 +10,14 @@ public:
 
 private:
   float _current_speed = 0.0f;
-  float _tracking_min = 999.0f;
-  float _tracking_max = 0.0f;
   float _held_vmin = 48.0f;
   float _held_vmax = 124.0f;
-  bool _in_corner = false;
-  bool _in_straight = false;
+  float _current_corner_min = 48.0f;
+  float _current_straight_max = 124.0f;
+
+  bool _braking_or_cornering = false;
+  uint32_t _flat_throttle_start_ms = 0;
+  bool _straight_tracking_active = false;
 
   uint8_t _prev_sector = 0;
   uint16_t _prev_lap = 0;
@@ -23,5 +25,5 @@ private:
   float _prev_delta_val = 999.0f;
   uint32_t _delta_flash_start_ms = 0;
 
-  void updateSpeedTracking(float speed, float lon_g, float lat_g);
+  void updateSpeedTracking(float speed, float lon_g, float lat_g, uint32_t now);
 };
