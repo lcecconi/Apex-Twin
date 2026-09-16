@@ -67,8 +67,8 @@ void UiManager::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const Tel
 }
 
 void UiManager::renderFooter(U8G2 *u8g2, const TelemetrySnapshot &telemetry) {
-  if (_current_view == VIEW_LIVE_RACE) {
-    return; // PageLiveRace renders Track info & status on the bottom line
+  if (_current_view == VIEW_LIVE_RACE || _current_view == VIEW_SHUMACHER) {
+    return; // PageLiveRace and PageShumacher render bottom status line
   }
 
   u8g2->drawHLine(0, 276, 400);

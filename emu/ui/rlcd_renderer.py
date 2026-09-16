@@ -925,133 +925,182 @@ class RlcdRenderer(QWidget):
         self._update_speed_tracking(t.speed_kmh, t.longitudinal_g, t.lateral_g)
 
         unit_mult = 1.0 if s.use_kmh else 0.621371
-        unit_str = "km/h" if s.use_kmh else "mph"
-
         disp_live = t.speed_kmh * unit_mult
         disp_vmin = self._held_vmin * unit_mult
         disp_vmax = self._held_vmax * unit_mult
 
-        # Top Bar: Tachometer & Title (y = 2..32)
-        p.drawRoundedRect(10, 2, 380, 14, 2, 2)
-        rpm_fill = int(t.rpm * 376 / max(1, s.max_rpm))
-        rpm_fill = max(0, min(376, rpm_fill))
-        if rpm_fill > 0:
-            p.fillRect(12, 4, rpm_fill, 10, fg)
+        # 1. Top Tachometer (RPM Bar Graph)
+        if s.rpm_display_mode != RpmDisplayMode.LEDS_ONLY:
+            p.drawRoundedRect(6, 4, 388, 26, 3, 3)
 
-        shift_x = int(10 + (s.shift_rpm * 376 / max(1, s.max_rpm)))
-        if shift_x < 390:
-            p.drawLine(shift_x, 1, shift_x, 17)
+            shift_x = int(6 + (s.shift_rpm * 384 / max(1, s.max_rpm)))
+            if shift_x < 392:
+                p.drawLine(shift_x, 2, shift_x, 30)
+                p.drawLine(shift_x + 1, 2, shift_x, 30)
 
+            rpm_fill = int(t.rpm * 384 / max(1, s.max_rpm))
+            rpm_fill = max(0, min(384, rpm_fill))
+            if rpm_fill > 0:
+                p.fillRect(8, 6, rpm_fill, 22, fg)
+
+        # 2. The Three Speedometer Dials (y = 38, h = 118)
+        p.setFont(QFont("SansSerif", 42, QFont.Bold))
+
+        # Left Dial: Held Minimum Corner Speed
+        p.drawRoundedRect(10, 38, 120, 118, 6, 6)
+        p.drawText(QRectF(10, 38, 120, 118), Qt.AlignCenter, f"{int(round(disp_vmin))}")
+
+        # Center Dial: Live Real-time Speed
+        p.drawRoundedRect(138, 38, 124, 118, 6, 6)
+        p.drawText(QRectF(138, 38, 124, 118), Qt.AlignCenter, f"{int(round(disp_live))}")
+
+        # Right Dial: Held Maximum Straight Speed
+        p.drawRoundedRect(270, 38, 120, 118, 6, 6)
+        p.drawText(QRectF(270, 38, 120, 118), Qt.AlignCenter, f"{int(round(disp_vmax))}")
+
+        # 3. Bottom-Left: Lap Time & Predictive Best Lap Delta
+        # Sub-panel A: Current Lap Time (y = 162, h = 52)
+        p.drawRoundedRect(10, 162, 185, 52, 4, 4)
+        p.setFont(QFont("Monospace", 7))
+        p.drawText(18, 176, f"{I18n.get(StrId.LABEL_LAP)} {t.lap_number:02d}  [{I18n.get(StrId.LABEL_SECTOR)} {t.current_sector}]")
+
+        active_lap_time = t.current_lap_time_ms
+        lap_min = active_lap_time // 60000
+        lap_sec = (active_lap_time % 60000) // 1000
+        lap_cen = (active_lap_time % 1000) // 10
+        p.setFont(QFont("SansSerif", 14, QFont.Bold))
+        p.drawText(QRectF(10, 178, 185, 32), Qt.AlignCenter, f"{lap_min:02d}:{lap_sec:02d}.{lap_cen:02d}")
+
+        # Sub-panel B: Predictive Best Lap Delta (y = 220, h = 52)
+        now_ts = time.time()
+        delta_val = t.predictive_delta_s
+        if ((t.current_sector != self._prev_sector and self._prev_sector != 0) or
+            (t.lap_number != self._prev_lap and self._prev_lap != 0) or
+            (t.best_lap_time_ms != self._prev_best_lap and self._prev_best_lap != 0) or
+            (hasattr(self, "_prev_delta_val") and abs(delta_val - self._prev_delta_val) > 0.001 and self._prev_delta_val < 900.0)):
+            self._delta_flash_start_time = now_ts
+        self._prev_sector = t.current_sector
+        self._prev_lap = t.lap_number
+        self._prev_best_lap = t.best_lap_time_ms
+        self._prev_delta_val = delta_val
+
+        if t.best_lap_time_ms > 0 or abs(delta_val) > 0.001:
+            if delta_val >= 0.0:
+                delta_str = f"+ {delta_val:.2f}"
+            else:
+                delta_str = f"- {-delta_val:.2f}"
+        else:
+            delta_str = "+ 0.00"
+
+        flash_elapsed = now_ts - self._delta_flash_start_time
+        is_flashing = flash_elapsed < 1.5 and self._delta_flash_start_time > 0
+        is_inverted = is_flashing and (int(flash_elapsed / 0.25) % 2 == 0)
+
+        p.setFont(QFont("SansSerif", 22, QFont.Bold))
+        if is_inverted:
+            p.fillRect(10, 220, 185, 52, fg)
+            p.setPen(bg)
+            p.drawText(QRectF(10, 220, 185, 52), Qt.AlignCenter, delta_str)
+            p.setPen(fg)
+        else:
+            p.drawRoundedRect(10, 220, 185, 52, 4, 4)
+            p.drawText(QRectF(10, 220, 185, 52), Qt.AlignCenter, delta_str)
+
+        # 4. Bottom-Right: Unified Flashing Warning / Status Panel (185 x 110 px)
+        alm_active = [
+            t.water_temp_c >= s.water_temp_alarm_c and s.water_temp_alarm_c > 0,
+            t.exhaust_temp_c >= s.exhaust_temp_alarm_c and s.exhaust_temp_alarm_c > 0,
+            t.rpm >= s.over_rev_rpm and s.over_rev_rpm > 0,
+            t.battery_voltage < s.low_bat_alarm_v and t.battery_voltage > 1.0,
+            not t.track_module_connected,
+        ]
+
+        alm_warn = [
+            alm_active[0] and s.warn_trigger_water,
+            alm_active[1] and s.warn_trigger_egt,
+            alm_active[2] and s.warn_trigger_rev,
+            alm_active[3] and s.warn_trigger_battery,
+            alm_active[4] and s.warn_trigger_link,
+        ]
+
+        top_alarm_id = -1
+        for aid in s.alarm_priority:
+            if aid < 5 and alm_warn[aid]:
+                top_alarm_id = aid
+                break
+
+        if top_alarm_id >= 0:
+            flash_phase = (int(time.time() / 0.35) % 2) == 0
+
+            p.fillRect(205, 162, 185, 110, fg)
+            p.setPen(bg)
+
+            if flash_phase:
+                # Phase A: Warning triangle icon + "WARN"
+                draw_xbm(p, 205 + (185 - 24) // 2, 180, ICON_WARN_24X24, 24, 24, color=bg)
+                p.setFont(QFont("SansSerif", 20, QFont.Bold))
+                p.drawText(QRectF(205, 210, 185, 45), Qt.AlignCenter, "WARN")
+            else:
+                # Phase B: Actual triggering alarm icon + short text
+                alarm_icons = [
+                    ICON_WATER_16X16,
+                    ICON_EGT_16X16,
+                    ICON_REV_16X16,
+                    ICON_BAT_16X16,
+                    ICON_LINK_16X16,
+                ]
+                alarm_labels = [
+                    "H2O HIGH",
+                    "EGT HIGH",
+                    "OVER-REV",
+                    "LOW BATT",
+                    "NO LINK",
+                ]
+                draw_xbm(p, 205 + (185 - 16) // 2, 184, alarm_icons[top_alarm_id], 16, 16, color=bg)
+                p.setFont(QFont("SansSerif", 15, QFont.Bold))
+                p.drawText(QRectF(205, 212, 185, 42), Qt.AlignCenter, alarm_labels[top_alarm_id])
+
+            p.setPen(fg)
+        else:
+            # Normal System Status (Outlined Box)
+            p.drawRoundedRect(205, 162, 185, 110, 6, 6)
+            p.setFont(QFont("SansSerif", 12, QFont.Bold))
+            p.drawText(QRectF(205, 162, 185, 110), Qt.AlignCenter, "SYSTEM OK")
+
+        # 5. Bottom Line: Sensor Icons & Runtimes (y = 276..300)
+        p.drawLine(0, 276, 400, 276)
+
+        w_temp = t.water_temp_c if s.use_celsius else (t.water_temp_c * 1.8 + 32.0)
+        e_temp = t.exhaust_temp_c if s.use_celsius else (t.exhaust_temp_c * 1.8 + 32.0)
+        t_unit = "°C" if s.use_celsius else "°F"
+
+        draw_xbm(p, 6, 280, ICON_WATER_16X16, 16, 16, color=fg)
         p.setFont(QFont("SansSerif", 8, QFont.Bold))
-        p.drawText(10, 28, "SCHUMACHER B194 3-SPEED")
-        p.setFont(QFont("Monospace", 7))
-        p.drawText(275, 28, f"LAP {t.lap_number:02d} | {t.rpm:5d} RPM")
-        p.drawLine(10, 32, 390, 32)
+        p.drawText(24, 293, f"{w_temp:.1f}{t_unit}")
 
-        # 1. Left: V-MIN (APEX)
-        p.drawRoundedRect(10, 36, 120, 134, 4, 4)
-        p.fillRect(10, 36, 120, 16, fg)
-        p.setPen(bg)
-        p.setFont(QFont("Monospace", 7, QFont.Bold))
-        p.drawText(16, 48, "V-MIN (APEX)")
-        p.setPen(fg)
-
-        p.setFont(QFont("SansSerif", 24, QFont.Bold))
-        p.drawText(QRectF(10, 56, 120, 42), Qt.AlignCenter, f"{int(round(disp_vmin))}")
-
-        p.setFont(QFont("SansSerif", 9, QFont.Bold))
-        p.drawText(QRectF(10, 98, 120, 20), Qt.AlignCenter, unit_str)
-
-        p.setFont(QFont("Monospace", 7))
-        p.drawText(16, 138, "CORNER APEX")
-        p.drawText(16, 154, "HELD MIN SPEED")
-
-        # 2. Center: LIVE SPEED
-        p.drawRoundedRect(138, 36, 124, 134, 4, 4)
-        p.fillRect(138, 36, 124, 16, fg)
-        p.setPen(bg)
-        p.setFont(QFont("Monospace", 7, QFont.Bold))
-        p.drawText(150, 48, "LIVE SPEED")
-        p.setPen(fg)
-
-        p.setFont(QFont("SansSerif", 24, QFont.Bold))
-        p.drawText(QRectF(138, 56, 124, 42), Qt.AlignCenter, f"{int(round(disp_live))}")
-
-        p.setFont(QFont("SansSerif", 9, QFont.Bold))
-        p.drawText(QRectF(138, 98, 124, 20), Qt.AlignCenter, unit_str)
-
-        p.setFont(QFont("SansSerif", 9, QFont.Bold))
-        gear_str = "GEAR: N" if t.gear == 0 else f"GEAR: {t.gear}"
-        if s.drive_type != DriveType.SHIFTER_6SPEED:
-            gear_str = "DIRECT DRIVE"
-        p.drawText(QRectF(138, 124, 124, 20), Qt.AlignCenter, gear_str)
-
-        p.setFont(QFont("Monospace", 7))
-        p.drawText(QRectF(138, 142, 124, 20), Qt.AlignCenter, f"{t.lateral_g:+0.2f} G Lat")
-
-        # 3. Right: V-MAX (EXIT / STRAIGHT)
-        p.drawRoundedRect(270, 36, 120, 134, 4, 4)
-        p.fillRect(270, 36, 120, 16, fg)
-        p.setPen(bg)
-        p.setFont(QFont("Monospace", 7, QFont.Bold))
-        p.drawText(276, 48, "V-MAX (EXIT)")
-        p.setPen(fg)
-
-        p.setFont(QFont("SansSerif", 24, QFont.Bold))
-        p.drawText(QRectF(270, 56, 120, 42), Qt.AlignCenter, f"{int(round(disp_vmax))}")
-
-        p.setFont(QFont("SansSerif", 9, QFont.Bold))
-        p.drawText(QRectF(270, 98, 120, 20), Qt.AlignCenter, unit_str)
-
-        p.setFont(QFont("Monospace", 7))
-        p.drawText(276, 138, "STRAIGHT PEAK")
-        p.drawText(276, 154, "HELD TOP SPEED")
-
-        # Bottom Cards (y = 176..270)
-        # Card 1: Corner Delta & Dynamics
-        p.drawRoundedRect(10, 176, 185, 94, 4, 4)
-        p.fillRect(10, 176, 185, 16, fg)
-        p.setPen(bg)
-        p.setFont(QFont("Monospace", 7, QFont.Bold))
-        p.drawText(16, 188, "CORNER DELTA & DYNAMICS")
-        p.setPen(fg)
-
-        speed_gain = disp_vmax - disp_vmin
-        apex_ratio = (disp_vmin / disp_vmax * 100.0) if disp_vmax > 0.0 else 0.0
-
-        p.setFont(QFont("Monospace", 7))
-        p.drawText(16, 210, f"Speed Gain (ΔV): +{max(0.0, speed_gain):.1f} {unit_str}")
-        p.drawText(16, 226, f"Apex Lat Grip:  {t.lateral_g:+0.2f} G")
-        p.drawText(16, 242, f"Entry Braking:  {t.longitudinal_g:+0.2f} G")
-        p.drawText(16, 258, f"Apex Ratio:     {apex_ratio:.1f} %")
-
-        # Card 2: Lap Timing & Engine
-        p.drawRoundedRect(205, 176, 185, 94, 4, 4)
-        p.fillRect(205, 176, 185, 16, fg)
-        p.setPen(bg)
-        p.setFont(QFont("Monospace", 7, QFont.Bold))
-        p.drawText(211, 188, "LAP TIMING & ENGINE")
-        p.setPen(fg)
-
-        if t.best_lap_time_ms > 0:
-            b_sec = (t.best_lap_time_ms % 60000) / 1000.0
-            p.drawText(211, 210, f"Best Lap:  {b_sec:05.2f} s")
-        else:
-            p.drawText(211, 210, "Best Lap:  --.-- s")
-
-        if t.best_lap_time_ms > 0 or abs(t.predictive_delta_s) > 0.001:
-            p.drawText(211, 226, f"Lap Delta: {t.predictive_delta_s:+0.2f} s")
-        else:
-            p.drawText(211, 226, "Lap Delta: --.-- s")
-
-        water = t.water_temp_c if s.use_celsius else (t.water_temp_c * 1.8 + 32.0)
-        egt = t.exhaust_temp_c if s.use_celsius else (t.exhaust_temp_c * 1.8 + 32.0)
-        t_unit = "C" if s.use_celsius else "F"
-        p.drawText(211, 242, f"H2O: {water:.1f}°{t_unit} | EGT: {int(egt)}°{t_unit}")
+        draw_xbm(p, 84, 280, ICON_EGT_16X16, 16, 16, color=fg)
+        p.drawText(102, 293, f"{int(e_temp)}{t_unit}")
 
         eng_hrs = t.engine_total_hours_sec // 3600
-        eng_mins = (t.engine_total_hours_sec % 3600) // 60
-        p.drawText(211, 258, f"Eng: {eng_hrs:02d}h{eng_mins:02d} | Bat: {t.battery_percent}%")
+        eng_min = (t.engine_total_hours_sec % 3600) // 60
+        draw_xbm(p, 156, 280, ICON_ENGINE_16X16, 16, 16, color=fg)
+        p.drawText(174, 293, f"{eng_hrs:02d}h{eng_min:02d}")
+
+        sess_hrs = t.session_time_sec // 3600
+        sess_min = (t.session_time_sec % 3600) // 60
+        draw_xbm(p, 232, 280, ICON_STOPWATCH_16X16, 16, 16, color=fg)
+        p.drawText(250, 293, f"{sess_hrs:02d}h{sess_min:02d}")
+
+        blink_1hz = (int(time.time() * 2) % 2) == 0
+        show_bat = (t.battery_percent >= 10) or blink_1hz
+        show_link = t.track_module_connected or blink_1hz
+
+        draw_xbm(p, 308, 280, ICON_BAT_16X16, 16, 16, color=fg)
+        if show_bat:
+            p.drawText(326, 293, f"{t.battery_percent}%")
+        p.drawText(354, 293, "|")
+        if show_link:
+            p.drawText(360, 293, "LINK" if t.track_module_connected else "ERR")
 
     def _render_menu(self, p: QPainter, bg: QColor, fg: QColor):
         p.fillRect(0, 0, 400, 24, fg)
@@ -1255,8 +1304,8 @@ class RlcdRenderer(QWidget):
 
 
     def _render_footer(self, p: QPainter, bg: QColor, fg: QColor):
-        if self.current_view == UiViewMode.VIEW_LIVE_RACE:
-            return  # Live Race HUD renders Track & Status on the bottom line
+        if self.current_view in (UiViewMode.VIEW_LIVE_RACE, UiViewMode.VIEW_SHUMACHER):
+            return  # Live Race HUD & Schumacher views render their own bottom status line
 
         p.drawLine(0, 276, 400, 276)
         p.setFont(QFont("Monospace", 7))

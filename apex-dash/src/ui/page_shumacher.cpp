@@ -1,4 +1,6 @@
 #include "ui/page_shumacher.h"
+#include "ui/icons_xbm.h"
+#include "i18n.h"
 #include <math.h>
 
 void PageShumacher::updateSpeedTracking(float speed, float lon_g, float lat_g) {
@@ -42,181 +44,237 @@ void PageShumacher::updateSpeedTracking(float speed, float lon_g, float lat_g) {
 }
 
 void PageShumacher::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const SystemSettings &settings) {
-  char buf[64];
+  char buf[48];
 
   // Update dynamic min/max corner speed tracking
   updateSpeedTracking(telemetry.speed_kmh, telemetry.longitudinal_g, telemetry.lateral_g);
 
-  // Unit conversions
+  // Unit conversion
   float unit_mult = settings.use_kmh ? 1.0f : 0.621371f;
-  const char *unit_str = settings.use_kmh ? "km/h" : "mph";
-
   float disp_live = telemetry.speed_kmh * unit_mult;
   float disp_vmin = _held_vmin * unit_mult;
   float disp_vmax = _held_vmax * unit_mult;
 
   // ==========================================
-  // TOP BAR: TACHOMETER & TITLE (y = 4..32)
+  // 1. TOP TACHOMETER (RPM BAR GRAPH)
   // ==========================================
-  u8g2->drawRFrame(10, 2, 380, 14, 2);
-  int rpm_fill = (int)((uint32_t)telemetry.rpm * 376 / max(1, (int)settings.max_rpm));
-  if (rpm_fill > 376) rpm_fill = 376;
-  if (rpm_fill > 0) {
-    u8g2->drawBox(12, 4, rpm_fill, 10);
+  if (settings.rpm_display_mode != RPM_DISP_LEDS_ONLY) {
+    u8g2->drawRFrame(6, 4, 388, 26, 3);
+
+    int shift_x = 6 + (int)((uint32_t)settings.shift_rpm * 384 / settings.max_rpm);
+    if (shift_x < 392) {
+      u8g2->drawVLine(shift_x, 2, 30);
+      u8g2->drawVLine(shift_x + 1, 2, 30);
+    }
+
+    int rpm_fill = (int)((uint32_t)telemetry.rpm * 384 / settings.max_rpm);
+    if (rpm_fill > 384) rpm_fill = 384;
+    if (rpm_fill > 0) {
+      u8g2->drawBox(8, 6, rpm_fill, 22);
+    }
   }
-  // Shift RPM marker
-  int shift_x = 10 + (int)((uint32_t)settings.shift_rpm * 376 / max(1, (int)settings.max_rpm));
-  if (shift_x < 390) {
-    u8g2->drawVLine(shift_x, 1, 16);
-  }
-
-  u8g2->setFont(u8g2_font_helvB08_tr);
-  u8g2->drawStr(10, 28, "SCHUMACHER B194 3-SPEED");
-  u8g2->setFont(u8g2_font_6x10_tr);
-  snprintf(buf, sizeof(buf), "LAP %02d | %5u RPM", telemetry.lap_number, telemetry.rpm);
-  u8g2->drawStr(275, 28, buf);
-  u8g2->drawHLine(10, 32, 380);
 
   // ==========================================
-  // THE THREE SPEEDOMETERS (y = 36..170)
+  // 2. THE THREE SPEEDOMETER DIALS (y = 38, h = 118)
   // ==========================================
 
-  // --- 1. LEFT: V-MIN (APEX SPEED) ---
-  u8g2->drawRFrame(10, 36, 120, 134, 4);
-  u8g2->drawBox(10, 36, 120, 16);
-  u8g2->setDrawColor(0);
-  u8g2->setFont(u8g2_font_6x10_tr);
-  u8g2->drawStr(16, 48, "V-MIN (APEX)");
-  u8g2->setDrawColor(1);
-
-  u8g2->setFont(u8g2_font_logisoso32_tn);
+  // --- Left Dial: Held Minimum Corner Speed ---
+  u8g2->drawRFrame(10, 38, 120, 118, 6);
+  u8g2->setFont(u8g2_font_logisoso50_tn);
   snprintf(buf, sizeof(buf), "%d", (int)roundf(disp_vmin));
   int w_vmin = u8g2->getStrWidth(buf);
-  u8g2->drawStr(10 + (120 - w_vmin) / 2, 94, buf);
+  u8g2->drawStr(10 + (120 - w_vmin) / 2, 122, buf);
 
-  u8g2->setFont(u8g2_font_helvB10_tr);
-  int w_unit1 = u8g2->getStrWidth(unit_str);
-  u8g2->drawStr(10 + (120 - w_unit1) / 2, 114, unit_str);
-
-  u8g2->setFont(u8g2_font_6x10_tr);
-  u8g2->drawStr(16, 138, "CORNER APEX");
-  u8g2->drawStr(16, 154, "HELD MIN SPEED");
-
-  // --- 2. CENTER: LIVE SPEED (CURRENT) ---
-  u8g2->drawRFrame(138, 36, 124, 134, 4);
-  u8g2->drawBox(138, 36, 124, 16);
-  u8g2->setDrawColor(0);
-  u8g2->setFont(u8g2_font_6x10_tr);
-  u8g2->drawStr(150, 48, "LIVE SPEED");
-  u8g2->setDrawColor(1);
-
-  u8g2->setFont(u8g2_font_logisoso32_tn);
+  // --- Center Dial: Live Real-time Speed ---
+  u8g2->drawRFrame(138, 38, 124, 118, 6);
+  u8g2->setFont(u8g2_font_logisoso50_tn);
   snprintf(buf, sizeof(buf), "%d", (int)roundf(disp_live));
   int w_live = u8g2->getStrWidth(buf);
-  u8g2->drawStr(138 + (124 - w_live) / 2, 94, buf);
+  u8g2->drawStr(138 + (124 - w_live) / 2, 122, buf);
 
-  u8g2->setFont(u8g2_font_helvB10_tr);
-  int w_unit2 = u8g2->getStrWidth(unit_str);
-  u8g2->drawStr(138 + (124 - w_unit2) / 2, 114, unit_str);
-
-  if (settings.drive_type == DRIVE_SHIFTER_6SPEED) {
-    if (telemetry.gear == 0) {
-      snprintf(buf, sizeof(buf), "GEAR: N");
-    } else {
-      snprintf(buf, sizeof(buf), "GEAR: %d", telemetry.gear);
-    }
-  } else {
-    snprintf(buf, sizeof(buf), "DIRECT DRIVE");
-  }
-  int w_gear = u8g2->getStrWidth(buf);
-  u8g2->drawStr(138 + (124 - w_gear) / 2, 138, buf);
-
-  u8g2->setFont(u8g2_font_6x10_tr);
-  snprintf(buf, sizeof(buf), "%+0.2f G Lat", telemetry.lateral_g);
-  int w_lat = u8g2->getStrWidth(buf);
-  u8g2->drawStr(138 + (124 - w_lat) / 2, 154, buf);
-
-  // --- 3. RIGHT: V-MAX (STRAIGHT TOP SPEED) ---
-  u8g2->drawRFrame(270, 36, 120, 134, 4);
-  u8g2->drawBox(270, 36, 120, 16);
-  u8g2->setDrawColor(0);
-  u8g2->setFont(u8g2_font_6x10_tr);
-  u8g2->drawStr(276, 48, "V-MAX (EXIT)");
-  u8g2->setDrawColor(1);
-
-  u8g2->setFont(u8g2_font_logisoso32_tn);
+  // --- Right Dial: Held Maximum Straight Speed ---
+  u8g2->drawRFrame(270, 38, 120, 118, 6);
+  u8g2->setFont(u8g2_font_logisoso50_tn);
   snprintf(buf, sizeof(buf), "%d", (int)roundf(disp_vmax));
   int w_vmax = u8g2->getStrWidth(buf);
-  u8g2->drawStr(270 + (120 - w_vmax) / 2, 94, buf);
+  u8g2->drawStr(270 + (120 - w_vmax) / 2, 122, buf);
 
+  // ==========================================
+  // 3. BOTTOM-LEFT: LAP TIME & BEST LAP DELTA
+  // ==========================================
+
+  // --- Sub-panel A: Current Lap Time (y = 162, h = 52) ---
+  u8g2->drawRFrame(10, 162, 185, 52, 4);
+  u8g2->setFont(u8g2_font_6x10_tr);
+  snprintf(buf, sizeof(buf), "%s %02u  [%s %d]", 
+           I18n::get(STR_LABEL_LAP), telemetry.lap_number, 
+           I18n::get(STR_LABEL_SECTOR), telemetry.current_sector);
+  u8g2->drawStr(18, 176, buf);
+
+  uint32_t active_lap_time = telemetry.current_lap_time_ms;
+  uint32_t lap_min = (active_lap_time / 60000);
+  uint32_t lap_sec = (active_lap_time % 60000) / 1000;
+  uint32_t lap_cen = (active_lap_time % 1000) / 10;
+  u8g2->setFont(u8g2_font_helvB14_tr);
+  snprintf(buf, sizeof(buf), "%02lu:%02lu.%02lu", (unsigned long)lap_min, (unsigned long)lap_sec, (unsigned long)lap_cen);
+  int tw = u8g2->getStrWidth(buf);
+  u8g2->drawStr(10 + (185 - tw) / 2, 202, buf);
+
+  // --- Sub-panel B: Predictive Best Lap Delta (y = 220, h = 52) ---
+  float delta_val = telemetry.predictive_delta_s;
+  if ((telemetry.current_sector != _prev_sector && _prev_sector != 0) ||
+      (telemetry.lap_number != _prev_lap && _prev_lap != 0) ||
+      (telemetry.best_lap_time_ms != _prev_best_lap && _prev_best_lap != 0) ||
+      (fabsf(delta_val - _prev_delta_val) > 0.001f && _prev_delta_val < 900.0f)) {
+    _delta_flash_start_ms = millis();
+  }
+  _prev_sector = telemetry.current_sector;
+  _prev_lap = telemetry.lap_number;
+  _prev_best_lap = telemetry.best_lap_time_ms;
+  _prev_delta_val = delta_val;
+
+  char delta_buf[32];
+  if (telemetry.best_lap_time_ms > 0 || fabsf(delta_val) > 0.001f) {
+    if (delta_val >= 0.0f) {
+      snprintf(delta_buf, sizeof(delta_buf), "+ %.2f", delta_val);
+    } else {
+      snprintf(delta_buf, sizeof(delta_buf), "- %.2f", -delta_val);
+    }
+  } else {
+    snprintf(delta_buf, sizeof(delta_buf), "+ 0.00");
+  }
+
+  u8g2->setFont(u8g2_font_helvB24_tr);
+  int d_w = u8g2->getStrWidth(delta_buf);
+
+  uint32_t flash_elapsed = millis() - _delta_flash_start_ms;
+  bool is_flashing = (flash_elapsed < 1500 && _delta_flash_start_ms > 0);
+  bool is_inverted = is_flashing && (((flash_elapsed / 250) % 2) == 0);
+
+  if (is_inverted) {
+    u8g2->drawRBox(10, 220, 185, 52, 4);
+    u8g2->setDrawColor(0);
+    u8g2->drawStr(10 + (185 - d_w) / 2, 256, delta_buf);
+    u8g2->setDrawColor(1);
+  } else {
+    u8g2->drawRFrame(10, 220, 185, 52, 4);
+    u8g2->drawStr(10 + (185 - d_w) / 2, 256, delta_buf);
+  }
+
+  // ==========================================
+  // 4. BOTTOM-RIGHT: UNIFIED ALARM PANEL (185 x 110 px)
+  // ==========================================
+  bool alm_active[5];
+  alm_active[ALARM_WATER] = (telemetry.water_temp_c >= settings.water_temp_alarm_c && settings.water_temp_alarm_c > 0);
+  alm_active[ALARM_EGT]   = (telemetry.exhaust_temp_c >= settings.exhaust_temp_alarm_c && settings.exhaust_temp_alarm_c > 0);
+  alm_active[ALARM_REV]   = (telemetry.rpm >= settings.over_rev_rpm && settings.over_rev_rpm > 0);
+  alm_active[ALARM_BAT]   = (telemetry.battery_voltage < settings.low_bat_alarm_v && telemetry.battery_voltage > 1.0f);
+  alm_active[ALARM_LINK]  = (!telemetry.track_module_connected);
+
+  bool alm_warn[5];
+  alm_warn[ALARM_WATER] = alm_active[ALARM_WATER] && settings.warn_trigger_water;
+  alm_warn[ALARM_EGT]   = alm_active[ALARM_EGT]   && settings.warn_trigger_egt;
+  alm_warn[ALARM_REV]   = alm_active[ALARM_REV]   && settings.warn_trigger_rev;
+  alm_warn[ALARM_BAT]   = alm_active[ALARM_BAT]   && settings.warn_trigger_battery;
+  alm_warn[ALARM_LINK]  = alm_active[ALARM_LINK]  && settings.warn_trigger_link;
+
+  int8_t top_alarm_id = -1;
+  for (int i = 0; i < 5; i++) {
+    uint8_t aid = settings.alarm_priority[i];
+    if (aid < 5 && alm_warn[aid]) {
+      top_alarm_id = aid;
+      break;
+    }
+  }
+
+  if (top_alarm_id >= 0) {
+    bool flash_phase = ((millis() / 350) % 2) == 0;
+    u8g2->drawRBox(205, 162, 185, 110, 6);
+    u8g2->setDrawColor(0);
+
+    if (flash_phase) {
+      // Phase A: Warning triangle icon + "WARN"
+      u8g2->drawXBMP(205 + (185 - 24) / 2, 180, 24, 24, icon_warn_24x24);
+      u8g2->setFont(u8g2_font_helvB24_tr);
+      int w_warn = u8g2->getStrWidth("WARN");
+      u8g2->drawStr(205 + (185 - w_warn) / 2, 248, "WARN");
+    } else {
+      // Phase B: Triggering alarm icon + short text
+      static const uint8_t* const alarm_icons[5] = {
+        icon_water_16x16,
+        icon_egt_16x16,
+        icon_rev_16x16,
+        icon_bat_16x16,
+        icon_link_16x16
+      };
+      static const char* const alarm_labels[5] = {
+        "H2O HIGH",
+        "EGT HIGH",
+        "OVER-REV",
+        "LOW BATT",
+        "NO LINK"
+      };
+
+      u8g2->drawXBMP(205 + (185 - 16) / 2, 184, 16, 16, alarm_icons[top_alarm_id]);
+      u8g2->setFont(u8g2_font_helvB18_tr);
+      int w_lbl = u8g2->getStrWidth(alarm_labels[top_alarm_id]);
+      u8g2->drawStr(205 + (185 - w_lbl) / 2, 246, alarm_labels[top_alarm_id]);
+    }
+    u8g2->setDrawColor(1);
+  } else {
+    // Normal System Status
+    u8g2->drawRFrame(205, 162, 185, 110, 6);
+    u8g2->setFont(u8g2_font_helvB14_tr);
+    int ok_w = u8g2->getStrWidth("SYSTEM OK");
+    u8g2->drawStr(205 + (185 - ok_w) / 2, 222, "SYSTEM OK");
+  }
+
+  // ==========================================
+  // 5. BOTTOM LINE: SENSOR ICONS & RUNTIMES (y = 276..300)
+  // ==========================================
+  u8g2->drawHLine(0, 276, 400);
+
+  float w_temp = settings.use_celsius ? telemetry.water_temp_c : (telemetry.water_temp_c * 1.8f + 32.0f);
+  float e_temp = settings.use_celsius ? telemetry.exhaust_temp_c : (telemetry.exhaust_temp_c * 1.8f + 32.0f);
+  const char *t_unit = settings.use_celsius ? "\xb0\x43" : "\xb0\x46";
+
+  // Water Temp
+  u8g2->drawXBMP(6, 280, 16, 16, icon_water_16x16);
   u8g2->setFont(u8g2_font_helvB10_tr);
-  int w_unit3 = u8g2->getStrWidth(unit_str);
-  u8g2->drawStr(270 + (120 - w_unit3) / 2, 114, unit_str);
+  snprintf(buf, sizeof(buf), "%.1f%s", w_temp, t_unit);
+  u8g2->drawStr(24, 293, buf);
 
-  u8g2->setFont(u8g2_font_6x10_tr);
-  u8g2->drawStr(276, 138, "STRAIGHT PEAK");
-  u8g2->drawStr(276, 154, "HELD TOP SPEED");
+  // EGT Temp
+  u8g2->drawXBMP(84, 280, 16, 16, icon_egt_16x16);
+  snprintf(buf, sizeof(buf), "%d%s", (int)e_temp, t_unit);
+  u8g2->drawStr(102, 293, buf);
 
-  // ==========================================
-  // BOTTOM SECTION: ANALYSIS & TIMING (y = 176..270)
-  // ==========================================
-
-  // --- Left Box: Corner Delta & Dynamics ---
-  u8g2->drawRFrame(10, 176, 185, 94, 4);
-  u8g2->drawBox(10, 176, 185, 16);
-  u8g2->setDrawColor(0);
-  u8g2->setFont(u8g2_font_6x10_tr);
-  u8g2->drawStr(16, 188, "CORNER DELTA & DYNAMICS");
-  u8g2->setDrawColor(1);
-
-  float speed_gain = disp_vmax - disp_vmin;
-  float apex_ratio = (disp_vmax > 0.0f) ? (disp_vmin / disp_vmax * 100.0f) : 0.0f;
-
-  u8g2->setFont(u8g2_font_6x10_tr);
-  snprintf(buf, sizeof(buf), "Speed Gain (\xce\x94V): +%.1f %s", speed_gain > 0.0f ? speed_gain : 0.0f, unit_str);
-  u8g2->drawStr(16, 210, buf);
-
-  snprintf(buf, sizeof(buf), "Apex Lat Grip:  %+.2f G", telemetry.lateral_g);
-  u8g2->drawStr(16, 226, buf);
-
-  snprintf(buf, sizeof(buf), "Entry Braking:  %+.2f G", telemetry.longitudinal_g);
-  u8g2->drawStr(16, 242, buf);
-
-  snprintf(buf, sizeof(buf), "Apex Ratio:     %.1f %%", apex_ratio);
-  u8g2->drawStr(16, 258, buf);
-
-  // --- Right Box: Lap Timing & Engine Vitals ---
-  u8g2->drawRFrame(205, 176, 185, 94, 4);
-  u8g2->drawBox(205, 176, 185, 16);
-  u8g2->setDrawColor(0);
-  u8g2->setFont(u8g2_font_6x10_tr);
-  u8g2->drawStr(211, 188, "LAP TIMING & ENGINE");
-  u8g2->setDrawColor(1);
-
-  if (telemetry.best_lap_time_ms > 0) {
-    uint32_t b_sec = (telemetry.best_lap_time_ms % 60000) / 1000;
-    uint32_t b_cen = (telemetry.best_lap_time_ms % 1000) / 10;
-    snprintf(buf, sizeof(buf), "Best Lap:  %02lu.%02lu s", (unsigned long)b_sec, (unsigned long)b_cen);
-  } else {
-    snprintf(buf, sizeof(buf), "Best Lap:  --.-- s");
-  }
-  u8g2->drawStr(211, 210, buf);
-
-  if (telemetry.best_lap_time_ms > 0 || fabsf(telemetry.predictive_delta_s) > 0.001f) {
-    snprintf(buf, sizeof(buf), "Lap Delta: %+0.2f s", telemetry.predictive_delta_s);
-  } else {
-    snprintf(buf, sizeof(buf), "Lap Delta: --.-- s");
-  }
-  u8g2->drawStr(211, 226, buf);
-
-  float water = settings.use_celsius ? telemetry.water_temp_c : (telemetry.water_temp_c * 1.8f + 32.0f);
-  float egt = settings.use_celsius ? telemetry.exhaust_temp_c : (telemetry.exhaust_temp_c * 1.8f + 32.0f);
-  char t_unit = settings.use_celsius ? 'C' : 'F';
-  snprintf(buf, sizeof(buf), "H2O: %.1f\xb0%c | EGT: %d\xb0%c", water, t_unit, (int)egt, t_unit);
-  u8g2->drawStr(211, 242, buf);
-
+  // Total Engine Hours
   uint32_t eng_hrs = telemetry.engine_total_hours_sec / 3600;
-  uint32_t eng_mins = (telemetry.engine_total_hours_sec % 3600) / 60;
-  snprintf(buf, sizeof(buf), "Eng: %02luh%02lu | Bat: %d%%", (unsigned long)eng_hrs, (unsigned long)eng_mins, telemetry.battery_percent);
-  u8g2->drawStr(211, 258, buf);
+  uint32_t eng_min = (telemetry.engine_total_hours_sec % 3600) / 60;
+  u8g2->drawXBMP(156, 280, 16, 16, icon_engine_16x16);
+  snprintf(buf, sizeof(buf), "%02luh%02lu", (unsigned long)eng_hrs, (unsigned long)eng_min);
+  u8g2->drawStr(174, 293, buf);
+
+  // Current Session Time
+  uint32_t sess_hrs = telemetry.session_time_sec / 3600;
+  uint32_t sess_min = (telemetry.session_time_sec % 3600) / 60;
+  u8g2->drawXBMP(232, 280, 16, 16, icon_stopwatch_16x16);
+  snprintf(buf, sizeof(buf), "%02luh%02lu", (unsigned long)sess_hrs, (unsigned long)sess_min);
+  u8g2->drawStr(250, 293, buf);
+
+  // Battery & Link Status (Blinks if low/disconnected)
+  bool blink_1hz = ((millis() / 500) % 2) == 0;
+  bool show_bat = (telemetry.battery_percent >= 10) || blink_1hz;
+  bool show_link = telemetry.track_module_connected || blink_1hz;
+
+  u8g2->drawXBMP(308, 280, 16, 16, icon_bat_16x16);
+  if (show_bat) {
+    snprintf(buf, sizeof(buf), "%d%%", telemetry.battery_percent);
+    u8g2->drawStr(326, 293, buf);
+  }
+  u8g2->drawStr(354, 293, "|");
+  if (show_link) {
+    u8g2->drawStr(360, 293, telemetry.track_module_connected ? "LINK" : "ERR");
+  }
 }

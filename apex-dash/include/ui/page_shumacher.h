@@ -17,5 +17,11 @@ private:
   bool _in_corner = false;
   bool _in_straight = false;
 
+  uint8_t _prev_sector = 0;
+  uint16_t _prev_lap = 0;
+  uint32_t _prev_best_lap = 0;
+  float _prev_delta_val = 999.0f;
+  uint32_t _delta_flash_start_ms = 0;
+
   void updateSpeedTracking(float speed, float lon_g, float lat_g);
 };
