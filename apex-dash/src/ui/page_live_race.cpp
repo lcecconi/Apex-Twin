@@ -279,13 +279,23 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   // Vertical Separator
   u8g2->drawVLine(96, 226, 42);
 
-  // Col 2: Absolute Engine Runtime (hours:minutes with 'h' separator)
+  // Col 2: Total Engine Runtime (Row 1) & Current Session Time (Row 2)
   uint32_t eng_hrs = telemetry.engine_total_hours_sec / 3600;
   uint32_t eng_min = (telemetry.engine_total_hours_sec % 3600) / 60;
-  u8g2->drawXBMP(104, 239, 16, 16, icon_engine_16x16);
-  u8g2->setFont(u8g2_font_helvB12_tr);
+  u8g2->drawXBMP(104, 228, 16, 16, icon_engine_16x16);
   snprintf(buf, sizeof(buf), "%luh%02lu", (unsigned long)eng_hrs, (unsigned long)eng_min);
-  u8g2->drawStr(124, 253, buf);
+  u8g2->drawStr(124, 241, buf);
+
+  uint32_t sess_hrs = telemetry.session_time_sec / 3600;
+  uint32_t sess_min = (telemetry.session_time_sec % 3600) / 60;
+  uint32_t sess_sec = telemetry.session_time_sec % 60;
+  u8g2->drawXBMP(104, 249, 16, 16, icon_stopwatch_16x16);
+  if (sess_hrs >= 1) {
+    snprintf(buf, sizeof(buf), "%luh%02lu", (unsigned long)sess_hrs, (unsigned long)sess_min);
+  } else {
+    snprintf(buf, sizeof(buf), "%02lu:%02lu", (unsigned long)sess_min, (unsigned long)sess_sec);
+  }
+  u8g2->drawStr(124, 263, buf);
 
   // Right: Unified Flashing Warning / Status Panel (185 x 110 px)
   if (top_alarm_id >= 0) {

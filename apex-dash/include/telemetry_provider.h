@@ -34,6 +34,8 @@ private:
   uint32_t _last_engine_time_ms = 0;
   uint32_t _engine_accum_ms = 0;
   uint32_t _last_storage_save_ms = 0;
+  uint32_t _session_accum_ms = 0;
+  uint32_t _speed_low_ms = 0;
 
   // Simulation state variables
   float _sim_track_progress_m = 0.0f;

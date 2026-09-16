@@ -29,6 +29,10 @@ void TelemetryProvider::begin(const SystemSettings &settings, StorageManager *st
     _snapshot.engine_total_hours_sec = 14 * 3600 + 18 * 60; // 14h 18m
   }
   _snapshot.piston_hours_sec = 4 * 3600 + 12 * 60;
+  _snapshot.session_time_sec = 18 * 60 + 42; // 18m 42s
+  _snapshot.session_active = true;
+  _session_accum_ms = 0;
+  _speed_low_ms = 0;
 
   _lap_start_ms = millis();
   _last_sim_update_ms = millis();
@@ -60,6 +64,10 @@ void TelemetryProvider::resetSession() {
   _snapshot.best_lap_time_ms = 0;
   _snapshot.last_lap_time_ms = 0;
   _snapshot.lap_number = 1;
+  _snapshot.session_time_sec = 0;
+  _snapshot.session_active = false;
+  _session_accum_ms = 0;
+  _speed_low_ms = 0;
   _lap_start_ms = millis();
 }
 
@@ -266,5 +274,28 @@ void TelemetryProvider::update(const DeviceSensorsData &local_sensors, const Sys
         _last_storage_save_ms = now;
       }
     }
+  }
+
+  // Track current session time
+  // Starts with first start line crossing, ends when speed < 5 km/h for > 1 min
+  if (_snapshot.session_active) {
+    _session_accum_ms += dt_eng_ms;
+    if (_session_accum_ms >= 1000) {
+      uint32_t add_sess_sec = _session_accum_ms / 1000;
+      _snapshot.session_time_sec += add_sess_sec;
+      _session_accum_ms %= 1000;
+    }
+
+    if (_snapshot.speed_kmh < 5.0f) {
+      _speed_low_ms += dt_eng_ms;
+      if (_speed_low_ms >= 60000) { // > 1 min below 5 km/h
+        _snapshot.session_active = false;
+      }
+    } else {
+      _speed_low_ms = 0;
+    }
+  } else if (_snapshot.speed_kmh >= 5.0f && _snapshot.lap_number >= 1 && _snapshot.current_lap_time_ms > 0) {
+    _snapshot.session_active = true;
+    _speed_low_ms = 0;
   }
 }

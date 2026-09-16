@@ -69,6 +69,8 @@ struct TelemetrySnapshot {
   int8_t link_rssi;
   uint32_t engine_total_hours_sec;
   uint32_t piston_hours_sec;
+  uint32_t session_time_sec;   // Current session elapsed time in seconds
+  bool session_active;         // True while session is running
   uint16_t track_error_code; // 0 = OK, >0 = Error code from Apex-Track
 };
 

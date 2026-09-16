@@ -138,6 +138,24 @@ class PhysicsSimulator:
                 snapshot.engine_total_hours_sec += add_sec
                 self._eng_accum_s -= add_sec
 
+        # Track current session time
+        if not hasattr(self, "_session_accum_s"):
+            self._session_accum_s = float(snapshot.session_time_sec)
+            self._speed_low_s = 0.0
+
+        if snapshot.session_active:
+            self._session_accum_s += dt_s
+            snapshot.session_time_sec = int(self._session_accum_s)
+            if snapshot.speed_kmh < 5.0:
+                self._speed_low_s += dt_s
+                if self._speed_low_s >= 60.0:
+                    snapshot.session_active = False
+            else:
+                self._speed_low_s = 0.0
+        elif snapshot.speed_kmh >= 5.0 and snapshot.lap_number >= 1:
+            snapshot.session_active = True
+            self._speed_low_s = 0.0
+
 
 # Compatibility alias
 PhysicsSim = PhysicsSimulator
