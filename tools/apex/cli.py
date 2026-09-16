@@ -27,11 +27,12 @@ C_RESET = "\033[0m"
 
 def print_banner():
     banner = rf"""{C_CYAN}{C_BOLD}
-   ___    ____  _______  __     _______       _____  __
-  / _ |  / _  |/ __/\ \/ /____/_  __/ | /| / /  _/ |/ /
- / __ | / ___// _/   \  /_____// /  | |/ |/ // / /    / 
-/_/ |_|/_/   /___/   /_/      /_/   |__/|__/___//_/|_/  
-{C_RESET}{C_DIM}  Dual-Module Karting Telemetry & Racing Display Ecosystem{C_RESET}
+    ___    ____  _______ _  __      _______       _____ _   __
+   /   |  / __ \/ ____/| |/ /     /_  __/ |     / /  _/ | / /
+  / /| | / /_/ / __/   |   / ____  / /  | | /| / // / /  |/ / 
+ / ___ |/ ____/ /___  /   | /___/ / /   | |/ |/ // / / /|  /  
+/_/  |_/_/   /_____/ /_/|_|      /_/    |__/|__/___//_/ |_/   
+{C_RESET}{C_DIM}   Dual-Module Karting Telemetry & Racing Display Ecosystem{C_RESET}
 """
     print(banner)
 
