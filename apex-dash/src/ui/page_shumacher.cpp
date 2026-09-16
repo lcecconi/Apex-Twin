@@ -134,8 +134,8 @@ void PageShumacher::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const
   u8g2->drawBox(270, 38, 120, 18);
   u8g2->setDrawColor(0);
   u8g2->setFont(u8g2_font_helvB08_tr);
-  int tw_vmax = u8g2->getStrWidth("V-MAX (EXIT)");
-  u8g2->drawStr(270 + (120 - tw_vmax) / 2, 51, "V-MAX (EXIT)");
+  int tw_vmax = u8g2->getStrWidth("V-MAX (STR)");
+  u8g2->drawStr(270 + (120 - tw_vmax) / 2, 51, "V-MAX (STR)");
   u8g2->setDrawColor(1);
 
   u8g2->setFont(u8g2_font_logisoso42_tn);

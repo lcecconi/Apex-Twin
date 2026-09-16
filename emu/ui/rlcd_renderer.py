@@ -985,7 +985,7 @@ class RlcdRenderer(QWidget):
         p.fillRect(270, 38, 120, 18, fg)
         p.setPen(bg)
         p.setFont(QFont("SansSerif", 8, QFont.Bold))
-        p.drawText(QRectF(270, 38, 120, 18), Qt.AlignCenter, "V-MAX (EXIT)")
+        p.drawText(QRectF(270, 38, 120, 18), Qt.AlignCenter, "V-MAX (STR)")
         p.setPen(fg)
         p.setFont(QFont("SansSerif", 36, QFont.Bold))
         p.drawText(QRectF(270, 56, 120, 96), Qt.AlignCenter, f"{int(round(disp_vmax))}")
