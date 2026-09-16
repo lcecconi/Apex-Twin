@@ -180,11 +180,11 @@ class FaultInjectorPanel(QWidget):
         grid_right.addWidget(self.sld_egt, 1, 1)
         grid_right.addWidget(self.lbl_egt, 1, 2)
 
-        # Battery
-        self.lbl_batt = QLabel("12.6 V")
+        # Battery (1S Li-ion / 18650: 3.0V - 4.25V)
+        self.lbl_batt = QLabel("4.05 V")
         self.sld_batt = QSlider(Qt.Horizontal)
-        self.sld_batt.setRange(90, 150)
-        self.sld_batt.setValue(126)
+        self.sld_batt.setRange(300, 425)
+        self.sld_batt.setValue(405)
         self.sld_batt.valueChanged.connect(self._on_slider_changed)
         grid_right.addWidget(QLabel("Battery:"), 2, 0)
         grid_right.addWidget(self.sld_batt, 2, 1)
@@ -285,16 +285,23 @@ class FaultInjectorPanel(QWidget):
         water = self.sld_water.value()
         egt = self.sld_egt.value()
         lat_g = self.sld_lat_g.value() / 10.0
-        batt = self.sld_batt.value() / 10.0
+        batt = self.sld_batt.value() / 100.0
         sats = self.sld_sats.value()
         gear = self.combo_gear.currentIndex()
+
+        if batt >= 4.15:
+            batt_pct = 100
+        elif batt <= 3.20:
+            batt_pct = 0
+        else:
+            batt_pct = int(((batt - 3.20) / (4.15 - 3.20)) * 100.0)
 
         self.lbl_rpm.setText(f"{rpm} RPM")
         self.lbl_speed.setText(f"{speed} km/h")
         self.lbl_water.setText(f"{water} °C")
         self.lbl_egt.setText(f"{egt} °C")
         self.lbl_lat_g.setText(f"{lat_g:+.1f} G")
-        self.lbl_batt.setText(f"{batt:.1f} V")
+        self.lbl_batt.setText(f"{batt:.2f} V ({batt_pct}%)")
         self.lbl_sats.setText(f"{sats} sats")
 
         self.injected_telemetry.rpm = rpm
@@ -303,6 +310,7 @@ class FaultInjectorPanel(QWidget):
         self.injected_telemetry.exhaust_temp_c = float(egt)
         self.injected_telemetry.lateral_g = lat_g
         self.injected_telemetry.battery_voltage = batt
+        self.injected_telemetry.battery_percent = batt_pct
         self.injected_telemetry.satellites_visible = sats
         self.injected_telemetry.gear = gear
 
@@ -320,7 +328,7 @@ class FaultInjectorPanel(QWidget):
 
     def _set_low_battery(self):
         self.chk_override.setChecked(True)
-        self.sld_batt.setValue(105)
+        self.sld_batt.setValue(330)  # 3.30 V (~10% battery)
 
     def get_injected_snapshot(self) -> TelemetrySnapshot:
         return self.injected_telemetry
