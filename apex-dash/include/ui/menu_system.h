@@ -16,7 +16,8 @@ enum MenuState : uint8_t {
   MENU_SYSTEM_LANG,
   MENU_DIAGNOSTICS_COUNTERS,
   MENU_USB_MSC_SCREEN,
-  MENU_WARN_TRIGGERS
+  MENU_WARN_TRIGGERS,
+  MENU_ALARM_PRIORITY
 };
 
 
@@ -61,5 +62,6 @@ private:
   void renderDiagnosticsCountersMenu(U8G2 *u8g2, const TelemetrySnapshot &telemetry);
   void renderUsbMscScreen(U8G2 *u8g2);
   void renderWarnTriggersMenu(U8G2 *u8g2, const SystemSettings &settings);
+  void renderAlarmPriorityMenu(U8G2 *u8g2, const SystemSettings &settings);
 };
 

@@ -236,56 +236,37 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
     u8g2->drawBox(center_x, 190, bar_px, 10);
   }
 
-  // Right Pane: Alarms Grid (185 px width, no header text)
-  u8g2->drawRFrame(205, 162, 185, 52, 4);
-
+  // ==========================================
+  // 4 & 5. RIGHT UNIFIED WARNING / STATUS PANEL (185 x 110 px)
+  // ==========================================
   // Evaluate Base Alarm Conditions
   bool alm_active[5];
-  alm_active[0] = (telemetry.water_temp_c >= settings.water_temp_alarm_c && settings.water_temp_alarm_c > 0);
-  alm_active[1] = (telemetry.exhaust_temp_c >= settings.exhaust_temp_alarm_c && settings.exhaust_temp_alarm_c > 0);
-  alm_active[2] = (telemetry.rpm >= settings.over_rev_rpm && settings.over_rev_rpm > 0);
-  alm_active[3] = (telemetry.battery_voltage < settings.low_bat_alarm_v && telemetry.battery_voltage > 1.0f);
-  alm_active[4] = (!telemetry.track_module_connected);
+  alm_active[ALARM_WATER] = (telemetry.water_temp_c >= settings.water_temp_alarm_c && settings.water_temp_alarm_c > 0);
+  alm_active[ALARM_EGT]   = (telemetry.exhaust_temp_c >= settings.exhaust_temp_alarm_c && settings.exhaust_temp_alarm_c > 0);
+  alm_active[ALARM_REV]   = (telemetry.rpm >= settings.over_rev_rpm && settings.over_rev_rpm > 0);
+  alm_active[ALARM_BAT]   = (telemetry.battery_voltage < settings.low_bat_alarm_v && telemetry.battery_voltage > 1.0f);
+  alm_active[ALARM_LINK]  = (!telemetry.track_module_connected);
 
   // Evaluate which alarms trigger the blinking WARN alert
   bool alm_warn[5];
-  alm_warn[0] = alm_active[0] && settings.warn_trigger_water;
-  alm_warn[1] = alm_active[1] && settings.warn_trigger_egt;
-  alm_warn[2] = alm_active[2] && settings.warn_trigger_rev;
-  alm_warn[3] = alm_active[3] && settings.warn_trigger_battery;
-  alm_warn[4] = alm_active[4] && settings.warn_trigger_link;
+  alm_warn[ALARM_WATER] = alm_active[ALARM_WATER] && settings.warn_trigger_water;
+  alm_warn[ALARM_EGT]   = alm_active[ALARM_EGT]   && settings.warn_trigger_egt;
+  alm_warn[ALARM_REV]   = alm_active[ALARM_REV]   && settings.warn_trigger_rev;
+  alm_warn[ALARM_BAT]   = alm_active[ALARM_BAT]   && settings.warn_trigger_battery;
+  alm_warn[ALARM_LINK]  = alm_active[ALARM_LINK]  && settings.warn_trigger_link;
 
-  bool any_warn = alm_warn[0] || alm_warn[1] || alm_warn[2] || alm_warn[3] || alm_warn[4];
-
-  static const uint8_t* const tiles[5] = {
-    icon_water_16x16, // Water / Droplet
-    icon_egt_16x16,   // Exhaust / Flame
-    icon_rev_16x16,   // Tach / Over-rev
-    icon_bat_16x16,   // Battery
-    icon_link_16x16   // Telemetry Wireless Link
-  };
-
+  // Find most severe active warning based on configurable priority order
+  int8_t top_alarm_id = -1;
   for (int i = 0; i < 5; i++) {
-    int tx = 211 + (i * 35);
-    int ty = 171;
-    int tw = 32;
-    int th = 34;
-
-    if (alm_active[i]) {
-      // Lit Up Alarm (Inverted Solid Fill)
-      u8g2->drawRBox(tx, ty, tw, th, 4);
-      u8g2->setDrawColor(0);
-      u8g2->drawXBMP(tx + (tw - 16) / 2, ty + (th - 16) / 2, 16, 16, tiles[i]);
-      u8g2->setDrawColor(1);
-    } else {
-      // Normally OFF (Dim Outline Box)
-      u8g2->drawRFrame(tx, ty, tw, th, 4);
-      u8g2->drawXBMP(tx + (tw - 16) / 2, ty + (th - 16) / 2, 16, 16, tiles[i]);
+    uint8_t aid = settings.alarm_priority[i];
+    if (aid < 5 && alm_warn[aid]) {
+      top_alarm_id = aid;
+      break;
     }
   }
 
   // ==========================================
-  // 5. BOTTOM ENGINE (LEFT) & ALARM BANNER (RIGHT)
+  // 5. BOTTOM ENGINE (LEFT)
   // ==========================================
   // Left: Water, EGT & Engine Runtime Pane (185 px width)
   u8g2->drawRFrame(10, 222, 185, 50, 4);
@@ -315,38 +296,49 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   snprintf(buf, sizeof(buf), "%lu:%02lu", (unsigned long)eng_hrs, (unsigned long)eng_min);
   u8g2->drawStr(124, 253, buf);
 
-  // Right: Flashing WARN Alert or System Status (185 px width)
-  if (any_warn) {
-    bool flash_state = ((millis() / 300) % 2) == 0;
+  // Right: Unified Flashing Warning / Status Panel (185 x 110 px)
+  if (top_alarm_id >= 0) {
+    bool flash_phase = ((millis() / 350) % 2) == 0;
 
-    u8g2->setFont(u8g2_font_helvB24_tr);
-    int w_warn = u8g2->getStrWidth("WARN");
-    int total_w = 24 + 10 + w_warn;
-    int start_x = 205 + (185 - total_w) / 2;
-    int icon_y = 222 + (50 - 24) / 2;
+    u8g2->drawRBox(205, 162, 185, 110, 6);
+    u8g2->setDrawColor(0);
 
-    if (flash_state) {
-      // Solid Inverted Fill (Active Flashing Warning)
-      u8g2->drawRBox(205, 222, 185, 50, 4);
-      u8g2->setDrawColor(0);
-
-      u8g2->drawXBMP(start_x, icon_y, 24, 24, icon_warn_24x24);
-      u8g2->drawStr(start_x + 24 + 10, 222 + 37, "WARN");
-
-      u8g2->setDrawColor(1);
+    if (flash_phase) {
+      // Phase A: Warning triangle icon + "WARN"
+      u8g2->drawXBMP(205 + (185 - 24) / 2, 180, 24, 24, icon_warn_24x24);
+      u8g2->setFont(u8g2_font_helvB24_tr);
+      int w_warn = u8g2->getStrWidth("WARN");
+      u8g2->drawStr(205 + (185 - w_warn) / 2, 248, "WARN");
     } else {
-      // Outlined Frame (Flash Alternate Phase)
-      u8g2->drawRFrame(205, 222, 185, 50, 4);
+      // Phase B: Actual triggering alarm icon + short text
+      static const uint8_t* const alarm_icons[5] = {
+        icon_water_16x16,
+        icon_egt_16x16,
+        icon_rev_16x16,
+        icon_bat_16x16,
+        icon_link_16x16
+      };
+      static const char* const alarm_labels[5] = {
+        "H2O HIGH",
+        "EGT HIGH",
+        "OVER-REV",
+        "LOW BATT",
+        "NO LINK"
+      };
 
-      u8g2->drawXBMP(start_x, icon_y, 24, 24, icon_warn_24x24);
-      u8g2->drawStr(start_x + 24 + 10, 222 + 37, "WARN");
+      u8g2->drawXBMP(205 + (185 - 16) / 2, 184, 16, 16, alarm_icons[top_alarm_id]);
+      u8g2->setFont(u8g2_font_helvB18_tr);
+      int w_lbl = u8g2->getStrWidth(alarm_labels[top_alarm_id]);
+      u8g2->drawStr(205 + (185 - w_lbl) / 2, 246, alarm_labels[top_alarm_id]);
     }
+
+    u8g2->setDrawColor(1);
   } else {
-    // Normal System Status (Dim Outline Box)
-    u8g2->drawRFrame(205, 222, 185, 50, 4);
-    u8g2->setFont(u8g2_font_helvB12_tr);
-    int ok_w = u8g2->getStrWidth("[ ALL SYSTEMS OK ]");
-    u8g2->drawStr(205 + (185 - ok_w) / 2, 252, "[ ALL SYSTEMS OK ]");
+    // Normal System Status (Outlined Box)
+    u8g2->drawRFrame(205, 162, 185, 110, 6);
+    u8g2->setFont(u8g2_font_helvB14_tr);
+    int ok_w = u8g2->getStrWidth("SYSTEM OK");
+    u8g2->drawStr(205 + (185 - ok_w) / 2, 222, "SYSTEM OK");
   }
 
   // ==========================================

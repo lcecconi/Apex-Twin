@@ -50,6 +50,7 @@ class MenuState(IntEnum):
     MENU_DIAGNOSTICS = 7
     MENU_USB_MSC_SCREEN = 8
     MENU_WARN_TRIGGERS = 9
+    MENU_ALARM_PRIORITY = 10
 
 
 
@@ -161,6 +162,9 @@ class RlcdRenderer(QWidget):
             elif self.menu_state == MenuState.MENU_WARN_TRIGGERS:
                 self.menu_state = MenuState.MENU_LEDS_ALARMS
                 self.cursor_idx = 7
+            elif self.menu_state == MenuState.MENU_ALARM_PRIORITY:
+                self.menu_state = MenuState.MENU_LEDS_ALARMS
+                self.cursor_idx = 8
             else:
                 self.menu_state = MenuState.MENU_ROOT
                 self.cursor_idx = 0
@@ -172,9 +176,11 @@ class RlcdRenderer(QWidget):
         elif self.menu_state == MenuState.MENU_RACE_SETUP:
             return 5
         elif self.menu_state == MenuState.MENU_LEDS_ALARMS:
-            return 9
+            return 10
         elif self.menu_state == MenuState.MENU_WARN_TRIGGERS:
             return 8
+        elif self.menu_state == MenuState.MENU_ALARM_PRIORITY:
+            return 7
         elif self.menu_state == MenuState.MENU_TRACK_GPS:
             return 6
         elif self.menu_state == MenuState.MENU_STORAGE_PC:
@@ -232,6 +238,9 @@ class RlcdRenderer(QWidget):
             elif self.cursor_idx == 7:
                 self.menu_state = MenuState.MENU_WARN_TRIGGERS
                 self.cursor_idx = 0
+            elif self.cursor_idx == 8:
+                self.menu_state = MenuState.MENU_ALARM_PRIORITY
+                self.cursor_idx = 0
             else:
                 self.menu_state = MenuState.MENU_ROOT
                 self.cursor_idx = 1
@@ -261,6 +270,21 @@ class RlcdRenderer(QWidget):
             else:
                 self.menu_state = MenuState.MENU_LEDS_ALARMS
                 self.cursor_idx = 7
+        elif self.menu_state == MenuState.MENU_ALARM_PRIORITY:
+            if self.cursor_idx in range(5):
+                rank = self.cursor_idx
+                curr = self.settings.alarm_priority[rank]
+                nxt = (curr + 1) % 5
+                for i in range(5):
+                    if i != rank and self.settings.alarm_priority[i] == nxt:
+                        self.settings.alarm_priority[i] = curr
+                        break
+                self.settings.alarm_priority[rank] = nxt
+            elif self.cursor_idx == 5:
+                self.settings.alarm_priority = [0, 1, 2, 3, 4]
+            else:
+                self.menu_state = MenuState.MENU_LEDS_ALARMS
+                self.cursor_idx = 8
 
 
         elif self.menu_state == MenuState.MENU_STORAGE_PC:
@@ -514,9 +538,7 @@ class RlcdRenderer(QWidget):
         elif delta_px > 0:
             p.fillRect(center_x, 188, delta_px, 12, fg)
 
-        # Right Pane: Alarms Grid (185 px width, no header text)
-        p.drawRoundedRect(205, 162, 185, 52, 4, 4)
-
+        # Evaluate Base Alarm Conditions
         alm_active = [
             t.water_temp_c >= s.water_temp_alarm_c and s.water_temp_alarm_c > 0,
             t.exhaust_temp_c >= s.exhaust_temp_alarm_c and s.exhaust_temp_alarm_c > 0,
@@ -525,30 +547,21 @@ class RlcdRenderer(QWidget):
             not t.track_module_connected,
         ]
 
-        alarm_icons = [
-            ICON_WATER_16X16,
-            ICON_EGT_16X16,
-            ICON_REV_16X16,
-            ICON_BAT_16X16,
-            ICON_LINK_16X16,
+        alm_warn = [
+            alm_active[0] and s.warn_trigger_water,
+            alm_active[1] and s.warn_trigger_egt,
+            alm_active[2] and s.warn_trigger_rev,
+            alm_active[3] and s.warn_trigger_battery,
+            alm_active[4] and s.warn_trigger_link,
         ]
 
-        for i, xbm in enumerate(alarm_icons):
-            tx = 211 + (i * 35)
-            ty = 171
-            tw = 32
-            th = 34
+        top_alarm_id = -1
+        for aid in s.alarm_priority:
+            if aid < 5 and alm_warn[aid]:
+                top_alarm_id = aid
+                break
 
-            if alm_active[i]:
-                # Lit Up Alarm (Inverted Solid Fill)
-                p.fillRect(tx, ty, tw, th, fg)
-                draw_xbm(p, tx + (tw - 16) // 2, ty + (th - 16) // 2, xbm, 16, 16, color=bg)
-            else:
-                # Normally OFF (Outline Box)
-                p.drawRoundedRect(tx, ty, tw, th, 4, 4)
-                draw_xbm(p, tx + (tw - 16) // 2, ty + (th - 16) // 2, xbm, 16, 16, color=fg)
-
-        # 5. Bottom Engine (Left) & Alarm Banner (Right)
+        # 5. Bottom Engine (Left) & Alarm Panel (Right)
         # Left: Water, EGT & Engine Runtime Pane (185 px width)
         p.drawRoundedRect(10, 222, 185, 50, 4, 4)
 
@@ -574,43 +587,44 @@ class RlcdRenderer(QWidget):
         p.setFont(QFont("SansSerif", 11, QFont.Bold))
         p.drawText(124, 253, f"{eng_hrs}:{eng_min:02d}")
 
-        # Evaluate which alarms trigger the blinking WARN alert
-        alm_warn = [
-            alm_active[0] and s.warn_trigger_water,
-            alm_active[1] and s.warn_trigger_egt,
-            alm_active[2] and s.warn_trigger_rev,
-            alm_active[3] and s.warn_trigger_battery,
-            alm_active[4] and s.warn_trigger_link,
-        ]
-        any_warn = any(alm_warn)
+        # Right: Unified Flashing Warning / Status Panel (185 x 110 px)
+        if top_alarm_id >= 0:
+            flash_phase = (int(time.time() / 0.35) % 2) == 0
 
-        # Right: Flashing WARN Alert or System Status (185 px width)
-        if any_warn:
-            flash_state = int(time.time() * 3.3) % 2 == 0
+            p.fillRect(205, 162, 185, 110, fg)
+            p.setPen(bg)
 
-            p.setFont(QFont("SansSerif", 22, QFont.Bold))
-            fm = p.fontMetrics()
-            w_warn = fm.horizontalAdvance("WARN")
-            total_w = 24 + 10 + w_warn
-            start_x = int(205 + (185 - total_w) / 2)
-            icon_y = int(222 + (50 - 24) / 2)
-
-            if flash_state:
-                p.fillRect(205, 222, 185, 50, fg)
-                draw_xbm(p, start_x, icon_y, ICON_WARN_24X24, 24, 24, color=bg)
-                p.setPen(bg)
-                p.setFont(QFont("SansSerif", 22, QFont.Bold))
-                p.drawText(QRectF(start_x + 34, 222, w_warn + 10, 50), Qt.AlignVCenter | Qt.AlignLeft, "WARN")
-                p.setPen(fg)
+            if flash_phase:
+                # Phase A: Warning triangle icon + "WARN"
+                draw_xbm(p, 205 + (185 - 24) // 2, 180, ICON_WARN_24X24, 24, 24, color=bg)
+                p.setFont(QFont("SansSerif", 20, QFont.Bold))
+                p.drawText(QRectF(205, 210, 185, 45), Qt.AlignCenter, "WARN")
             else:
-                p.drawRoundedRect(205, 222, 185, 50, 4, 4)
-                draw_xbm(p, start_x, icon_y, ICON_WARN_24X24, 24, 24, color=fg)
-                p.setFont(QFont("SansSerif", 22, QFont.Bold))
-                p.drawText(QRectF(start_x + 34, 222, w_warn + 10, 50), Qt.AlignVCenter | Qt.AlignLeft, "WARN")
+                # Phase B: Actual triggering alarm icon + short text
+                alarm_icons = [
+                    ICON_WATER_16X16,
+                    ICON_EGT_16X16,
+                    ICON_REV_16X16,
+                    ICON_BAT_16X16,
+                    ICON_LINK_16X16,
+                ]
+                alarm_labels = [
+                    "H2O HIGH",
+                    "EGT HIGH",
+                    "OVER-REV",
+                    "LOW BATT",
+                    "NO LINK",
+                ]
+                draw_xbm(p, 205 + (185 - 16) // 2, 184, alarm_icons[top_alarm_id], 16, 16, color=bg)
+                p.setFont(QFont("SansSerif", 15, QFont.Bold))
+                p.drawText(QRectF(205, 212, 185, 42), Qt.AlignCenter, alarm_labels[top_alarm_id])
+
+            p.setPen(fg)
         else:
-            p.drawRoundedRect(205, 222, 185, 50, 4, 4)
-            p.setFont(QFont("SansSerif", 10, QFont.Bold))
-            p.drawText(QRectF(205, 222, 185, 50), Qt.AlignCenter, "[ ALL SYSTEMS OK ]")
+            # Normal System Status (Outlined Box)
+            p.drawRoundedRect(205, 162, 185, 110, 6, 6)
+            p.setFont(QFont("SansSerif", 12, QFont.Bold))
+            p.drawText(QRectF(205, 162, 185, 110), Qt.AlignCenter, "SYSTEM OK")
 
         # 6. Bottom Line (Track Info & Status)
         p.drawLine(0, 276, 400, 276)
@@ -880,12 +894,13 @@ class RlcdRenderer(QWidget):
                 b5,
                 b6,
                 "WARN Alert Triggers >",
+                "Alarm Priority / Severity >",
                 "< Return >"
             ]
             for i, text in enumerate(items):
-                y = 64 + (i * 23)
+                y = 62 + (i * 21)
                 if i == self.cursor_idx:
-                    p.fillRect(12, y - 16, 376, 20, fg)
+                    p.fillRect(12, y - 15, 376, 19, fg)
                     p.setPen(bg)
                     p.drawText(24, y, text)
                     p.setPen(fg)
@@ -908,6 +923,33 @@ class RlcdRenderer(QWidget):
                 y = 66 + (i * 26)
                 if i == self.cursor_idx:
                     p.fillRect(12, y - 17, 376, 22, fg)
+                    p.setPen(bg)
+                    p.drawText(24, y, text)
+                    p.setPen(fg)
+                else:
+                    p.drawText(24, y, text)
+
+        elif self.menu_state == MenuState.MENU_ALARM_PRIORITY:
+            p.drawText(12, 44, "ALARM SEVERITY PRIORITY")
+            alarm_names = [
+                "Water Temp (H2O)",
+                "Exhaust Temp (EGT)",
+                "Over-Rev (RPM)",
+                "Low Battery",
+                "Link Lost",
+            ]
+            items = []
+            for idx in range(5):
+                aid = self.settings.alarm_priority[idx]
+                name = alarm_names[aid] if aid < 5 else "Unknown"
+                items.append(f"#{idx + 1} (Priority {idx + 1}): [{name}]")
+            items.append("[ Reset Priority Order ]")
+            items.append("< Return to Alarms Menu >")
+
+            for i, text in enumerate(items):
+                y = 68 + (i * 28)
+                if i == self.cursor_idx:
+                    p.fillRect(12, y - 18, 376, 24, fg)
                     p.setPen(bg)
                     p.drawText(24, y, text)
                     p.setPen(fg)

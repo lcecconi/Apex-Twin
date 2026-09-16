@@ -33,6 +33,15 @@ class Language(IntEnum):
     LANG_DE = 3
 
 
+class AlarmType(IntEnum):
+    WATER = 0
+    EGT = 1
+    REV = 2
+    BAT = 3
+    LINK = 4
+    COUNT = 5
+
+
 @dataclass
 class LapRecord:
     lap_number: int = 1
@@ -120,4 +129,5 @@ class SystemSettings:
     warn_trigger_rev: bool = True
     warn_trigger_battery: bool = True
     warn_trigger_link: bool = True
+    alarm_priority: list[int] = field(default_factory=lambda: [0, 1, 2, 3, 4])
 

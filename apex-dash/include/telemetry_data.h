@@ -71,6 +71,15 @@ struct TelemetrySnapshot {
   uint32_t piston_hours_sec;
 };
 
+enum AlarmType : uint8_t {
+  ALARM_WATER = 0,
+  ALARM_EGT = 1,
+  ALARM_REV = 2,
+  ALARM_BAT = 3,
+  ALARM_LINK = 4,
+  ALARM_COUNT = 5
+};
+
 struct SystemSettings {
   DriveType drive_type = DRIVE_SHIFTER_6SPEED;
   uint16_t max_rpm = 16000;
@@ -99,6 +108,7 @@ struct SystemSettings {
   bool warn_trigger_rev = true;
   bool warn_trigger_battery = true;
   bool warn_trigger_link = true;
+  uint8_t alarm_priority[5] = {0, 1, 2, 3, 4}; // 0=Water, 1=EGT, 2=OverRev, 3=LowBat, 4=Link
 };
 
 

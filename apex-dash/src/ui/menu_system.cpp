@@ -21,6 +21,19 @@ void MenuSystem::begin(TrackManager *trackMgr, LEDStripManager *ledMgr, Backligh
   _cursor_idx = 0;
 }
 
+static void cycleAlarmPriority(SystemSettings &settings, uint8_t rank) {
+  if (rank >= 5) return;
+  uint8_t curr = settings.alarm_priority[rank];
+  uint8_t next = (curr + 1) % 5;
+  for (int i = 0; i < 5; i++) {
+    if (i != rank && settings.alarm_priority[i] == next) {
+      settings.alarm_priority[i] = curr;
+      break;
+    }
+  }
+  settings.alarm_priority[rank] = next;
+}
+
 bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings, TelemetryProvider *provider) {
   if (!_active) return false;
 
@@ -102,6 +115,9 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings, Tel
     } else if (_current_state == MENU_WARN_TRIGGERS) {
       _current_state = MENU_LEDS_ALARMS;
       _cursor_idx = 7;
+    } else if (_current_state == MENU_ALARM_PRIORITY) {
+      _current_state = MENU_LEDS_ALARMS;
+      _cursor_idx = 8;
     } else {
       _current_state = MENU_ROOT;
       _cursor_idx = 0;
@@ -152,7 +168,7 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings, Tel
 
   // --- 2. SHIFT LIGHTS & ALARMS ---
   if (_current_state == MENU_LEDS_ALARMS) {
-    int max_items = 9;
+    int max_items = 10;
     if (event == INPUT_NEXT) {
       _cursor_idx = (_cursor_idx + 1) % max_items;
     } else if (event == INPUT_PREV) {
@@ -176,6 +192,9 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings, Tel
         _edit_mode = true;
       } else if (_cursor_idx == 7) {
         _current_state = MENU_WARN_TRIGGERS;
+        _cursor_idx = 0;
+      } else if (_cursor_idx == 8) {
+        _current_state = MENU_ALARM_PRIORITY;
         _cursor_idx = 0;
       } else {
         _current_state = MENU_ROOT;
@@ -220,6 +239,28 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings, Tel
       } else {
         _current_state = MENU_LEDS_ALARMS;
         _cursor_idx = 7;
+      }
+    }
+    return true;
+  }
+
+  // --- 2c. ALARM PRIORITY / SEVERITY SUBMENU ---
+  if (_current_state == MENU_ALARM_PRIORITY) {
+    int max_items = 7;
+    if (event == INPUT_NEXT) {
+      _cursor_idx = (_cursor_idx + 1) % max_items;
+    } else if (event == INPUT_PREV) {
+      _cursor_idx = (_cursor_idx - 1 + max_items) % max_items;
+    } else if (event == INPUT_SELECT) {
+      if (_cursor_idx >= 0 && _cursor_idx < 5) {
+        cycleAlarmPriority(settings, (uint8_t)_cursor_idx);
+      } else if (_cursor_idx == 5) {
+        for (uint8_t i = 0; i < 5; i++) {
+          settings.alarm_priority[i] = i;
+        }
+      } else {
+        _current_state = MENU_LEDS_ALARMS;
+        _cursor_idx = 8;
       }
     }
     return true;
@@ -373,6 +414,7 @@ void MenuSystem::render(U8G2 *u8g2, const SystemSettings &settings, const Teleme
     case MENU_DIAGNOSTICS_COUNTERS: renderDiagnosticsCountersMenu(u8g2, telemetry); break;
     case MENU_USB_MSC_SCREEN: renderUsbMscScreen(u8g2); break;
     case MENU_WARN_TRIGGERS: renderWarnTriggersMenu(u8g2, settings); break;
+    case MENU_ALARM_PRIORITY: renderAlarmPriorityMenu(u8g2, settings); break;
   }
 
 
@@ -498,12 +540,12 @@ void MenuSystem::renderLedsAlarmsMenu(U8G2 *u8g2, const SystemSettings &settings
     snprintf(b6, sizeof(b6), "Over-Rev Alarm: [%u RPM]", settings.over_rev_rpm);
   }
 
-  const char *items[9] = { b0, b1, b2, b3, b4, b5, b6, "WARN Alert Triggers >", "< Return >" };
+  const char *items[10] = { b0, b1, b2, b3, b4, b5, b6, "WARN Alert Triggers >", "Alarm Priority / Severity >", "< Return >" };
 
-  for (int i = 0; i < 9; i++) {
-    int y = 64 + (i * 23);
+  for (int i = 0; i < 10; i++) {
+    int y = 62 + (i * 21);
     if (i == _cursor_idx) {
-      u8g2->drawRBox(12, y - 16, 376, 20, 3);
+      u8g2->drawRBox(12, y - 15, 376, 19, 3);
       u8g2->setDrawColor(0);
       u8g2->drawStr(24, y, items[i]);
       u8g2->setDrawColor(1);
@@ -535,6 +577,45 @@ void MenuSystem::renderWarnTriggersMenu(U8G2 *u8g2, const SystemSettings &settin
     int y = 66 + (i * 26);
     if (i == _cursor_idx) {
       u8g2->drawRBox(12, y - 17, 376, 22, 3);
+      u8g2->setDrawColor(0);
+      u8g2->drawStr(24, y, items[i]);
+      u8g2->setDrawColor(1);
+    } else {
+      u8g2->drawStr(24, y, items[i]);
+    }
+  }
+}
+
+void MenuSystem::renderAlarmPriorityMenu(U8G2 *u8g2, const SystemSettings &settings) {
+  u8g2->setFont(u8g2_font_helvB10_tr);
+  u8g2->drawStr(12, 44, "ALARM SEVERITY PRIORITY");
+
+  static const char* const alarm_names[5] = {
+    "Water Temp (H2O)",
+    "Exhaust Temp (EGT)",
+    "Over-Rev (RPM)",
+    "Low Battery",
+    "Link Lost"
+  };
+
+  char b0[64], b1[64], b2[64], b3[64], b4[64];
+  char* bufs[5] = { b0, b1, b2, b3, b4 };
+  for (int i = 0; i < 5; i++) {
+    uint8_t aid = settings.alarm_priority[i];
+    const char *name = (aid < 5) ? alarm_names[aid] : "Unknown";
+    snprintf(bufs[i], 64, "#%d (Priority %d): [%s]", i + 1, i + 1, name);
+  }
+
+  const char *items[7] = {
+    b0, b1, b2, b3, b4,
+    "[ Reset Priority Order ]",
+    "< Return to Alarms Menu >"
+  };
+
+  for (int i = 0; i < 7; i++) {
+    int y = 68 + (i * 28);
+    if (i == _cursor_idx) {
+      u8g2->drawRBox(12, y - 18, 376, 24, 3);
       u8g2->setDrawColor(0);
       u8g2->drawStr(24, y, items[i]);
       u8g2->setDrawColor(1);

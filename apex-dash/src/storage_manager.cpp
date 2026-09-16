@@ -41,6 +41,10 @@ void StorageManager::loadSettings(SystemSettings &settings) {
 
   String trackFile = _prefs.getString("track_file", String(settings.selected_track_file));
   strncpy(settings.selected_track_file, trackFile.c_str(), sizeof(settings.selected_track_file) - 1);
+
+  if (_prefs.isKey("alm_prio")) {
+    _prefs.getBytes("alm_prio", settings.alarm_priority, sizeof(settings.alarm_priority));
+  }
 }
 
 void StorageManager::saveSettings(const SystemSettings &settings) {
@@ -66,6 +70,7 @@ void StorageManager::saveSettings(const SystemSettings &settings) {
   _prefs.putBool("w_rev", settings.warn_trigger_rev);
   _prefs.putBool("w_bat", settings.warn_trigger_battery);
   _prefs.putBool("w_link", settings.warn_trigger_link);
+  _prefs.putBytes("alm_prio", settings.alarm_priority, sizeof(settings.alarm_priority));
   _prefs.putString("track", String(settings.selected_track));
   _prefs.putString("track_file", String(settings.selected_track_file));
 }
