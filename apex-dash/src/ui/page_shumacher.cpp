@@ -80,24 +80,45 @@ void PageShumacher::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const
 
   // --- Left Dial: Held Minimum Corner Speed ---
   u8g2->drawRFrame(10, 38, 120, 118, 6);
-  u8g2->setFont(u8g2_font_logisoso50_tn);
+  u8g2->drawBox(10, 38, 120, 18);
+  u8g2->setDrawColor(0);
+  u8g2->setFont(u8g2_font_helvB08_tr);
+  int tw_vmin = u8g2->getStrWidth("V-MIN (APEX)");
+  u8g2->drawStr(10 + (120 - tw_vmin) / 2, 51, "V-MIN (APEX)");
+  u8g2->setDrawColor(1);
+
+  u8g2->setFont(u8g2_font_logisoso42_tn);
   snprintf(buf, sizeof(buf), "%d", (int)roundf(disp_vmin));
   int w_vmin = u8g2->getStrWidth(buf);
-  u8g2->drawStr(10 + (120 - w_vmin) / 2, 122, buf);
+  u8g2->drawStr(10 + (120 - w_vmin) / 2, 126, buf);
 
   // --- Center Dial: Live Real-time Speed ---
   u8g2->drawRFrame(138, 38, 124, 118, 6);
-  u8g2->setFont(u8g2_font_logisoso50_tn);
+  u8g2->drawBox(138, 38, 124, 18);
+  u8g2->setDrawColor(0);
+  u8g2->setFont(u8g2_font_helvB08_tr);
+  int tw_live = u8g2->getStrWidth("LIVE SPEED");
+  u8g2->drawStr(138 + (124 - tw_live) / 2, 51, "LIVE SPEED");
+  u8g2->setDrawColor(1);
+
+  u8g2->setFont(u8g2_font_logisoso42_tn);
   snprintf(buf, sizeof(buf), "%d", (int)roundf(disp_live));
   int w_live = u8g2->getStrWidth(buf);
-  u8g2->drawStr(138 + (124 - w_live) / 2, 122, buf);
+  u8g2->drawStr(138 + (124 - w_live) / 2, 126, buf);
 
   // --- Right Dial: Held Maximum Straight Speed ---
   u8g2->drawRFrame(270, 38, 120, 118, 6);
-  u8g2->setFont(u8g2_font_logisoso50_tn);
+  u8g2->drawBox(270, 38, 120, 18);
+  u8g2->setDrawColor(0);
+  u8g2->setFont(u8g2_font_helvB08_tr);
+  int tw_vmax = u8g2->getStrWidth("V-MAX (EXIT)");
+  u8g2->drawStr(270 + (120 - tw_vmax) / 2, 51, "V-MAX (EXIT)");
+  u8g2->setDrawColor(1);
+
+  u8g2->setFont(u8g2_font_logisoso42_tn);
   snprintf(buf, sizeof(buf), "%d", (int)roundf(disp_vmax));
   int w_vmax = u8g2->getStrWidth(buf);
-  u8g2->drawStr(270 + (120 - w_vmax) / 2, 122, buf);
+  u8g2->drawStr(270 + (120 - w_vmax) / 2, 126, buf);
 
   // ==========================================
   // 3. BOTTOM-LEFT: LAP TIME & BEST LAP DELTA
@@ -105,11 +126,11 @@ void PageShumacher::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const
 
   // --- Sub-panel A: Current Lap Time (y = 162, h = 52) ---
   u8g2->drawRFrame(10, 162, 185, 52, 4);
-  u8g2->setFont(u8g2_font_6x10_tr);
+  u8g2->setFont(u8g2_font_helvB10_tr);
   snprintf(buf, sizeof(buf), "%s %02u  [%s %d]", 
            I18n::get(STR_LABEL_LAP), telemetry.lap_number, 
            I18n::get(STR_LABEL_SECTOR), telemetry.current_sector);
-  u8g2->drawStr(18, 176, buf);
+  u8g2->drawStr(18, 178, buf);
 
   uint32_t active_lap_time = telemetry.current_lap_time_ms;
   uint32_t lap_min = (active_lap_time / 60000);

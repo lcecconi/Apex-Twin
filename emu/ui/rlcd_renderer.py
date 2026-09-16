@@ -944,25 +944,41 @@ class RlcdRenderer(QWidget):
                 p.fillRect(8, 6, rpm_fill, 22, fg)
 
         # 2. The Three Speedometer Dials (y = 38, h = 118)
-        p.setFont(QFont("SansSerif", 42, QFont.Bold))
-
         # Left Dial: Held Minimum Corner Speed
         p.drawRoundedRect(10, 38, 120, 118, 6, 6)
-        p.drawText(QRectF(10, 38, 120, 118), Qt.AlignCenter, f"{int(round(disp_vmin))}")
+        p.fillRect(10, 38, 120, 18, fg)
+        p.setPen(bg)
+        p.setFont(QFont("SansSerif", 8, QFont.Bold))
+        p.drawText(QRectF(10, 38, 120, 18), Qt.AlignCenter, "V-MIN (APEX)")
+        p.setPen(fg)
+        p.setFont(QFont("SansSerif", 36, QFont.Bold))
+        p.drawText(QRectF(10, 56, 120, 96), Qt.AlignCenter, f"{int(round(disp_vmin))}")
 
         # Center Dial: Live Real-time Speed
         p.drawRoundedRect(138, 38, 124, 118, 6, 6)
-        p.drawText(QRectF(138, 38, 124, 118), Qt.AlignCenter, f"{int(round(disp_live))}")
+        p.fillRect(138, 38, 124, 18, fg)
+        p.setPen(bg)
+        p.setFont(QFont("SansSerif", 8, QFont.Bold))
+        p.drawText(QRectF(138, 38, 124, 18), Qt.AlignCenter, "LIVE SPEED")
+        p.setPen(fg)
+        p.setFont(QFont("SansSerif", 36, QFont.Bold))
+        p.drawText(QRectF(138, 56, 124, 96), Qt.AlignCenter, f"{int(round(disp_live))}")
 
         # Right Dial: Held Maximum Straight Speed
         p.drawRoundedRect(270, 38, 120, 118, 6, 6)
-        p.drawText(QRectF(270, 38, 120, 118), Qt.AlignCenter, f"{int(round(disp_vmax))}")
+        p.fillRect(270, 38, 120, 18, fg)
+        p.setPen(bg)
+        p.setFont(QFont("SansSerif", 8, QFont.Bold))
+        p.drawText(QRectF(270, 38, 120, 18), Qt.AlignCenter, "V-MAX (EXIT)")
+        p.setPen(fg)
+        p.setFont(QFont("SansSerif", 36, QFont.Bold))
+        p.drawText(QRectF(270, 56, 120, 96), Qt.AlignCenter, f"{int(round(disp_vmax))}")
 
         # 3. Bottom-Left: Lap Time & Predictive Best Lap Delta
         # Sub-panel A: Current Lap Time (y = 162, h = 52)
         p.drawRoundedRect(10, 162, 185, 52, 4, 4)
-        p.setFont(QFont("Monospace", 7))
-        p.drawText(18, 176, f"{I18n.get(StrId.LABEL_LAP)} {t.lap_number:02d}  [{I18n.get(StrId.LABEL_SECTOR)} {t.current_sector}]")
+        p.setFont(QFont("SansSerif", 8, QFont.Bold))
+        p.drawText(18, 178, f"{I18n.get(StrId.LABEL_LAP)} {t.lap_number:02d}  [{I18n.get(StrId.LABEL_SECTOR)} {t.current_sector}]")
 
         active_lap_time = t.current_lap_time_ms
         lap_min = active_lap_time // 60000
