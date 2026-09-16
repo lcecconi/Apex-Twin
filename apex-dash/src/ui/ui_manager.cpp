@@ -55,6 +55,9 @@ void UiManager::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const Tel
     case VIEW_DATA_RECALL:
       _page_data_recall.render(u8g2, provider, settings);
       break;
+    case VIEW_SHUMACHER:
+      _page_shumacher.render(u8g2, telemetry, settings);
+      break;
     default:
       _page_live_race.render(u8g2, telemetry, settings);
       break;
@@ -75,12 +78,13 @@ void UiManager::renderFooter(U8G2 *u8g2, const TelemetrySnapshot &telemetry) {
     "RACE HUD",
     "TELEMETRY",
     "PADDOCK",
-    "DATA RECALL"
+    "DATA RECALL",
+    "SCHUMACHER"
   };
 
   char buf[80];
-  snprintf(buf, sizeof(buf), "KEY: Page [%s %d/4] | BOOT (Long): Menu | Select: Invert",
-           view_names[_current_view], _current_view + 1);
+  snprintf(buf, sizeof(buf), "KEY: Page [%s %d/%d] | BOOT (Long): Menu | Select: Invert",
+           view_names[_current_view], _current_view + 1, VIEW_COUNT);
   u8g2->drawStr(6, 292, buf);
 }
 

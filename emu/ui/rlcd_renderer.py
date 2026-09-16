@@ -38,6 +38,7 @@ class UiViewMode(IntEnum):
     VIEW_TELEMETRY = 1
     VIEW_GPS_PADDOCK = 2
     VIEW_DATA_RECALL = 3
+    VIEW_SHUMACHER = 4
 
 
 class MenuState(IntEnum):
@@ -76,6 +77,14 @@ class RlcdRenderer(QWidget):
         self._prev_best_lap = 0
         self._delta_flash_start_time = 0.0
 
+        # Schumacher 3-Speedometer Tracking
+        self._tracking_min = 999.0
+        self._tracking_max = 0.0
+        self._held_vmin = 48.0
+        self._held_vmax = 124.0
+        self._in_corner = False
+        self._in_straight = False
+
     def set_data(self, telemetry: TelemetrySnapshot, settings: SystemSettings):
         self.telemetry = telemetry
         self.settings = settings
@@ -108,7 +117,7 @@ class RlcdRenderer(QWidget):
                 max_items = self._get_menu_item_count()
                 self.cursor_idx = (self.cursor_idx + 1) % max_items
         else:
-            self.current_view = UiViewMode((self.current_view + 1) % 4)
+            self.current_view = UiViewMode((self.current_view + 1) % len(UiViewMode))
         self.update()
 
     def handle_key_long(self):
@@ -148,7 +157,7 @@ class RlcdRenderer(QWidget):
                 max_items = self._get_menu_item_count()
                 self.cursor_idx = (self.cursor_idx - 1 + max_items) % max_items
         else:
-            self.current_view = UiViewMode((self.current_view - 1 + 4) % 4)
+            self.current_view = UiViewMode((self.current_view - 1 + len(UiViewMode)) % len(UiViewMode))
         self.update()
 
     def handle_boot_long(self):
@@ -368,6 +377,8 @@ class RlcdRenderer(QWidget):
                 self._render_paddock(painter, bg_color, fg_color)
             elif self.current_view == UiViewMode.VIEW_DATA_RECALL:
                 self._render_data_recall(painter, bg_color, fg_color)
+            elif self.current_view == UiViewMode.VIEW_SHUMACHER:
+                self._render_shumacher(painter, bg_color, fg_color)
 
             # Footer
             self._render_footer(painter, bg_color, fg_color)
@@ -874,6 +885,174 @@ class RlcdRenderer(QWidget):
         p.drawText(20, 234, "Peak Cornering G-Force:    1.85 G (Turn 4 Chicane)")
         p.drawText(20, 252, "Session Consistency Index: 98.4 %")
 
+    def _update_speed_tracking(self, speed: float, lon_g: float, lat_g: float):
+        if self._tracking_min > 900.0:
+            self._tracking_min = speed
+        if self._tracking_max < 1.0:
+            self._tracking_max = speed
+
+        # Corner entry detection: lateral G > 0.6G or braking lon_g < -0.3G
+        if abs(lat_g) > 0.6 or lon_g < -0.3:
+            if not self._in_corner:
+                if self._tracking_max > 20.0:
+                    self._held_vmax = self._tracking_max
+                self._tracking_max = speed
+                self._tracking_min = speed
+                self._in_corner = True
+                self._in_straight = False
+            if speed < self._tracking_min:
+                self._tracking_min = speed
+        elif lon_g > 0.15 or (speed > self._tracking_min + 4.0 and abs(lat_g) < 0.4):
+            if not self._in_straight:
+                if 5.0 < self._tracking_min < 900.0:
+                    self._held_vmin = self._tracking_min
+                self._tracking_min = 999.0
+                self._tracking_max = speed
+                self._in_straight = True
+                self._in_corner = False
+            if speed > self._tracking_max:
+                self._tracking_max = speed
+        else:
+            if speed < self._tracking_min:
+                self._tracking_min = speed
+            if speed > self._tracking_max:
+                self._tracking_max = speed
+
+    def _render_shumacher(self, p: QPainter, bg: QColor, fg: QColor):
+        t = self.telemetry
+        s = self.settings
+
+        self._update_speed_tracking(t.speed_kmh, t.longitudinal_g, t.lateral_g)
+
+        unit_mult = 1.0 if s.use_kmh else 0.621371
+        unit_str = "km/h" if s.use_kmh else "mph"
+
+        disp_live = t.speed_kmh * unit_mult
+        disp_vmin = self._held_vmin * unit_mult
+        disp_vmax = self._held_vmax * unit_mult
+
+        # Top Bar: Tachometer & Title (y = 2..32)
+        p.drawRoundedRect(10, 2, 380, 14, 2, 2)
+        rpm_fill = int(t.rpm * 376 / max(1, s.max_rpm))
+        rpm_fill = max(0, min(376, rpm_fill))
+        if rpm_fill > 0:
+            p.fillRect(12, 4, rpm_fill, 10, fg)
+
+        shift_x = int(10 + (s.shift_rpm * 376 / max(1, s.max_rpm)))
+        if shift_x < 390:
+            p.drawLine(shift_x, 1, shift_x, 17)
+
+        p.setFont(QFont("SansSerif", 8, QFont.Bold))
+        p.drawText(10, 28, "SCHUMACHER B194 3-SPEED")
+        p.setFont(QFont("Monospace", 7))
+        p.drawText(275, 28, f"LAP {t.lap_number:02d} | {t.rpm:5d} RPM")
+        p.drawLine(10, 32, 390, 32)
+
+        # 1. Left: V-MIN (APEX)
+        p.drawRoundedRect(10, 36, 120, 134, 4, 4)
+        p.fillRect(10, 36, 120, 16, fg)
+        p.setPen(bg)
+        p.setFont(QFont("Monospace", 7, QFont.Bold))
+        p.drawText(16, 48, "V-MIN (APEX)")
+        p.setPen(fg)
+
+        p.setFont(QFont("SansSerif", 24, QFont.Bold))
+        p.drawText(QRectF(10, 56, 120, 42), Qt.AlignCenter, f"{int(round(disp_vmin))}")
+
+        p.setFont(QFont("SansSerif", 9, QFont.Bold))
+        p.drawText(QRectF(10, 98, 120, 20), Qt.AlignCenter, unit_str)
+
+        p.setFont(QFont("Monospace", 7))
+        p.drawText(16, 138, "CORNER APEX")
+        p.drawText(16, 154, "HELD MIN SPEED")
+
+        # 2. Center: LIVE SPEED
+        p.drawRoundedRect(138, 36, 124, 134, 4, 4)
+        p.fillRect(138, 36, 124, 16, fg)
+        p.setPen(bg)
+        p.setFont(QFont("Monospace", 7, QFont.Bold))
+        p.drawText(150, 48, "LIVE SPEED")
+        p.setPen(fg)
+
+        p.setFont(QFont("SansSerif", 24, QFont.Bold))
+        p.drawText(QRectF(138, 56, 124, 42), Qt.AlignCenter, f"{int(round(disp_live))}")
+
+        p.setFont(QFont("SansSerif", 9, QFont.Bold))
+        p.drawText(QRectF(138, 98, 124, 20), Qt.AlignCenter, unit_str)
+
+        p.setFont(QFont("SansSerif", 9, QFont.Bold))
+        gear_str = "GEAR: N" if t.gear == 0 else f"GEAR: {t.gear}"
+        if s.drive_type != DriveType.SHIFTER_6SPEED:
+            gear_str = "DIRECT DRIVE"
+        p.drawText(QRectF(138, 124, 124, 20), Qt.AlignCenter, gear_str)
+
+        p.setFont(QFont("Monospace", 7))
+        p.drawText(QRectF(138, 142, 124, 20), Qt.AlignCenter, f"{t.lateral_g:+0.2f} G Lat")
+
+        # 3. Right: V-MAX (EXIT / STRAIGHT)
+        p.drawRoundedRect(270, 36, 120, 134, 4, 4)
+        p.fillRect(270, 36, 120, 16, fg)
+        p.setPen(bg)
+        p.setFont(QFont("Monospace", 7, QFont.Bold))
+        p.drawText(276, 48, "V-MAX (EXIT)")
+        p.setPen(fg)
+
+        p.setFont(QFont("SansSerif", 24, QFont.Bold))
+        p.drawText(QRectF(270, 56, 120, 42), Qt.AlignCenter, f"{int(round(disp_vmax))}")
+
+        p.setFont(QFont("SansSerif", 9, QFont.Bold))
+        p.drawText(QRectF(270, 98, 120, 20), Qt.AlignCenter, unit_str)
+
+        p.setFont(QFont("Monospace", 7))
+        p.drawText(276, 138, "STRAIGHT PEAK")
+        p.drawText(276, 154, "HELD TOP SPEED")
+
+        # Bottom Cards (y = 176..270)
+        # Card 1: Corner Delta & Dynamics
+        p.drawRoundedRect(10, 176, 185, 94, 4, 4)
+        p.fillRect(10, 176, 185, 16, fg)
+        p.setPen(bg)
+        p.setFont(QFont("Monospace", 7, QFont.Bold))
+        p.drawText(16, 188, "CORNER DELTA & DYNAMICS")
+        p.setPen(fg)
+
+        speed_gain = disp_vmax - disp_vmin
+        apex_ratio = (disp_vmin / disp_vmax * 100.0) if disp_vmax > 0.0 else 0.0
+
+        p.setFont(QFont("Monospace", 7))
+        p.drawText(16, 210, f"Speed Gain (ΔV): +{max(0.0, speed_gain):.1f} {unit_str}")
+        p.drawText(16, 226, f"Apex Lat Grip:  {t.lateral_g:+0.2f} G")
+        p.drawText(16, 242, f"Entry Braking:  {t.longitudinal_g:+0.2f} G")
+        p.drawText(16, 258, f"Apex Ratio:     {apex_ratio:.1f} %")
+
+        # Card 2: Lap Timing & Engine
+        p.drawRoundedRect(205, 176, 185, 94, 4, 4)
+        p.fillRect(205, 176, 185, 16, fg)
+        p.setPen(bg)
+        p.setFont(QFont("Monospace", 7, QFont.Bold))
+        p.drawText(211, 188, "LAP TIMING & ENGINE")
+        p.setPen(fg)
+
+        if t.best_lap_time_ms > 0:
+            b_sec = (t.best_lap_time_ms % 60000) / 1000.0
+            p.drawText(211, 210, f"Best Lap:  {b_sec:05.2f} s")
+        else:
+            p.drawText(211, 210, "Best Lap:  --.-- s")
+
+        if t.best_lap_time_ms > 0 or abs(t.predictive_delta_s) > 0.001:
+            p.drawText(211, 226, f"Lap Delta: {t.predictive_delta_s:+0.2f} s")
+        else:
+            p.drawText(211, 226, "Lap Delta: --.-- s")
+
+        water = t.water_temp_c if s.use_celsius else (t.water_temp_c * 1.8 + 32.0)
+        egt = t.exhaust_temp_c if s.use_celsius else (t.exhaust_temp_c * 1.8 + 32.0)
+        t_unit = "C" if s.use_celsius else "F"
+        p.drawText(211, 242, f"H2O: {water:.1f}°{t_unit} | EGT: {int(egt)}°{t_unit}")
+
+        eng_hrs = t.engine_total_hours_sec // 3600
+        eng_mins = (t.engine_total_hours_sec % 3600) // 60
+        p.drawText(211, 258, f"Eng: {eng_hrs:02d}h{eng_mins:02d} | Bat: {t.battery_percent}%")
+
     def _render_menu(self, p: QPainter, bg: QColor, fg: QColor):
         p.fillRect(0, 0, 400, 24, fg)
         p.setPen(bg)
@@ -1081,6 +1260,6 @@ class RlcdRenderer(QWidget):
 
         p.drawLine(0, 276, 400, 276)
         p.setFont(QFont("Monospace", 7))
-        views = ["RACE HUD", "TELEMETRY", "PADDOCK", "DATA RECALL"]
-        p.drawText(6, 292, f"KEY: [{views[self.current_view]} {self.current_view+1}/4] | BOOT (Long): Menu | Enter: Invert")
+        views = ["RACE HUD", "TELEMETRY", "PADDOCK", "DATA RECALL", "SCHUMACHER"]
+        p.drawText(6, 292, f"KEY: [{views[self.current_view]} {self.current_view+1}/5] | BOOT (Long): Menu | Enter: Invert")
 

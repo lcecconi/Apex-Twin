@@ -266,8 +266,8 @@ class MainWindow(QMainWindow):
         act_reset.triggered.connect(self._reset_sim)
         self.addAction(act_reset)
 
-        # Direct View Selectors (1, 2, 3, 4)
-        for i in range(4):
+        # Direct View Selectors (1, 2, 3, 4, 5)
+        for i in range(5):
             act = QAction(self)
             act.setShortcut(QKeySequence(str(i + 1)))
             act.triggered.connect(lambda checked=False, view_idx=i: self._jump_view(view_idx))
