@@ -288,13 +288,8 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
 
   uint32_t sess_hrs = telemetry.session_time_sec / 3600;
   uint32_t sess_min = (telemetry.session_time_sec % 3600) / 60;
-  uint32_t sess_sec = telemetry.session_time_sec % 60;
   u8g2->drawXBMP(104, 249, 16, 16, icon_stopwatch_16x16);
-  if (sess_hrs >= 1) {
-    snprintf(buf, sizeof(buf), "%luh%02lu", (unsigned long)sess_hrs, (unsigned long)sess_min);
-  } else {
-    snprintf(buf, sizeof(buf), "%02lu:%02lu", (unsigned long)sess_min, (unsigned long)sess_sec);
-  }
+  snprintf(buf, sizeof(buf), "%luh%02lu", (unsigned long)sess_hrs, (unsigned long)sess_min);
   u8g2->drawStr(124, 263, buf);
 
   // Right: Unified Flashing Warning / Status Panel (185 x 110 px)

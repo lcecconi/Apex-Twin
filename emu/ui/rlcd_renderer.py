@@ -585,13 +585,8 @@ class RlcdRenderer(QWidget):
 
         sess_hrs = t.session_time_sec // 3600
         sess_min = (t.session_time_sec % 3600) // 60
-        sess_sec = t.session_time_sec % 60
         draw_xbm(p, 104, 249, ICON_STOPWATCH_16X16, 16, 16, color=fg)
-        if sess_hrs >= 1:
-            sess_str = f"{sess_hrs}h{sess_min:02d}"
-        else:
-            sess_str = f"{sess_min:02d}:{sess_sec:02d}"
-        p.drawText(124, 263, sess_str)
+        p.drawText(124, 263, f"{sess_hrs}h{sess_min:02d}")
 
         # Right: Unified Flashing Warning / Status Panel (185 x 110 px)
         if top_alarm_id >= 0:
