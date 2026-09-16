@@ -519,24 +519,19 @@ class RlcdRenderer(QWidget):
             p.drawText(QRectF(200, 122, 176, 24), Qt.AlignRight | Qt.AlignVCenter, last_str)
 
         # 4. Predictive Delta (Left) & System Alarms (Right)
-        # Left Pane: Predictive Delta Bar (185 px width)
+        # Left Pane: Predictive Delta (185 px width)
         p.drawRoundedRect(10, 162, 185, 52, 4, 4)
-        p.setFont(QFont("SansSerif", 9, QFont.Bold))
-        p.drawText(16, 178, f"{I18n.get(StrId.LABEL_PRED)} {I18n.get(StrId.LABEL_DELTA)}")
+        delta_val = t.predictive_delta_s
+        if t.best_lap_time_ms > 0 or abs(delta_val) > 0.001:
+            if delta_val >= 0.0:
+                delta_str = f"+ {delta_val:.2f}"
+            else:
+                delta_str = f"- {-delta_val:.2f}"
+        else:
+            delta_str = "+ 0.00"
 
-        p.setFont(QFont("SansSerif", 10, QFont.Bold))
-        p.drawText(QRectF(100, 164, 90, 16), Qt.AlignRight | Qt.AlignVCenter, f"{t.predictive_delta_s:+0.2f}")
-
-        center_x = 102
-        p.drawRect(18, 186, 169, 16)
-        p.drawLine(center_x, 182, center_x, 206)
-
-        delta_px = int(t.predictive_delta_s * 80.0)
-        delta_px = max(-80, min(80, delta_px))
-        if delta_px < 0:
-            p.fillRect(center_x + delta_px, 188, -delta_px, 12, fg)
-        elif delta_px > 0:
-            p.fillRect(center_x, 188, delta_px, 12, fg)
+        p.setFont(QFont("SansSerif", 22, QFont.Bold))
+        p.drawText(QRectF(10, 162, 185, 52), Qt.AlignCenter, delta_str)
 
         # Evaluate Base Alarm Conditions
         alm_active = [
@@ -580,12 +575,12 @@ class RlcdRenderer(QWidget):
         # Vertical Separator
         p.drawLine(96, 226, 96, 268)
 
-        # Col 2: Absolute Engine Runtime (hours:minutes)
+        # Col 2: Absolute Engine Runtime (hours:minutes with 'h' separator)
         eng_hrs = t.engine_total_hours_sec // 3600
         eng_min = (t.engine_total_hours_sec % 3600) // 60
         draw_xbm(p, 104, 239, ICON_ENGINE_16X16, 16, 16, color=fg)
         p.setFont(QFont("SansSerif", 11, QFont.Bold))
-        p.drawText(124, 253, f"{eng_hrs}:{eng_min:02d}")
+        p.drawText(124, 253, f"{eng_hrs}h{eng_min:02d}")
 
         # Right: Unified Flashing Warning / Status Panel (185 x 110 px)
         if top_alarm_id >= 0:
@@ -630,9 +625,27 @@ class RlcdRenderer(QWidget):
         p.drawLine(0, 276, 400, 276)
         p.setFont(QFont("SansSerif", 8, QFont.Bold))
         p.drawText(8, 292, f"TRACK: {t.current_track_name}")
-        link_str = "LINK OK" if t.track_module_connected else "SIM"
-        right_str = f"BAT: {t.battery_voltage:.1f}V ({t.battery_percent}%) | {link_str}"
-        p.drawText(QRectF(200, 280, 192, 16), Qt.AlignRight | Qt.AlignVCenter, right_str)
+
+        blink_1hz = (int(time.time() * 2.0) % 2) == 0
+        show_bat = (t.battery_percent >= 10) or blink_1hz
+        show_link = t.track_module_connected or blink_1hz
+
+        bat_str = f"BAT: {t.battery_voltage:.1f}V ({t.battery_percent}%)"
+        sep_str = " | "
+        link_str = "LINK OK" if t.track_module_connected else "NO LINK"
+
+        fm = p.fontMetrics()
+        bat_w = fm.horizontalAdvance(bat_str)
+        sep_w = fm.horizontalAdvance(sep_str)
+        link_w = fm.horizontalAdvance(link_str)
+        total_w = bat_w + sep_w + link_w
+        start_x = 392 - total_w
+
+        if show_bat:
+            p.drawText(start_x, 292, bat_str)
+        p.drawText(start_x + bat_w, 292, sep_str)
+        if show_link:
+            p.drawText(start_x + bat_w + sep_w, 292, link_str)
 
 
     def _render_telemetry(self, p: QPainter, bg: QColor, fg: QColor):

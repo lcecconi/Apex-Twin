@@ -208,33 +208,24 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   // ==========================================
   // 4. PREDICTIVE DELTA (LEFT) & ALARMS (RIGHT)
   // ==========================================
-  // Left Pane: Predictive Lap Time Delta Bar (185 px width)
+  // Left Pane: Predictive Lap Time Delta (185 px width)
   u8g2->drawRFrame(10, 162, 185, 52, 4);
 
-  // Header & Numerical Delta
-  u8g2->setFont(u8g2_font_helvB10_tr);
-  snprintf(buf, sizeof(buf), "%s %s", I18n::get(STR_LABEL_PRED), I18n::get(STR_LABEL_DELTA));
-  u8g2->drawStr(16, 178, buf);
-
-  u8g2->setFont(u8g2_font_helvB12_tr);
-  snprintf(buf, sizeof(buf), "%+0.2f", telemetry.predictive_delta_s);
-  int delta_w = u8g2->getStrWidth(buf);
-  u8g2->drawStr(190 - delta_w, 178, buf);
-
-  // Center Zero Marker Line & Delta Bar
-  int center_x = 102;
-  u8g2->drawFrame(18, 188, 169, 14);
-  u8g2->drawVLine(center_x, 184, 22);
-
-  int bar_px = (int)(telemetry.predictive_delta_s * 80.0f);
-  if (bar_px > 80) bar_px = 80;
-  if (bar_px < -80) bar_px = -80;
-
-  if (bar_px < 0) {
-    u8g2->drawBox(center_x + bar_px, 190, -bar_px, 10);
-  } else if (bar_px > 0) {
-    u8g2->drawBox(center_x, 190, bar_px, 10);
+  char delta_buf[32];
+  float delta_val = telemetry.predictive_delta_s;
+  if (telemetry.best_lap_time_ms > 0 || fabs(delta_val) > 0.001f) {
+    if (delta_val >= 0.0f) {
+      snprintf(delta_buf, sizeof(delta_buf), "+ %.2f", delta_val);
+    } else {
+      snprintf(delta_buf, sizeof(delta_buf), "- %.2f", -delta_val);
+    }
+  } else {
+    snprintf(delta_buf, sizeof(delta_buf), "+ 0.00");
   }
+
+  u8g2->setFont(u8g2_font_helvB24_tr);
+  int d_w = u8g2->getStrWidth(delta_buf);
+  u8g2->drawStr(10 + (185 - d_w) / 2, 198, delta_buf);
 
   // ==========================================
   // 4 & 5. RIGHT UNIFIED WARNING / STATUS PANEL (185 x 110 px)
@@ -288,12 +279,12 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   // Vertical Separator
   u8g2->drawVLine(96, 226, 42);
 
-  // Col 2: Absolute Engine Runtime (hours:minutes)
+  // Col 2: Absolute Engine Runtime (hours:minutes with 'h' separator)
   uint32_t eng_hrs = telemetry.engine_total_hours_sec / 3600;
   uint32_t eng_min = (telemetry.engine_total_hours_sec % 3600) / 60;
   u8g2->drawXBMP(104, 239, 16, 16, icon_engine_16x16);
   u8g2->setFont(u8g2_font_helvB12_tr);
-  snprintf(buf, sizeof(buf), "%lu:%02lu", (unsigned long)eng_hrs, (unsigned long)eng_min);
+  snprintf(buf, sizeof(buf), "%luh%02lu", (unsigned long)eng_hrs, (unsigned long)eng_min);
   u8g2->drawStr(124, 253, buf);
 
   // Right: Unified Flashing Warning / Status Panel (185 x 110 px)
@@ -349,11 +340,28 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   snprintf(buf, sizeof(buf), "TRACK: %s", telemetry.current_track_name);
   u8g2->drawStr(8, 292, buf);
 
-  snprintf(buf, sizeof(buf), "BAT: %.1fV (%d%%) | %s",
-           telemetry.battery_voltage, telemetry.battery_percent,
-           telemetry.track_module_connected ? "LINK OK" : "SIM");
-  int bw = u8g2->getStrWidth(buf);
-  u8g2->drawStr(392 - bw, 292, buf);
+  bool blink_1hz = ((millis() / 500) % 2) == 0;
+  bool show_bat = (telemetry.battery_percent >= 10) || blink_1hz;
+  bool show_link = telemetry.track_module_connected || blink_1hz;
+
+  char bat_str[32];
+  snprintf(bat_str, sizeof(bat_str), "BAT: %.1fV (%d%%)", telemetry.battery_voltage, telemetry.battery_percent);
+  const char *sep_str = " | ";
+  const char *link_str = telemetry.track_module_connected ? "LINK OK" : "NO LINK";
+
+  int bat_w = u8g2->getStrWidth(bat_str);
+  int sep_w = u8g2->getStrWidth(sep_str);
+  int link_w = u8g2->getStrWidth(link_str);
+  int total_w = bat_w + sep_w + link_w;
+  int start_x = 392 - total_w;
+
+  if (show_bat) {
+    u8g2->drawStr(start_x, 292, bat_str);
+  }
+  u8g2->drawStr(start_x + bat_w, 292, sep_str);
+  if (show_link) {
+    u8g2->drawStr(start_x + bat_w + sep_w, 292, link_str);
+  }
 }
 
 
