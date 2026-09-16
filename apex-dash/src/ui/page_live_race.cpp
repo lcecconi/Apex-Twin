@@ -209,7 +209,19 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   // 4. PREDICTIVE DELTA (LEFT) & ALARMS (RIGHT)
   // ==========================================
   // Left Pane: Predictive Lap Time Delta (185 px width)
-  u8g2->drawRFrame(10, 162, 185, 52, 4);
+  static uint8_t _prev_sector = 0;
+  static uint16_t _prev_lap = 0;
+  static uint32_t _prev_best_lap = 0;
+  static uint32_t _delta_flash_start_ms = 0;
+
+  if ((telemetry.current_sector != _prev_sector && _prev_sector != 0) ||
+      (telemetry.lap_number != _prev_lap && _prev_lap != 0) ||
+      (telemetry.best_lap_time_ms != _prev_best_lap && _prev_best_lap != 0)) {
+    _delta_flash_start_ms = millis();
+  }
+  _prev_sector = telemetry.current_sector;
+  _prev_lap = telemetry.lap_number;
+  _prev_best_lap = telemetry.best_lap_time_ms;
 
   char delta_buf[32];
   float delta_val = telemetry.predictive_delta_s;
@@ -225,7 +237,21 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
 
   u8g2->setFont(u8g2_font_helvB24_tr);
   int d_w = u8g2->getStrWidth(delta_buf);
-  u8g2->drawStr(10 + (185 - d_w) / 2, 198, delta_buf);
+
+  // Inverted color flash when best lap delta gets updated
+  uint32_t flash_elapsed = millis() - _delta_flash_start_ms;
+  bool is_flashing = (flash_elapsed < 1500 && _delta_flash_start_ms > 0);
+  bool is_inverted = is_flashing && (((flash_elapsed / 250) % 2) == 0);
+
+  if (is_inverted) {
+    u8g2->drawRBox(10, 162, 185, 52, 4);
+    u8g2->setDrawColor(0);
+    u8g2->drawStr(10 + (185 - d_w) / 2, 198, delta_buf);
+    u8g2->setDrawColor(1);
+  } else {
+    u8g2->drawRFrame(10, 162, 185, 52, 4);
+    u8g2->drawStr(10 + (185 - d_w) / 2, 198, delta_buf);
+  }
 
   // ==========================================
   // 4 & 5. RIGHT UNIFIED WARNING / STATUS PANEL (185 x 110 px)

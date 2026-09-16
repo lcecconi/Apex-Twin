@@ -71,6 +71,11 @@ class RlcdRenderer(QWidget):
         self.telemetry = TelemetrySnapshot()
         self.settings = SystemSettings()
 
+        self._prev_sector = 0
+        self._prev_lap = 0
+        self._prev_best_lap = 0
+        self._delta_flash_start_time = 0.0
+
     def set_data(self, telemetry: TelemetrySnapshot, settings: SystemSettings):
         self.telemetry = telemetry
         self.settings = settings
@@ -521,7 +526,15 @@ class RlcdRenderer(QWidget):
 
         # 4. Predictive Delta (Left) & System Alarms (Right)
         # Left Pane: Predictive Delta (185 px width)
-        p.drawRoundedRect(10, 162, 185, 52, 4, 4)
+        now_ts = time.time()
+        if ((t.current_sector != self._prev_sector and self._prev_sector != 0) or
+            (t.lap_number != self._prev_lap and self._prev_lap != 0) or
+            (t.best_lap_time_ms != self._prev_best_lap and self._prev_best_lap != 0)):
+            self._delta_flash_start_time = now_ts
+        self._prev_sector = t.current_sector
+        self._prev_lap = t.lap_number
+        self._prev_best_lap = t.best_lap_time_ms
+
         delta_val = t.predictive_delta_s
         if t.best_lap_time_ms > 0 or abs(delta_val) > 0.001:
             if delta_val >= 0.0:
@@ -531,8 +544,19 @@ class RlcdRenderer(QWidget):
         else:
             delta_str = "+ 0.00"
 
+        flash_elapsed = now_ts - self._delta_flash_start_time
+        is_flashing = flash_elapsed < 1.5 and self._delta_flash_start_time > 0
+        is_inverted = is_flashing and (int(flash_elapsed / 0.25) % 2 == 0)
+
         p.setFont(QFont("SansSerif", 22, QFont.Bold))
-        p.drawText(QRectF(10, 162, 185, 52), Qt.AlignCenter, delta_str)
+        if is_inverted:
+            p.fillRect(10, 162, 185, 52, fg)
+            p.setPen(bg)
+            p.drawText(QRectF(10, 162, 185, 52), Qt.AlignCenter, delta_str)
+            p.setPen(fg)
+        else:
+            p.drawRoundedRect(10, 162, 185, 52, 4, 4)
+            p.drawText(QRectF(10, 162, 185, 52), Qt.AlignCenter, delta_str)
 
         # Evaluate Base Alarm Conditions
         alm_active = [
