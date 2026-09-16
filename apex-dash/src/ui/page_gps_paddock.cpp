@@ -70,7 +70,8 @@ void PageGpsPaddock::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, cons
 
   // Left col: Weather
   u8g2->setFont(u8g2_font_6x12_tr);
-  snprintf(buf, sizeof(buf), "Track Ambient Temp:    %+.1f \xb0\x43", telemetry.ambient_temp_c);
+  float amb_temp = settings.use_celsius ? telemetry.ambient_temp_c : (telemetry.ambient_temp_c * 1.8f + 32.0f);
+  snprintf(buf, sizeof(buf), "Track Ambient Temp:    %+d", (int)roundf(amb_temp));
   u8g2->drawStr(20, 204, buf);
 
   snprintf(buf, sizeof(buf), "Relative Humidity:     %.1f %% RH", telemetry.ambient_humidity_pct);

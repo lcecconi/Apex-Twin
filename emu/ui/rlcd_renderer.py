@@ -599,15 +599,14 @@ class RlcdRenderer(QWidget):
 
         w_temp = t.water_temp_c if s.use_celsius else (t.water_temp_c * 1.8 + 32.0)
         e_temp = t.exhaust_temp_c if s.use_celsius else (t.exhaust_temp_c * 1.8 + 32.0)
-        t_unit = "°C" if s.use_celsius else "°F"
 
         # Col 1: Water & EGT temps
         draw_xbm(p, 14, 228, ICON_WATER_16X16, 16, 16, color=fg)
         p.setFont(QFont("SansSerif", 9, QFont.Bold))
-        p.drawText(34, 241, f"{w_temp:.1f}{t_unit}")
+        p.drawText(34, 241, f"{int(round(w_temp))}")
 
         draw_xbm(p, 14, 249, ICON_EGT_16X16, 16, 16, color=fg)
-        p.drawText(34, 263, f"{int(e_temp)}{t_unit}")
+        p.drawText(34, 263, f"{int(round(e_temp))}")
 
         # Vertical Separator
         p.drawLine(96, 226, 96, 268)
@@ -738,9 +737,11 @@ class RlcdRenderer(QWidget):
         p.setPen(bg)
         p.drawText(211, 44, "COOLANT & EXHAUST (EGT)")
         p.setPen(fg)
+        w_temp = t.water_temp_c if s.use_celsius else (t.water_temp_c * 1.8 + 32.0)
+        e_temp = t.exhaust_temp_c if s.use_celsius else (t.exhaust_temp_c * 1.8 + 32.0)
         p.setFont(QFont("SansSerif", 11, QFont.Bold))
-        p.drawText(214, 76, f"H2O:  {t.water_temp_c:.1f} °C")
-        p.drawText(214, 106, f"EGT:  {int(t.exhaust_temp_c)} °C")
+        p.drawText(214, 76, f"H2O:  {int(round(w_temp))}")
+        p.drawText(214, 106, f"EGT:  {int(round(e_temp))}")
 
         # Card 3: G-G Diagram
         p.drawRoundedRect(10, 148, 185, 118, 3, 3)
@@ -823,7 +824,8 @@ class RlcdRenderer(QWidget):
         p.drawText(16, 180, "WEATHER & ENGINE MAINTENANCE")
         p.setPen(fg)
         p.setFont(QFont("Monospace", 8))
-        p.drawText(20, 204, f"Ambient Temp:   {t.ambient_temp_c:+.1f} °C")
+        amb_temp = t.ambient_temp_c if s.use_celsius else (t.ambient_temp_c * 1.8 + 32.0)
+        p.drawText(20, 204, f"Ambient Temp:   {int(round(amb_temp)):+d}")
         p.drawText(20, 224, f"Humidity:       {t.ambient_humidity_pct:.1f} % RH")
         p.drawText(20, 244, f"Battery:        {t.battery_voltage:.2f} V ({t.battery_percent}%)")
 
@@ -1088,14 +1090,13 @@ class RlcdRenderer(QWidget):
 
         w_temp = t.water_temp_c if s.use_celsius else (t.water_temp_c * 1.8 + 32.0)
         e_temp = t.exhaust_temp_c if s.use_celsius else (t.exhaust_temp_c * 1.8 + 32.0)
-        t_unit = "°C" if s.use_celsius else "°F"
 
         draw_xbm(p, 6, 280, ICON_WATER_16X16, 16, 16, color=fg)
         p.setFont(QFont("SansSerif", 8, QFont.Bold))
-        p.drawText(24, 293, f"{w_temp:.1f}{t_unit}")
+        p.drawText(24, 293, f"{int(round(w_temp))}")
 
         draw_xbm(p, 84, 280, ICON_EGT_16X16, 16, 16, color=fg)
-        p.drawText(102, 293, f"{int(e_temp)}{t_unit}")
+        p.drawText(102, 293, f"{int(round(e_temp))}")
 
         eng_hrs = t.engine_total_hours_sec // 3600
         eng_min = (t.engine_total_hours_sec % 3600) // 60
@@ -1111,8 +1112,8 @@ class RlcdRenderer(QWidget):
         show_bat = (t.battery_percent >= 10) or blink_1hz
         show_link = t.track_module_connected or blink_1hz
 
-        draw_xbm(p, 308, 280, ICON_BAT_16X16, 16, 16, color=fg)
         if show_bat:
+            draw_xbm(p, 308, 280, ICON_BAT_16X16, 16, 16, color=fg)
             p.drawText(326, 293, f"{t.battery_percent}%")
         p.drawText(354, 293, "|")
         if show_link:

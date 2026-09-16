@@ -293,16 +293,15 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
 
   float w_temp = settings.use_celsius ? telemetry.water_temp_c : (telemetry.water_temp_c * 1.8f + 32.0f);
   float e_temp = settings.use_celsius ? telemetry.exhaust_temp_c : (telemetry.exhaust_temp_c * 1.8f + 32.0f);
-  const char *t_unit = settings.use_celsius ? "\xb0\x43" : "\xb0\x46";
 
   // Col 1: Water & EGT temp sensors
   u8g2->drawXBMP(14, 228, 16, 16, icon_water_16x16);
   u8g2->setFont(u8g2_font_helvB10_tr);
-  snprintf(buf, sizeof(buf), "%.1f%s", w_temp, t_unit);
+  snprintf(buf, sizeof(buf), "%d", (int)roundf(w_temp));
   u8g2->drawStr(34, 241, buf);
 
   u8g2->drawXBMP(14, 249, 16, 16, icon_egt_16x16);
-  snprintf(buf, sizeof(buf), "%d%s", (int)e_temp, t_unit);
+  snprintf(buf, sizeof(buf), "%d", (int)roundf(e_temp));
   u8g2->drawStr(34, 263, buf);
 
   // Vertical Separator

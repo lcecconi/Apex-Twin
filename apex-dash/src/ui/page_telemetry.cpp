@@ -59,16 +59,19 @@ void PageTelemetry::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const
   u8g2->drawStr(211, 44, "COOLANT & EXHAUST (EGT)");
   u8g2->setDrawColor(1);
 
+  float w_temp = settings.use_celsius ? telemetry.water_temp_c : (telemetry.water_temp_c * 1.8f + 32.0f);
+  float e_temp = settings.use_celsius ? telemetry.exhaust_temp_c : (telemetry.exhaust_temp_c * 1.8f + 32.0f);
+
   u8g2->setFont(u8g2_font_helvB14_tr);
-  snprintf(buf, sizeof(buf), "H2O:  %.1f \xb0\x43", telemetry.water_temp_c);
+  snprintf(buf, sizeof(buf), "H2O:  %d", (int)roundf(w_temp));
   u8g2->drawStr(214, 76, buf);
 
-  snprintf(buf, sizeof(buf), "EGT:  %d \xb0\x43", (int)telemetry.exhaust_temp_c);
+  snprintf(buf, sizeof(buf), "EGT:  %d", (int)roundf(e_temp));
   u8g2->drawStr(214, 106, buf);
 
   u8g2->setFont(u8g2_font_6x10_tr);
-  snprintf(buf, sizeof(buf), "Alerts: H2O>%.0f\xb0 / EGT>%.0f\xb0", 
-           settings.water_temp_alarm_c, settings.exhaust_temp_alarm_c);
+  snprintf(buf, sizeof(buf), "Alerts: H2O>%d / EGT>%d", 
+           (int)settings.water_temp_alarm_c, (int)settings.exhaust_temp_alarm_c);
   u8g2->drawStr(214, 134, buf);
 
   // ==========================================
