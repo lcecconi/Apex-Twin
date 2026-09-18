@@ -59,5 +59,5 @@ Apex-Twin tries to decouple **Acquisition & Logging** from **Visualization**:
 
 ## 3. Related Documentation
 
-* [Apex-Dash Implementation & User Guide](file:///home/leonardo/Dev/Apex-Twin/apex-dash/README.md)
-* [ESP32-S3 Dual-Core Architecture Analysis](file:///home/leonardo/Dev/Apex-Twin/.brain/esp32s3_dual_core_analysis.md)
+* [Apex-Dash Implementation & User Guide](../apex-dash/README.md)
+* [Connector & Pinout Specification](connector_pinout.md)

@@ -1,7 +1,9 @@
 # Apex-Twin
 
 > [!WARNING]
+>
 > ### ⚠️ WORK IN PROGRESS — NOT YET FUNCTIONAL
+>
 > **Apex-Twin is currently under active development and is NOT yet fully functional or ready for on-track racing use.**  
 > Hardware pinouts, communication protocols, firmware interfaces, and telemetry schemas are subject to ongoing changes.
 
@@ -29,7 +31,7 @@
 
 ## 1. System Presentation & Concept
 
-Commercial kart data loggers traditionally route high-voltage sparkplug leads, thermocouple cables, and power wiring directly up the steering column, leading to cable fatigue and ignition electromagnetic interference. 
+Commercial kart data loggers traditionally route high-voltage sparkplug leads, thermocouple cables, and power wiring directly up the steering column, leading to cable fatigue and ignition electromagnetic interference.
 
 **Apex-Twin** decouples **Acquisition & Logging** from **Visualization**:
 
@@ -53,6 +55,7 @@ Commercial kart data loggers traditionally route high-voltage sparkplug leads, t
 ## 2. Quickstart
 
 ### Environment Setup
+
 Clone the repository and initialize the Python environment with unified CLI tools:
 
 ```bash
@@ -88,20 +91,20 @@ apex test                              # Run syntax checks and emulator smoke te
 
 Detailed technical documentation, schematics, and guides are organized into dedicated sub-documents:
 
-* 🖥️ **[Apex-Dash Display Documentation](file:///home/leonardo/Dev/Apex-Twin/apex-dash/README.md)**  
+* 🖥️ **[Apex-Dash Display Documentation](apex-dash/README.md)**  
   *Detailed guide covering the 5 racing HUD views (including the historical Schumacher 3-speedometer layout), 7-level setup menu system, and firmware architecture.*
 
-* 🏎️ **[Apex-Track Chassis Module](file:///home/leonardo/Dev/Apex-Twin/apex-track/README.md)**  
+* 🏎️ **[Apex-Track Chassis Module](apex-track/README.md)**  
   *Chassis data acquisition module, GNSS receiver, inductive RPM conditioning, and sensor wiring.*
 
-* 💻 **[Desktop Hardware Emulator Guide](file:///home/leonardo/Dev/Apex-Twin/emu/README.md)**  
+* 💻 **[Desktop Hardware Emulator Guide](emu/README.md)**  
   *High-fidelity PySide6 desktop emulator with multi-source telemetry, session replayer, and screenshot export tools.*
 
-* 📐 **[System Architecture & Design Analysis](file:///home/leonardo/Dev/Apex-Twin/docs/architecture.md)**  
+* 📐 **[System Architecture & Design Analysis](docs/architecture.md)**  
   *In-depth architectural breakdown of the dual-module wireless topology.*
 
-* 🔌 **[Connector & Pinout Specification](file:///home/leonardo/Dev/Apex-Twin/docs/connector_pinout.md)**  
+* 🔌 **[Connector & Pinout Specification](docs/connector_pinout.md)**  
   *Wiring harnesses, JST pinout definitions, and electrical specifications.*
 
-* 📡 **[ESP-NOW Latency & Throughput Benchmark Suite](file:///home/leonardo/Dev/Apex-Twin/tests/espnow-latency/README.md)**  
+* 📡 **[ESP-NOW Latency & Throughput Benchmark Suite](tests/espnow-latency/README.md)**  
   *Microsecond-precision test harness to measure round-trip time (RTT), jitter, and packet loss between ESP32 modules.*

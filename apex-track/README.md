@@ -30,7 +30,7 @@ Apex-Track broadcasts binary `ApexTrackTelemetryPacket` frames at $25\text{ Hz}$
 
 ## 3. Related Documentation
 
-* **[Main System Documentation](file:///home/leonardo/Dev/Apex-Twin/README.md)**
-* **[Apex-Dash Steering Wheel Display](file:///home/leonardo/Dev/Apex-Twin/apex-dash/README.md)**
-* **[Connector & Pinout Specification](file:///home/leonardo/Dev/Apex-Twin/docs/connector_pinout.md)**
-* **[ESP-NOW Latency Benchmark Test](file:///home/leonardo/Dev/Apex-Twin/tests/espnow-latency/README.md)**
+* **[Main System Documentation](../README.md)**
+* **[Apex-Dash Steering Wheel Display](../apex-dash/README.md)**
+* **[Connector & Pinout Specification](../docs/connector_pinout.md)**
+* **[ESP-NOW Latency Benchmark Test](../tests/espnow-latency/README.md)**
