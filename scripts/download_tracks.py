@@ -205,10 +205,27 @@ def query_overpass(query_ql: str) -> dict:
 
 
 def save_track_file(track_data: dict, out_dir: Path) -> Path:
-    """Save track data in Apex-Dash standard JSON schema."""
+    """Save track data in Apex-Dash standard JSON schema with dynamic splits array."""
     out_dir.mkdir(parents=True, exist_ok=True)
     filename = f"{track_data['id']}.json"
     target_path = out_dir / filename
+
+    # Ensure dynamic 'splits' list (capped at 4 splits / 5 sectors)
+    if "splits" not in track_data:
+        splits = []
+        if "split1" in track_data:
+            splits.append(track_data["split1"])
+        if "split2" in track_data:
+            splits.append(track_data["split2"])
+        track_data["splits"] = splits[:4]
+    else:
+        track_data["splits"] = track_data["splits"][:4]
+
+    # Populate legacy split1/split2 for backward compatibility
+    if len(track_data["splits"]) > 0 and "split1" not in track_data:
+        track_data["split1"] = track_data["splits"][0]
+    if len(track_data["splits"]) > 1 and "split2" not in track_data:
+        track_data["split2"] = track_data["splits"][1]
 
     with open(target_path, "w", encoding="utf-8") as f:
         json.dump(track_data, f, indent=2, ensure_ascii=False)

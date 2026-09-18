@@ -150,9 +150,14 @@ void PageShumacher::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const
   // --- Sub-panel A: Current Lap Time (y = 162, h = 52) ---
   u8g2->drawRFrame(10, 162, 185, 52, 4);
   u8g2->setFont(u8g2_font_helvB10_tr);
-  snprintf(buf, sizeof(buf), "%s %02u  [%s %d]", 
-           I18n::get(STR_LABEL_LAP), telemetry.lap_number, 
-           I18n::get(STR_LABEL_SECTOR), telemetry.current_sector);
+  if (telemetry.total_sectors > 1) {
+    snprintf(buf, sizeof(buf), "%s %02u  [%s %d/%d]", 
+             I18n::get(STR_LABEL_LAP), telemetry.lap_number, 
+             I18n::get(STR_LABEL_SECTOR), telemetry.current_sector, telemetry.total_sectors);
+  } else {
+    snprintf(buf, sizeof(buf), "%s %02u", 
+             I18n::get(STR_LABEL_LAP), telemetry.lap_number);
+  }
   u8g2->drawStr(18, 178, buf);
 
   uint32_t active_lap_time = telemetry.current_lap_time_ms;

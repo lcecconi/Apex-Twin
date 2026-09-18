@@ -10,15 +10,15 @@ void TrackManager::begin() {
 void TrackManager::loadDefaultTracks() {
   _tracks.clear();
 
-  // 1. South Garda Karting (Lonato, Italy)
+  // 1. South Garda Karting (Lonato, Italy) - 3 Sectors (Finish + 2 Splits)
   TrackDefinition lonato;
   strncpy(lonato.id, "lonato", sizeof(lonato.id) - 1);
   strncpy(lonato.name, "South Garda Karting", sizeof(lonato.name) - 1);
   strncpy(lonato.location, "Lonato, Italy", sizeof(lonato.location) - 1);
   lonato.length_m = 1200;
   lonato.finish_line = SplitGate(45.388712, 10.479521, 88.5f, 12.0f);
-  lonato.split1 = SplitGate(45.389240, 10.481100, 172.0f, 10.0f);
-  lonato.split2 = SplitGate(45.387950, 10.480210, 265.0f, 10.0f);
+  lonato.intermediate_splits.push_back(SplitGate(45.389240, 10.481100, 172.0f, 10.0f));
+  lonato.intermediate_splits.push_back(SplitGate(45.387950, 10.480210, 265.0f, 10.0f));
   lonato.is_custom_sd = false;
   _tracks.push_back(lonato);
 
@@ -29,8 +29,8 @@ void TrackManager::loadDefaultTracks() {
   strncpy(castelletto.location, "Castelletto, Italy", sizeof(castelletto.location) - 1);
   castelletto.length_m = 1256;
   castelletto.finish_line = SplitGate(45.067320, 9.098710, 110.0f, 12.0f);
-  castelletto.split1 = SplitGate(45.068150, 9.100420, 205.0f, 10.0f);
-  castelletto.split2 = SplitGate(45.066800, 9.099150, 290.0f, 10.0f);
+  castelletto.intermediate_splits.push_back(SplitGate(45.068150, 9.100420, 205.0f, 10.0f));
+  castelletto.intermediate_splits.push_back(SplitGate(45.066800, 9.099150, 290.0f, 10.0f));
   castelletto.is_custom_sd = false;
   _tracks.push_back(castelletto);
 
@@ -41,8 +41,8 @@ void TrackManager::loadDefaultTracks() {
   strncpy(genk.location, "Genk, Belgium", sizeof(genk.location) - 1);
   genk.length_m = 1360;
   genk.finish_line = SplitGate(50.963450, 5.548210, 45.0f, 12.0f);
-  genk.split1 = SplitGate(50.964100, 5.550100, 135.0f, 10.0f);
-  genk.split2 = SplitGate(50.962800, 5.549300, 225.0f, 10.0f);
+  genk.intermediate_splits.push_back(SplitGate(50.964100, 5.550100, 135.0f, 10.0f));
+  genk.intermediate_splits.push_back(SplitGate(50.962800, 5.549300, 225.0f, 10.0f));
   genk.is_custom_sd = false;
   _tracks.push_back(genk);
 
@@ -53,8 +53,8 @@ void TrackManager::loadDefaultTracks() {
   strncpy(salbris.location, "Salbris, France", sizeof(salbris.location) - 1);
   salbris.length_m = 1477;
   salbris.finish_line = SplitGate(47.432810, 2.051400, 95.0f, 12.0f);
-  salbris.split1 = SplitGate(47.433500, 2.053200, 180.0f, 10.0f);
-  salbris.split2 = SplitGate(47.431900, 2.052100, 275.0f, 10.0f);
+  salbris.intermediate_splits.push_back(SplitGate(47.433500, 2.053200, 180.0f, 10.0f));
+  salbris.intermediate_splits.push_back(SplitGate(47.431900, 2.052100, 275.0f, 10.0f));
   salbris.is_custom_sd = false;
   _tracks.push_back(salbris);
 
@@ -65,8 +65,8 @@ void TrackManager::loadDefaultTracks() {
   strncpy(wackersdorf.location, "Wackersdorf, Germany", sizeof(wackersdorf.location) - 1);
   wackersdorf.length_m = 1190;
   wackersdorf.finish_line = SplitGate(49.314200, 12.181300, 70.0f, 12.0f);
-  wackersdorf.split1 = SplitGate(49.315000, 12.183100, 160.0f, 10.0f);
-  wackersdorf.split2 = SplitGate(49.313500, 12.182000, 250.0f, 10.0f);
+  wackersdorf.intermediate_splits.push_back(SplitGate(49.315000, 12.183100, 160.0f, 10.0f));
+  wackersdorf.intermediate_splits.push_back(SplitGate(49.313500, 12.182000, 250.0f, 10.0f));
   wackersdorf.is_custom_sd = false;
   _tracks.push_back(wackersdorf);
 }
@@ -96,23 +96,41 @@ void TrackManager::loadTracksFromSD() {
           doc["finish_line"]["width_m"] | 12.0f
         );
 
-        track.split1 = SplitGate(
-          doc["split1"]["lat"] | 0.0,
-          doc["split1"]["lon"] | 0.0,
-          doc["split1"]["bearing_deg"] | 0.0f,
-          doc["split1"]["width_m"] | 10.0f
-        );
-
-        track.split2 = SplitGate(
-          doc["split2"]["lat"] | 0.0,
-          doc["split2"]["lon"] | 0.0,
-          doc["split2"]["bearing_deg"] | 0.0f,
-          doc["split2"]["width_m"] | 10.0f
-        );
+        // Dynamic Splits: array "splits" (up to 4 intermediate splits)
+        if (doc["splits"].is<JsonArray>()) {
+          for (JsonObject splitObj : doc["splits"].as<JsonArray>()) {
+            if (track.intermediate_splits.size() >= 4) break; // Cap at 4 splits (5 sectors)
+            track.intermediate_splits.push_back(SplitGate(
+              splitObj["lat"] | 0.0,
+              splitObj["lon"] | 0.0,
+              splitObj["bearing_deg"] | 0.0f,
+              splitObj["width_m"] | 10.0f
+            ));
+          }
+        } else {
+          // Fallback to legacy "split1" and "split2"
+          if (doc["split1"].is<JsonObject>()) {
+            track.intermediate_splits.push_back(SplitGate(
+              doc["split1"]["lat"] | 0.0,
+              doc["split1"]["lon"] | 0.0,
+              doc["split1"]["bearing_deg"] | 0.0f,
+              doc["split1"]["width_m"] | 10.0f
+            ));
+          }
+          if (doc["split2"].is<JsonObject>() && track.intermediate_splits.size() < 4) {
+            track.intermediate_splits.push_back(SplitGate(
+              doc["split2"]["lat"] | 0.0,
+              doc["split2"]["lon"] | 0.0,
+              doc["split2"]["bearing_deg"] | 0.0f,
+              doc["split2"]["width_m"] | 10.0f
+            ));
+          }
+        }
 
         track.is_custom_sd = true;
         _tracks.push_back(track);
-        Serial.printf("[Track] Loaded SD circuit: %s (%s)\n", track.name, track.location);
+        Serial.printf("[Track] Loaded SD circuit: %s (%s) - %u Sectors\n",
+                      track.name, track.location, track.getSectorCount());
       }
     }
     file = root.openNextFile();

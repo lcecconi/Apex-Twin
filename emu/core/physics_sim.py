@@ -31,18 +31,20 @@ class PhysicsSimulator:
         if self.last_lap_ms > 10000:
             if self.best_lap_ms == 0 or self.last_lap_ms < self.best_lap_ms:
                 self.best_lap_ms = self.last_lap_ms
+            n_sec = max(1, min(5, getattr(self.snapshot, "total_sectors", 3)))
+            sec_time = int(self.last_lap_ms / n_sec)
+            sec_times = [sec_time] * n_sec
             self.lap_history.append(
                 LapRecord(
-                    self.current_lap,
-                    self.last_lap_ms,
-                    16100,
-                    16150,
-                    16200,
-                    self.snapshot.speed_kmh,
-                    self.snapshot.rpm,
-                    5600,
-                    self.snapshot.water_temp_c,
-                    self.last_lap_ms == self.best_lap_ms,
+                    lap_number=self.current_lap,
+                    lap_time_ms=self.last_lap_ms,
+                    sector_count=n_sec,
+                    sector_times_ms=sec_times,
+                    max_speed_kmh=self.snapshot.speed_kmh,
+                    max_rpm=self.snapshot.rpm,
+                    min_rpm=5600,
+                    max_water_temp=self.snapshot.water_temp_c,
+                    is_best_lap=(self.last_lap_ms == self.best_lap_ms),
                 )
             )
             self.current_lap += 1
@@ -73,14 +75,11 @@ class PhysicsSimulator:
         snapshot.best_lap_time_ms = self.best_lap_ms
         snapshot.lap_number = self.current_lap
 
-        # Sector calculation (3 equal sectors of ~16.1s)
-        sector_len = self.lap_duration_s / 3.0
-        if elapsed < sector_len:
-            snapshot.current_sector = 1
-        elif elapsed < sector_len * 2:
-            snapshot.current_sector = 2
-        else:
-            snapshot.current_sector = 3
+        # Dynamic Sector calculation (1 to total_sectors, capped at 5)
+        total_sectors = max(1, min(5, getattr(snapshot, "total_sectors", 3)))
+        sector_len = self.lap_duration_s / float(total_sectors)
+        sec_idx = int(elapsed / sector_len) + 1
+        snapshot.current_sector = min(total_sectors, max(1, sec_idx))
 
         # Realistic Lonato Circuit Profile Simulation
         norm_lap = elapsed / self.lap_duration_s

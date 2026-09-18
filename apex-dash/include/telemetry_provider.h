@@ -45,6 +45,8 @@ private:
   float _sim_throttle = 1.0f;
 
   void updateSimulation(const SystemSettings &settings);
+  void onLapCompleted(uint32_t lap_time_ms, const uint32_t *sector_times, uint8_t sector_count,
+                      float max_spd, uint16_t max_rpm, uint16_t min_rpm, float max_temp);
   void onLapCompleted(uint32_t lap_time_ms, uint32_t s1_ms, uint32_t s2_ms, uint32_t s3_ms,
                       float max_spd, uint16_t max_rpm, uint16_t min_rpm, float max_temp);
 };

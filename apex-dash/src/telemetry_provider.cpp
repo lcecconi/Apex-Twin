@@ -85,14 +85,15 @@ const LapRecord *TelemetryProvider::getBestLap() const {
   return nullptr;
 }
 
-void TelemetryProvider::onLapCompleted(uint32_t lap_time_ms, uint32_t s1_ms, uint32_t s2_ms, uint32_t s3_ms,
-                                      float max_spd, uint16_t max_rpm, uint16_t min_rpm, float max_temp) {
+void TelemetryProvider::onLapCompleted(uint32_t lap_time_ms, const uint32_t *sector_times, uint8_t sector_count,
+                                       float max_spd, uint16_t max_rpm, uint16_t min_rpm, float max_temp) {
   uint16_t idx = _completed_laps_count % MAX_SAVED_LAPS;
   _lap_history[idx].lap_number = _completed_laps_count + 1;
   _lap_history[idx].lap_time_ms = lap_time_ms;
-  _lap_history[idx].split1_ms = s1_ms;
-  _lap_history[idx].split2_ms = s2_ms;
-  _lap_history[idx].split3_ms = s3_ms;
+  _lap_history[idx].sector_count = (sector_count > MAX_TRACK_SECTORS) ? MAX_TRACK_SECTORS : sector_count;
+  for (uint8_t s = 0; s < MAX_TRACK_SECTORS; s++) {
+    _lap_history[idx].sector_times_ms[s] = (sector_times && s < sector_count) ? sector_times[s] : 0;
+  }
   _lap_history[idx].max_speed_kmh = max_spd;
   _lap_history[idx].max_rpm = max_rpm;
   _lap_history[idx].min_rpm = min_rpm;
@@ -112,6 +113,12 @@ void TelemetryProvider::onLapCompleted(uint32_t lap_time_ms, uint32_t s1_ms, uin
   if (_completed_laps_count < MAX_SAVED_LAPS) {
     _completed_laps_count++;
   }
+}
+
+void TelemetryProvider::onLapCompleted(uint32_t lap_time_ms, uint32_t s1_ms, uint32_t s2_ms, uint32_t s3_ms,
+                                       float max_spd, uint16_t max_rpm, uint16_t min_rpm, float max_temp) {
+  uint32_t splits[3] = { s1_ms, s2_ms, s3_ms };
+  onLapCompleted(lap_time_ms, splits, 3, max_spd, max_rpm, min_rpm, max_temp);
 }
 
 void TelemetryProvider::updateSimulation(const SystemSettings &settings) {

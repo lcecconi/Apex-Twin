@@ -512,7 +512,10 @@ class RlcdRenderer(QWidget):
             # Standard Lap Time (Right Pane)
             p.drawRoundedRect(176, 38, 214, 118, 4, 4)
             p.setFont(QFont("SansSerif", 9, QFont.Bold))
-            p.drawText(186, 56, f"{I18n.get(StrId.LABEL_LAP)} {t.lap_number:02d}  [{I18n.get(StrId.LABEL_SECTOR)} {t.current_sector}]")
+            if t.total_sectors > 1:
+                p.drawText(186, 56, f"{I18n.get(StrId.LABEL_LAP)} {t.lap_number:02d}  [{I18n.get(StrId.LABEL_SECTOR)} {t.current_sector}/{t.total_sectors}]")
+            else:
+                p.drawText(186, 56, f"{I18n.get(StrId.LABEL_LAP)} {t.lap_number:02d}")
 
             lap_min = t.current_lap_time_ms // 60000
             lap_sec = (t.current_lap_time_ms % 60000) // 1000
@@ -549,7 +552,10 @@ class RlcdRenderer(QWidget):
             # Full-Width Lap Time Pane (380 px width)
             p.drawRoundedRect(10, 38, 380, 118, 4, 4)
             p.setFont(QFont("SansSerif", 10, QFont.Bold))
-            p.drawText(24, 58, f"{I18n.get(StrId.LABEL_LAP)} {t.lap_number:02d}  [{I18n.get(StrId.LABEL_SECTOR)} {t.current_sector}]")
+            if t.total_sectors > 1:
+                p.drawText(24, 58, f"{I18n.get(StrId.LABEL_LAP)} {t.lap_number:02d}  [{I18n.get(StrId.LABEL_SECTOR)} {t.current_sector}/{t.total_sectors}]")
+            else:
+                p.drawText(24, 58, f"{I18n.get(StrId.LABEL_LAP)} {t.lap_number:02d}")
 
             lap_min = t.current_lap_time_ms // 60000
             lap_sec = (t.current_lap_time_ms % 60000) // 1000
@@ -755,7 +761,10 @@ class RlcdRenderer(QWidget):
         s = self.settings
         p.setFont(QFont("SansSerif", 9, QFont.Bold))
         p.drawText(10, 20, "TELEMETRY & SENSOR MONITOR")
-        p.drawText(300, 20, f"LAP {t.lap_number:02d} | SEC {t.current_sector}")
+        if t.total_sectors > 1:
+            p.drawText(300, 20, f"LAP {t.lap_number:02d} | SEC {t.current_sector}/{t.total_sectors}")
+        else:
+            p.drawText(300, 20, f"LAP {t.lap_number:02d}")
         p.drawLine(10, 26, 390, 26)
 
         # Card 1: Engine RPM & Gear
@@ -902,16 +911,45 @@ class RlcdRenderer(QWidget):
         p.drawText(20, 62, "RANK")
         p.drawText(65, 62, "LAP #")
         p.drawText(115, 62, "LAP TIME")
-        p.drawText(190, 62, "S1 / S2 / S3")
+        p.drawText(190, 62, "SECTORS")
         p.drawText(280, 62, "TOP SPD")
         p.drawText(340, 62, "MAX RPM")
         p.drawLine(16, 66, 384, 66)
 
-        table = [
-            ("#1", "L02", "48.42s", "16.08 / 16.15 / 16.19", "125.1", "15850"),
-            ("#2", "L01", "48.68s", "16.18 / 16.30 / 16.20", "122.4", "15600"),
-            ("#3", "L03", "48.75s", "16.22 / 16.29 / 16.24", "121.8", "15500"),
-        ]
+        laps = getattr(self.telemetry, "lap_history", [])
+        if not laps:
+            table = [
+                ("#1", "L02", "48.42s", "16.08 / 16.15 / 16.19", "125.1", "15850"),
+                ("#2", "L01", "48.68s", "16.18 / 16.30 / 16.20", "122.4", "15600"),
+                ("#3", "L03", "48.75s", "16.22 / 16.29 / 16.24", "121.8", "15500"),
+            ]
+        else:
+            sorted_laps = sorted(laps, key=lambda l: l.lap_time_ms)[:3]
+            table = []
+            for rank_idx, lap in enumerate(sorted_laps):
+                sec = (lap.lap_time_ms % 60000) // 1000
+                cen = (lap.lap_time_ms % 1000) // 10
+                time_str = f"{sec:02d}.{cen:02d}s"
+
+                if not lap.sector_times_ms or lap.sector_count <= 0:
+                    splits_str = "-- / -- / --"
+                elif lap.sector_count == 1:
+                    splits_str = f"{lap.sector_times_ms[0]/1000.0:.2f} s"
+                elif lap.sector_count == 2:
+                    splits_str = f"{lap.sector_times_ms[0]/1000.0:.1f} / {lap.sector_times_ms[1]/1000.0:.1f}"
+                elif lap.sector_count == 3:
+                    splits_str = f"{lap.sector_times_ms[0]/1000.0:.1f}/{lap.sector_times_ms[1]/1000.0:.1f}/{lap.sector_times_ms[2]/1000.0:.1f}"
+                else:
+                    splits_str = f"{lap.sector_count} Sectors"
+
+                table.append((
+                    f"#{rank_idx + 1}",
+                    f"L{lap.lap_number:02d}",
+                    time_str,
+                    splits_str,
+                    f"{lap.max_speed_kmh:.1f}",
+                    f"{lap.max_rpm}"
+                ))
 
         for i, row in enumerate(table):
             y = 84 + (i * 20)
@@ -1037,11 +1075,13 @@ class RlcdRenderer(QWidget):
         p.setFont(QFont("SansSerif", 36, QFont.Bold))
         p.drawText(QRectF(270, 56, 120, 96), Qt.AlignCenter, f"{int(round(disp_vmax))}")
 
-        # 3. Bottom-Left: Lap Time & Predictive Best Lap Delta
         # Sub-panel A: Current Lap Time (y = 162, h = 52)
         p.drawRoundedRect(10, 162, 185, 52, 4, 4)
         p.setFont(QFont("SansSerif", 8, QFont.Bold))
-        p.drawText(18, 178, f"{I18n.get(StrId.LABEL_LAP)} {t.lap_number:02d}  [{I18n.get(StrId.LABEL_SECTOR)} {t.current_sector}]")
+        if t.total_sectors > 1:
+            p.drawText(18, 178, f"{I18n.get(StrId.LABEL_LAP)} {t.lap_number:02d}  [{I18n.get(StrId.LABEL_SECTOR)} {t.current_sector}/{t.total_sectors}]")
+        else:
+            p.drawText(18, 178, f"{I18n.get(StrId.LABEL_LAP)} {t.lap_number:02d}")
 
         active_lap_time = t.current_lap_time_ms
         lap_min = active_lap_time // 60000

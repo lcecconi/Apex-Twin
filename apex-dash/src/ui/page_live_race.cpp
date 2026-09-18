@@ -113,9 +113,14 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
     u8g2->drawRFrame(176, 38, 214, 118, 6);
 
     u8g2->setFont(u8g2_font_helvB10_tr);
-    snprintf(buf, sizeof(buf), "%s %02u  [%s %d]", 
-             I18n::get(STR_LABEL_LAP), telemetry.lap_number, 
-             I18n::get(STR_LABEL_SECTOR), telemetry.current_sector);
+    if (telemetry.total_sectors > 1) {
+      snprintf(buf, sizeof(buf), "%s %02u  [%s %d/%d]", 
+               I18n::get(STR_LABEL_LAP), telemetry.lap_number, 
+               I18n::get(STR_LABEL_SECTOR), telemetry.current_sector, telemetry.total_sectors);
+    } else {
+      snprintf(buf, sizeof(buf), "%s %02u", 
+               I18n::get(STR_LABEL_LAP), telemetry.lap_number);
+    }
     u8g2->drawStr(186, 56, buf);
 
     // Active lap time
@@ -160,9 +165,14 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
     u8g2->drawRFrame(10, 38, 380, 118, 6);
 
     u8g2->setFont(u8g2_font_helvB12_tr);
-    snprintf(buf, sizeof(buf), "%s %02u  [%s %d]", 
-             I18n::get(STR_LABEL_LAP), telemetry.lap_number, 
-             I18n::get(STR_LABEL_SECTOR), telemetry.current_sector);
+    if (telemetry.total_sectors > 1) {
+      snprintf(buf, sizeof(buf), "%s %02u  [%s %d/%d]", 
+               I18n::get(STR_LABEL_LAP), telemetry.lap_number, 
+               I18n::get(STR_LABEL_SECTOR), telemetry.current_sector, telemetry.total_sectors);
+    } else {
+      snprintf(buf, sizeof(buf), "%s %02u", 
+               I18n::get(STR_LABEL_LAP), telemetry.lap_number);
+    }
     u8g2->drawStr(24, 58, buf);
 
     // Main Lap Time (Centered Large)

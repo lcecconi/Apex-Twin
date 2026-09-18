@@ -1,6 +1,9 @@
 #pragma once
 
 #include <Arduino.h>
+#include "telemetry_can.h"
+
+#define MAX_TRACK_SECTORS 5
 
 enum DriveType : uint8_t {
   DRIVE_DIRECT = 0,     // Single gear (Direct Drive)
@@ -20,58 +23,166 @@ enum TrackDetectionMode : uint8_t {
   TRACK_LEARNING
 };
 
+// Lap Record supporting 1 to 5 dynamic sectors
 struct LapRecord {
-  uint16_t lap_number;
-  uint32_t lap_time_ms;
-  uint32_t split1_ms;
-  uint32_t split2_ms;
-  uint32_t split3_ms;
-  float max_speed_kmh;
-  uint16_t max_rpm;
-  uint16_t min_rpm;
-  float max_water_temp;
-  bool is_best_lap;
+  uint16_t lap_number = 0;
+  uint32_t lap_time_ms = 0;
+  uint8_t  sector_count = 3;
+  uint32_t sector_times_ms[MAX_TRACK_SECTORS] = {0};
+  float    max_speed_kmh = 0.0f;
+  uint16_t max_rpm = 0;
+  uint16_t min_rpm = 0;
+  float    max_water_temp = 0.0f;
+  bool     is_best_lap = false;
+
+  // Compatibility helpers
+  uint32_t getSectorTime(uint8_t idx) const {
+    return (idx < sector_count && idx < MAX_TRACK_SECTORS) ? sector_times_ms[idx] : 0;
+  }
 };
 
+// =============================================================================
+// Domain Model: Chassis Telemetry (Acquired and broadcast by Apex-Track)
+// =============================================================================
+struct ChassisTelemetry {
+  // Fast Dynamics (CAN 0x100 & 0x110)
+  uint16_t rpm = 0;
+  float speed_kmh = 0.0f;
+  uint8_t gear = 0;             // 0 = Neutral, 1-6 = Gears
+  uint8_t status_flags = 0;
+  uint8_t current_sector = 1;   // 1 to total_sectors
+  uint8_t total_sectors = 3;    // Configured sectors for active circuit (1 to 5)
+  uint16_t lap_number = 1;
+  uint32_t current_lap_time_ms = 0;
+  uint32_t last_lap_time_ms = 0;
+  uint32_t best_lap_time_ms = 0;
+  float predictive_delta_s = 0.0f; // Negative = faster, Positive = slower
+  uint32_t last_split_delta_ms = 0;
+
+  // IMU Dynamics (CAN 0x110)
+  float lateral_g = 0.0f;
+  float longitudinal_g = 0.0f;
+  float vertical_g = 0.0f;
+  float yaw_rate_dps = 0.0f;
+
+  // Thermal Dynamics (CAN 0x200)
+  float water_temp_c = 0.0f;
+  float exhaust_temp_c = 0.0f;
+  float head_temp_c = 0.0f;
+
+  // GNSS Navigation & Quality (CAN 0x210)
+  double latitude = 0.0;
+  double longitude = 0.0;
+  float altitude_m = 0.0f;
+  float heading_deg = 0.0f;
+  uint8_t satellites_visible = 0;
+  uint8_t gps_fix = 0;          // 0 = None, 1 = 2D, 2 = 3D, 3 = DGPS, 4 = RTK-Float, 5 = RTK-Fixed
+  float hdop = 9.9f;
+
+  // Health & Power (CAN 0x220)
+  float chassis_battery_voltage = 0.0f;
+  uint32_t engine_total_hours_sec = 0;
+  uint32_t piston_hours_sec = 0;
+  uint16_t track_error_code = 0;
+
+  // Transport Link Quality
+  bool connected = false;
+  int8_t link_rssi = -90;
+  uint32_t last_packet_ms = 0;
+};
+
+// =============================================================================
+// Domain Model: Dash Local State (Measured locally on Apex-Dash)
+// =============================================================================
+struct DashLocalState {
+  float ambient_temp_c = 25.0f;      // Sensirion SHTC3
+  float ambient_humidity_pct = 50.0f;// Sensirion SHTC3
+  float battery_voltage = 4.0f;      // Steering unit 18650 Li-Ion cell
+  uint8_t battery_percent = 90;
+  uint32_t rtc_epoch_s = 0;          // NXP PCF85063A RTC
+  uint32_t session_time_sec = 0;
+  bool session_active = false;
+  char current_track_name[32] = "South Garda (Lonato)";
+};
+
+// =============================================================================
+// Unified Telemetry Snapshot (Used by Dash UI renderers & emulator)
+// =============================================================================
 struct TelemetrySnapshot {
-  uint32_t timestamp_ms;
+  uint32_t timestamp_ms = 0;
 
-  // Engine metrics
-  uint16_t rpm;
-  float speed_kmh;
-  uint8_t gear;          // 0 = Neutral, 1-6 = Gears
-  float water_temp_c;    // Radiator / Coolant
-  float exhaust_temp_c;  // EGT / Exhaust gas
+  // Domain state blocks
+  ChassisTelemetry chassis;
+  DashLocalState local;
 
-  // Lapping & Timing
-  uint16_t lap_number;
-  uint32_t current_lap_time_ms;
-  uint32_t last_lap_time_ms;
-  uint32_t best_lap_time_ms;
-  float predictive_delta_s; // Negative = faster (e.g. -0.24s), Positive = slower
-  uint8_t current_sector;   // 1, 2, or 3
-  uint32_t last_split_delta_ms; // Delta at last sector split
+  // Flat field convenience mapping for existing UI code
+  uint16_t rpm = 0;
+  float speed_kmh = 0.0f;
+  uint8_t gear = 0;
+  float water_temp_c = 0.0f;
+  float exhaust_temp_c = 0.0f;
 
-  // GPS & Dynamics
-  uint8_t satellites_visible;
-  uint8_t gps_fix;          // 0 = None, 1 = 2D, 2 = 3D, 3 = DGPS/RTK
-  float hdop;
-  float lateral_g;
-  float longitudinal_g;
-  char current_track_name[32];
+  uint16_t lap_number = 1;
+  uint32_t current_lap_time_ms = 0;
+  uint32_t last_lap_time_ms = 0;
+  uint32_t best_lap_time_ms = 0;
+  float predictive_delta_s = 0.0f;
+  uint8_t current_sector = 1;
+  uint8_t total_sectors = 3;
+  uint32_t last_split_delta_ms = 0;
 
-  // Device & Environmental
-  float battery_voltage;
-  uint8_t battery_percent;
-  float ambient_temp_c;
-  float ambient_humidity_pct;
-  bool track_module_connected; // True if Apex-Track wireless link is active
-  int8_t link_rssi;
-  uint32_t engine_total_hours_sec;
-  uint32_t piston_hours_sec;
-  uint32_t session_time_sec;   // Current session elapsed time in seconds
-  bool session_active;         // True while session is running
-  uint16_t track_error_code; // 0 = OK, >0 = Error code from Apex-Track
+  uint8_t satellites_visible = 0;
+  uint8_t gps_fix = 0;
+  float hdop = 9.9f;
+  float lateral_g = 0.0f;
+  float longitudinal_g = 0.0f;
+  char current_track_name[32] = "South Garda (Lonato)";
+
+  float battery_voltage = 4.0f;
+  uint8_t battery_percent = 90;
+  float ambient_temp_c = 25.0f;
+  float ambient_humidity_pct = 50.0f;
+  bool track_module_connected = false;
+  int8_t link_rssi = -90;
+  uint32_t engine_total_hours_sec = 0;
+  uint32_t piston_hours_sec = 0;
+  uint32_t session_time_sec = 0;
+  bool session_active = false;
+  uint16_t track_error_code = 0;
+
+  void syncFlatFields() {
+    rpm = chassis.rpm;
+    speed_kmh = chassis.speed_kmh;
+    gear = chassis.gear;
+    water_temp_c = chassis.water_temp_c;
+    exhaust_temp_c = chassis.exhaust_temp_c;
+    lap_number = chassis.lap_number;
+    current_lap_time_ms = chassis.current_lap_time_ms;
+    last_lap_time_ms = chassis.last_lap_time_ms;
+    best_lap_time_ms = chassis.best_lap_time_ms;
+    predictive_delta_s = chassis.predictive_delta_s;
+    current_sector = chassis.current_sector;
+    total_sectors = chassis.total_sectors;
+    last_split_delta_ms = chassis.last_split_delta_ms;
+    satellites_visible = chassis.satellites_visible;
+    gps_fix = chassis.gps_fix;
+    hdop = chassis.hdop;
+    lateral_g = chassis.lateral_g;
+    longitudinal_g = chassis.longitudinal_g;
+    track_module_connected = chassis.connected;
+    link_rssi = chassis.link_rssi;
+    engine_total_hours_sec = chassis.engine_total_hours_sec;
+    piston_hours_sec = chassis.piston_hours_sec;
+    track_error_code = chassis.track_error_code;
+
+    battery_voltage = local.battery_voltage;
+    battery_percent = local.battery_percent;
+    ambient_temp_c = local.ambient_temp_c;
+    ambient_humidity_pct = local.ambient_humidity_pct;
+    session_time_sec = local.session_time_sec;
+    session_active = local.session_active;
+    strncpy(current_track_name, local.current_track_name, sizeof(current_track_name) - 1);
+  }
 };
 
 enum TrackErrorCode : uint16_t {
@@ -124,5 +235,3 @@ struct SystemSettings {
   bool warn_trigger_link = true;
   uint8_t alarm_priority[5] = {0, 1, 2, 3, 4}; // 0=Water, 1=EGT, 2=OverRev, 3=LowBat, 4=Link
 };
-
-

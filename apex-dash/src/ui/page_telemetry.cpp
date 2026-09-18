@@ -7,7 +7,11 @@ void PageTelemetry::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const
   u8g2->setFont(u8g2_font_helvB10_tr);
   u8g2->drawStr(10, 20, "TELEMETRY & SENSOR MONITOR");
   u8g2->setFont(u8g2_font_6x10_tr);
-  snprintf(buf, sizeof(buf), "LAP %02d  |  SEC %d", telemetry.lap_number, telemetry.current_sector);
+  if (telemetry.total_sectors > 1) {
+    snprintf(buf, sizeof(buf), "LAP %02d  |  SEC %d/%d", telemetry.lap_number, telemetry.current_sector, telemetry.total_sectors);
+  } else {
+    snprintf(buf, sizeof(buf), "LAP %02d", telemetry.lap_number);
+  }
   u8g2->drawStr(300, 20, buf);
   u8g2->drawHLine(10, 26, 380);
 

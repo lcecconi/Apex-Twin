@@ -26,7 +26,7 @@ void PageDataRecall::render(U8G2 *u8g2, const TelemetryProvider &provider, const
   u8g2->drawStr(20, 62, "RANK");
   u8g2->drawStr(65, 62, "LAP #");
   u8g2->drawStr(115, 62, "LAP TIME");
-  u8g2->drawStr(190, 62, "S1 / S2 / S3");
+  u8g2->drawStr(190, 62, "SECTORS");
   u8g2->drawStr(280, 62, "TOP SPD");
   u8g2->drawStr(340, 62, "MAX RPM");
   u8g2->drawHLine(16, 66, 368);
@@ -49,7 +49,17 @@ void PageDataRecall::render(U8G2 *u8g2, const TelemetryProvider &provider, const
       snprintf(buf, sizeof(buf), "%02lu.%02lus", (unsigned long)sec, (unsigned long)cen);
       u8g2->drawStr(115, y, buf);
 
-      snprintf(buf, sizeof(buf), "16.0 / 16.0 / 15.9");
+      if (lap->sector_count == 0) {
+        snprintf(buf, sizeof(buf), "-- / -- / --");
+      } else if (lap->sector_count == 1) {
+        snprintf(buf, sizeof(buf), "%.2f s", lap->sector_times_ms[0] / 1000.0f);
+      } else if (lap->sector_count == 2) {
+        snprintf(buf, sizeof(buf), "%.1f / %.1f", lap->sector_times_ms[0] / 1000.0f, lap->sector_times_ms[1] / 1000.0f);
+      } else if (lap->sector_count == 3) {
+        snprintf(buf, sizeof(buf), "%.1f/%.1f/%.1f", lap->sector_times_ms[0] / 1000.0f, lap->sector_times_ms[1] / 1000.0f, lap->sector_times_ms[2] / 1000.0f);
+      } else {
+        snprintf(buf, sizeof(buf), "%u Sectors", lap->sector_count);
+      }
       u8g2->drawStr(186, y, buf);
 
       snprintf(buf, sizeof(buf), "%.1f", lap->max_speed_kmh);
