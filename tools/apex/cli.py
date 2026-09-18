@@ -92,7 +92,19 @@ def handle_test(args):
     env["QT_QPA_PLATFORM"] = "offscreen"
     smoke_script = "from emu.main import MainWindow, QApplication; import sys; a=QApplication(sys.argv); w=MainWindow(); w._on_tick(); print('✔ Offscreen smoke test OK')"
     res2 = subprocess.run([sys.executable, "-c", smoke_script], env=env, cwd=str(REPO_ROOT))
-    return res2.returncode
+    if res2.returncode != 0:
+        return res2.returncode
+
+    native_bin = REPO_ROOT / "emu/native/build/apex_emulator_native"
+    if native_bin.exists():
+        print(f"{C_CYAN}{C_BOLD}▶ Running native SDL2 LVGL v9 emulator smoke test...{C_RESET}")
+        res3 = subprocess.run([str(native_bin), "--smoke"], cwd=str(REPO_ROOT))
+        if res3.returncode != 0:
+            print(f"{C_RED}✖ Native emulator test failed!{C_RESET}")
+            return res3.returncode
+        print(f"{C_GREEN}✔ Native SDL2 emulator smoke test passed!{C_RESET}")
+
+    return 0
 
 
 def handle_setup(args):
@@ -126,6 +138,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_emu.add_argument("-p", "--serial-port", type=str, default=None, help="Serial port for live Apex-Track link")
     p_emu.add_argument("-b", "--baud", type=int, default=115200, help="Baud rate (default 115200)")
     p_emu.add_argument("-r", "--replay", type=Path, default=None, help="Path to CSV/GPX session log to replay")
+    p_emu.add_argument("--python", action="store_true", help="Force legacy PySide6 Python emulator instead of native SDL2")
     p_emu.set_defaults(func=handle_emu)
 
     # 2. flash [dash|track]

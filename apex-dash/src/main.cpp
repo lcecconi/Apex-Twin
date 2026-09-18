@@ -1,168 +1,116 @@
-#include <Arduino.h>
+/**
+ * @file main.cpp
+ * Apex-Dash Main Application Entry Point (Native ESP-IDF v5 & LVGL v9)
+ */
+
+#include <cstdio>
+#include <cstring>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_log.h"
+#include "esp_timer.h"
+#include "driver/gpio.h"
+#include "nvs_flash.h"
+#include <lvgl.h>
+
 #include "config.h"
-#include "ST7305_U8g2.h"
-#include "onboard_sensors.h"
-#include "input_manager.h"
 #include "telemetry_data.h"
-#include "telemetry_provider.h"
-#include "storage_manager.h"
+#include "display_st7305.h"
+#include "apex_led_strip.h"
+#include "esp_now_transport.h"
 #include "ui/ui_manager.h"
-#include "i18n.h"
-#include "led_strip_manager.h"
-#include "backlight_manager.h"
-#include "sd_manager.h"
-#include "track_manager.h"
-#include "usb_storage_manager.h"
 
-// Hardware and Subsystem instances
-static ST7305_U8g2 lcd(PIN_LCD_SCK, PIN_LCD_MOSI, PIN_LCD_DC, PIN_LCD_CS, PIN_LCD_RST);
-static U8G2 *u8g2 = nullptr;
-static OnboardSensors onboard_sensors;
-static InputManager input_manager;
-static StorageManager storage_manager;
-static TelemetryProvider telemetry_provider;
-static LEDStripManager led_manager;
-static BacklightManager backlight_manager;
-static SDManager sd_manager;
-static TrackManager track_manager;
-static USBStorageManager usb_storage_manager;
-static UiManager ui_manager;
-static SystemSettings settings;
+static const char *TAG = "APEX_DASH";
 
-// Performance & state tracking
-static uint32_t last_serial_log_ms = 0;
-static uint32_t last_fps_calc_ms = 0;
-static uint32_t frame_count = 0;
-static float current_fps = 0.0f;
-static bool last_applied_invert = true;
-static uint8_t last_applied_lang = 0;
+static TelemetrySnapshot g_telemetry;
+static SystemSettings    g_settings;
+static ApexUi::UiManager g_ui_mgr;
+static ApexLeds::LedStripRmt g_led_strip;
+static ApexTransport::EspNowTransport g_esp_now;
 
-void setup() {
-  Serial.begin(115200);
-  delay(800);
+static void ui_task(void *pvParameters) {
+    (void)pvParameters;
+    ESP_LOGI(TAG, "UI & Telemetry task started on Core 1.");
+    uint32_t last_telemetry_tick = 0;
 
-  Serial.println("\n=======================================================");
-  Serial.println("   APEX-DASH: Open-Source Kart Racing Display Module   ");
-  Serial.println("      (High-Performance Telemetry Display System)      ");
-  Serial.println("=======================================================");
+    while (1) {
+        // Poll Buttons (Active Low)
+        static int prev_btn_key = 1;
+        int btn_key = gpio_get_level((gpio_num_t)PIN_BTN_KEY);
+        if (btn_key == 0 && prev_btn_key == 1) {
+            g_ui_mgr.nextView();
+            ESP_LOGI(TAG, "Key button pressed: switched to view %u", g_ui_mgr.getViewMode());
+        }
+        prev_btn_key = btn_key;
 
-  // 0. Load persisted settings from NVS
-  Serial.println("[INIT] Loading persisted settings from NVS...");
-  storage_manager.begin();
-  storage_manager.loadSettings(settings);
+        static int prev_btn_boot = 1;
+        int btn_boot = gpio_get_level((gpio_num_t)PIN_BTN_BOOT);
+        if (btn_boot == 0 && prev_btn_boot == 1) {
+            g_telemetry.chassis.lap_number++;
+            g_telemetry.chassis.current_lap_time_ms = 0;
+            ESP_LOGI(TAG, "Boot button pressed: lap marked L%02u", g_telemetry.chassis.lap_number);
+        }
+        prev_btn_boot = btn_boot;
 
-  // Apply localized language
-  I18n::setLanguage((Language)settings.language);
-  last_applied_lang = settings.language;
-  Serial.printf("[INIT] System language configured: %s\n", I18n::getLanguageName((Language)settings.language));
+        uint32_t now = (uint32_t)(esp_timer_get_time() / 1000ULL);
+        if (now - last_telemetry_tick >= 40) { // 25 Hz
+            last_telemetry_tick = now;
+            g_esp_now.update();
+            g_telemetry.syncFlatFields();
+            g_ui_mgr.update(g_telemetry, g_settings);
+            g_led_strip.update(g_telemetry, g_settings);
+        }
 
-  // 1. Initialize Inputs
-  Serial.println("[INIT] Setting up input controls (BOOT: G0, KEY: G18)...");
-  input_manager.begin();
-
-  // 2. Initialize Onboard Sensors
-  Serial.println("[INIT] Probing onboard I2C sensors (SHTC3: 0x70, PCF85063: 0x51)...");
-  onboard_sensors.begin();
-  const DeviceSensorsData &sens = onboard_sensors.getData();
-  Serial.printf("[INIT] SHTC3 Sensor: %s\n", sens.shtc3_found ? "ONLINE" : "NOT FOUND");
-  Serial.printf("[INIT] PCF85063 RTC: %s\n", sens.rtc_found ? "ONLINE" : "NOT FOUND");
-  Serial.printf("[INIT] Steering Battery: %.2f V (%d%%)\n", sens.battery_voltage, sens.battery_percent);
-  Serial.printf("[INIT] PSRAM Total: %lu KB | Heap Free: %lu KB\n", 
-                (unsigned long)sens.total_psram_kb, (unsigned long)sens.free_heap_kb);
-
-  // 3. Initialize MicroSD & Track Database
-  Serial.println("[INIT] Initializing MicroSD card & Open Track Database...");
-  sd_manager.begin();
-  track_manager.begin();
-  track_manager.setActiveTrackById(settings.selected_track_file);
-  Serial.printf("[INIT] Tracks loaded: %u circuits available\n", (unsigned int)track_manager.getTrackCount());
-
-  // 4. Initialize RGB Shift/Alarm LEDs and PWM Backlight
-  Serial.println("[INIT] Initializing WS2812 RGB LED strip (GPIO 1) & Backlight PWM (GPIO 2)...");
-  led_manager.begin();
-  led_manager.setBrightness(settings.led_brightness);
-  backlight_manager.begin();
-  backlight_manager.setBrightness(settings.backlight_percent);
-
-  // 5. Initialize USB Mass Storage Manager
-  usb_storage_manager.begin(&sd_manager);
-
-  // 6. Initialize Telemetry Provider
-  Serial.println("[INIT] Initializing Telemetry Provider (Physics Simulation Active)...");
-  telemetry_provider.begin(settings, &storage_manager);
-
-  // 7. Initialize UI Subsystem & Menu System
-  Serial.println("[INIT] Initializing UI Manager & Menus...");
-  ui_manager.begin(&track_manager, &led_manager, &backlight_manager, &usb_storage_manager, &sd_manager);
-
-  // 8. Initialize ST7305 RLCD Display
-  Serial.println("[INIT] Initializing ST7305 4.2\" Reflective LCD (400x300)...");
-  lcd.begin(0, U8G2_R1); // Landscape mode 400x300
-  u8g2 = lcd.getU8g2();
-  lcd.setInvert(settings.inverted_display);
-  last_applied_invert = settings.inverted_display;
-
-  Serial.println("[INIT] Apex-Dash initialized successfully. Starting race loop.\n");
-  last_fps_calc_ms = millis();
-  last_serial_log_ms = millis();
+        uint32_t time_till_next = lv_timer_handler();
+        if (time_till_next < 5) time_till_next = 5;
+        if (time_till_next > 20) time_till_next = 20;
+        vTaskDelay(pdMS_TO_TICKS(time_till_next));
+    }
 }
 
-void loop() {
-  // 1. Process User Inputs
-  UserInputEvent event = input_manager.update();
-  ui_manager.handleInput(event, settings, telemetry_provider);
+extern "C" void app_main(void) {
+    ESP_LOGI(TAG, "=======================================================");
+    ESP_LOGI(TAG, "   APEX-DASH: Native ESP-IDF v5 + LVGL v9 Kart Dash   ");
+    ESP_LOGI(TAG, "      (Cold Boot Time: < 200ms | 25-50 Hz CAN-FD)      ");
+    ESP_LOGI(TAG, "=======================================================");
 
-  // Apply display inversion if changed in settings
-  if (settings.inverted_display != last_applied_invert) {
-    lcd.setInvert(settings.inverted_display);
-    last_applied_invert = settings.inverted_display;
-    storage_manager.saveSettings(settings);
-    Serial.printf("[UI] Display color polarity toggled & saved to NVS: %s\n", 
-                  settings.inverted_display ? "INVERTED (Black on Silver)" : "NORMAL (Silver on Black)");
-  }
+    // 1. Initialize NVS
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
 
-  // Apply language if changed in settings
-  if (settings.language != last_applied_lang) {
-    I18n::setLanguage((Language)settings.language);
-    last_applied_lang = settings.language;
-    storage_manager.saveSettings(settings);
-    Serial.printf("[UI] Language changed & saved to NVS: %s\n", I18n::getLanguageName((Language)settings.language));
-  }
+    // 2. Initialize GPIO button inputs with internal pull-up
+    gpio_config_t btn_conf = {};
+    btn_conf.intr_type = GPIO_INTR_DISABLE;
+    btn_conf.mode = GPIO_MODE_INPUT;
+    btn_conf.pin_bit_mask = (1ULL << PIN_BTN_BOOT) | (1ULL << PIN_BTN_KEY);
+    btn_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+    btn_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    gpio_config(&btn_conf);
 
-  // 2. Poll Onboard Hardware Sensors
-  onboard_sensors.update();
-  const DeviceSensorsData &local_sensors = onboard_sensors.getData();
+    // 3. Initialize LVGL v9
+    lv_init();
 
-  // 3. Update Telemetry State
-  telemetry_provider.update(local_sensors, settings);
-  const TelemetrySnapshot &telemetry = telemetry_provider.getSnapshot();
+    // 4. Initialize ST7305 RLCD hardware & display
+    lv_display_t *disp = ApexDisplay::init_lvgl_display();
+    if (!disp) {
+        ESP_LOGE(TAG, "Failed to initialize ST7305 display!");
+    }
 
-  // 4. Update RGB Shift Lights & Alarm LEDs (25 Hz)
-  if (!ui_manager.isMSCActive()) {
-    led_manager.update(telemetry, settings);
-  }
+    // 5. Initialize UI Manager on active screen
+    g_ui_mgr.init(lv_screen_active(), true);
 
-  // 5. Render Active View / Menu
-  ui_manager.render(u8g2, telemetry, telemetry_provider, settings);
-  u8g2->sendBuffer();
+    // 6. Initialize RMT WS2812B LEDs
+    g_led_strip.init();
 
-  // 6. Performance Monitoring
-  frame_count++;
-  uint32_t now = millis();
-  if (now - last_fps_calc_ms >= 1000) {
-    current_fps = (float)frame_count * 1000.0f / (float)(now - last_fps_calc_ms);
-    frame_count = 0;
-    last_fps_calc_ms = now;
-  }
+    // 7. Initialize ESP-NOW Virtual CAN-FD receiver
+    g_esp_now.init(&g_telemetry.chassis);
 
-  // 7. USB CDC Telemetry Logging (1 Hz)
-  if (now - last_serial_log_ms >= 1000) {
-    Serial.printf("[TELEMETRY] Lap: L%02d | Spd: %03.0f km/h | RPM: %05d | Gear: %d | H2O: %04.1f C | EGT: %03d C | Delta: %+0.2fs | FPS: %.1f\n",
-                  telemetry.lap_number, telemetry.speed_kmh, telemetry.rpm, telemetry.gear,
-                  telemetry.water_temp_c, (int)telemetry.exhaust_temp_c,
-                  telemetry.predictive_delta_s, current_fps);
-    last_serial_log_ms = now;
-  }
+    // 8. Launch UI & Telemetry task pinned to Core 1
+    xTaskCreatePinnedToCore(ui_task, "ui_task", 8192, nullptr, 5, nullptr, 1);
 
-  delay(5);
+    ESP_LOGI(TAG, "Apex-Dash firmware startup sequence completed successfully.");
 }

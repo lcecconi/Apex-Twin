@@ -1,51 +1,52 @@
+/**
+ * @file ui_manager.h
+ * Master UI Coordinator for Apex-Dash (LVGL v9)
+ */
+
 #pragma once
 
-#include <Arduino.h>
-#include <U8g2lib.h>
+#include <lvgl.h>
+#include <cstdint>
 #include "telemetry_data.h"
-#include "telemetry_provider.h"
-#include "input_manager.h"
-#include "ui/menu_system.h"
+#include "ui/ui_theme.h"
 #include "ui/page_live_race.h"
+#include "ui/page_shumacher.h"
 #include "ui/page_telemetry.h"
 #include "ui/page_gps_paddock.h"
 #include "ui/page_data_recall.h"
-#include "ui/page_shumacher.h"
+
+namespace ApexUi {
 
 enum UiViewMode : uint8_t {
-  VIEW_LIVE_RACE = 0,    // Predictive Lap Time HUD
-  VIEW_SHUMACHER,        // Schumacher 3-Speedometer Benetton HUD
-  VIEW_TELEMETRY,        // Tachometer, Dual Temps, G-G Diagram
-  VIEW_GPS_PADDOCK,      // Satellite radar, Track detect, Maintenance
-  VIEW_DATA_RECALL,      // Best 3 laps, sector breakdown
-  VIEW_COUNT
+    VIEW_LIVE_RACE = 0,    // Predictive Lap Time HUD
+    VIEW_SHUMACHER,        // Schumacher 3-Speedometer Benetton HUD
+    VIEW_TELEMETRY,        // Tachometer, Dual Temps, G-G Diagram
+    VIEW_GPS_PADDOCK,      // Satellite radar, Track detect, Maintenance
+    VIEW_DATA_RECALL,      // Best 3 laps, dynamic sector breakdown
+    VIEW_COUNT
 };
-
-class TrackManager;
-class LEDStripManager;
-class BacklightManager;
-class USBStorageManager;
-class SDManager;
 
 class UiManager {
 public:
-  void begin(TrackManager *trackMgr, LEDStripManager *ledMgr, BacklightManager *blMgr, USBStorageManager *usbMgr, SDManager *sdMgr);
-  void handleInput(UserInputEvent event, SystemSettings &settings, TelemetryProvider &provider);
-  void render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const TelemetryProvider &provider, const SystemSettings &settings);
+    void init(lv_obj_t *root_screen = nullptr, bool inverted = true);
+    void update(const TelemetrySnapshot &telemetry, const SystemSettings &settings, const LapRecord *laps = nullptr, uint16_t lap_count = 0);
 
-  UiViewMode getViewMode() const { return _current_view; }
-  void setViewMode(UiViewMode mode) { _current_view = mode; }
-  bool isMSCActive() const { return _menu.isMSCActive(); }
+    void setViewMode(UiViewMode mode);
+    void nextView();
+    void prevView();
+    UiViewMode getViewMode() const { return _current_view; }
 
 private:
-  UiViewMode _current_view = VIEW_LIVE_RACE;
-  MenuSystem _menu;
+    UiViewMode _current_view = VIEW_LIVE_RACE;
 
-  PageLiveRace   _page_live_race;
-  PageTelemetry  _page_telemetry;
-  PageGpsPaddock _page_gps_paddock;
-  PageDataRecall _page_data_recall;
-  PageShumacher  _page_shumacher;
+    PageLiveRace   _page_live_race;
+    PageShumacher  _page_shumacher;
+    PageTelemetry  _page_telemetry;
+    PageGpsPaddock _page_gps_paddock;
+    PageDataRecall _page_data_recall;
 
-  void renderFooter(U8G2 *u8g2, const TelemetrySnapshot &telemetry);
+    // Global Top Status Indicator (Battery & RF link)
+    lv_obj_t *_lbl_status_bar = nullptr;
 };
+
+} // namespace ApexUi

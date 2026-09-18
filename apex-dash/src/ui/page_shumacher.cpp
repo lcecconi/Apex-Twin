@@ -1,328 +1,253 @@
+/**
+ * @file page_shumacher.cpp
+ * Schumacher 3-Dial Speedometer HUD implementation (LVGL v9)
+ */
+
 #include "ui/page_shumacher.h"
-#include "ui/icons_xbm.h"
-#include "i18n.h"
-#include <math.h>
+#include "ui/ui_theme.h"
+#include <cstdio>
+#include <cmath>
 
-void PageShumacher::updateSpeedTracking(float speed, float lon_g, float lat_g, uint32_t now) {
-  _current_speed = speed;
+namespace ApexUi {
 
-  // Detect braking or heavy cornering (going for brakes / entering corner)
-  bool is_braking = (lon_g < -0.25f);
-  bool is_cornering = (fabsf(lat_g) > 0.60f);
+void PageShumacher::create(lv_obj_t *parent) {
+    _container = lv_obj_create(parent);
+    lv_obj_remove_style_all(_container);
+    lv_obj_add_style(_container, &UiTheme::style_screen, 0);
+    lv_obj_set_size(_container, 400, 240);
+    lv_obj_set_pos(_container, 0, 0);
+    lv_obj_clear_flag(_container, LV_OBJ_FLAG_SCROLLABLE);
 
-  if (is_braking || is_cornering) {
-    if (!_braking_or_cornering) {
-      // Driver just went for the brakes:
-      // 1. Lock the maximum speed achieved on the previous straight
-      if (_current_straight_max > 20.0f) {
+    // ==========================================
+    // 1. TOP TACHO
+    // ==========================================
+    _bar_rpm = lv_bar_create(_container);
+    lv_obj_set_pos(_bar_rpm, 10, 8);
+    lv_obj_set_size(_bar_rpm, 275, 18);
+    lv_obj_set_style_bg_color(_bar_rpm, UiTheme::bg(), 0);
+    lv_obj_set_style_border_color(_bar_rpm, UiTheme::fg(), 0);
+    lv_obj_set_style_border_width(_bar_rpm, 1, 0);
+    lv_obj_set_style_radius(_bar_rpm, 2, 0);
+    lv_obj_set_style_bg_color(_bar_rpm, UiTheme::fg(), LV_PART_INDICATOR);
+    lv_obj_set_style_radius(_bar_rpm, 1, LV_PART_INDICATOR);
+    lv_bar_set_range(_bar_rpm, 0, 16000);
+
+    _lbl_rpm = lv_label_create(_container);
+    lv_obj_add_style(_lbl_rpm, &UiTheme::style_text_bold, 0);
+    lv_obj_set_pos(_lbl_rpm, 292, 8);
+    lv_label_set_text(_lbl_rpm, "0 RPM");
+
+    // ==========================================
+    // 2. 3 SPEEDOMETER DIALS
+    // ==========================================
+    // Dial 1: V-MIN (APX)
+    _card_vmin = lv_obj_create(_container);
+    lv_obj_remove_style_all(_card_vmin);
+    lv_obj_add_style(_card_vmin, &UiTheme::style_card, 0);
+    lv_obj_set_pos(_card_vmin, 10, 32);
+    lv_obj_set_size(_card_vmin, 122, 120);
+    lv_obj_clear_flag(_card_vmin, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *title1 = lv_label_create(_card_vmin);
+    lv_obj_add_style(title1, &UiTheme::style_text_small, 0);
+    lv_obj_set_pos(title1, 4, 4);
+    lv_label_set_text(title1, "V-MIN (APX)");
+
+    _lbl_vmin = lv_label_create(_card_vmin);
+    lv_obj_add_style(_lbl_vmin, &UiTheme::style_text_huge, 0);
+    lv_obj_align(_lbl_vmin, LV_ALIGN_CENTER, 0, 8);
+    lv_label_set_text(_lbl_vmin, "--");
+
+    // Dial 2: LIVE SPEED
+    _card_vlive = lv_obj_create(_container);
+    lv_obj_remove_style_all(_card_vlive);
+    lv_obj_add_style(_card_vlive, &UiTheme::style_card, 0);
+    lv_obj_set_pos(_card_vlive, 138, 32);
+    lv_obj_set_size(_card_vlive, 124, 120);
+    lv_obj_clear_flag(_card_vlive, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *title2 = lv_label_create(_card_vlive);
+    lv_obj_add_style(title2, &UiTheme::style_text_small, 0);
+    lv_obj_set_pos(title2, 4, 4);
+    lv_label_set_text(title2, "LIVE SPEED");
+
+    _lbl_vlive = lv_label_create(_card_vlive);
+    lv_obj_add_style(_lbl_vlive, &UiTheme::style_text_huge, 0);
+    lv_obj_align(_lbl_vlive, LV_ALIGN_CENTER, 0, 8);
+    lv_label_set_text(_lbl_vlive, "0");
+
+    // Dial 3: V-MAX (STR)
+    _card_vmax = lv_obj_create(_container);
+    lv_obj_remove_style_all(_card_vmax);
+    lv_obj_add_style(_card_vmax, &UiTheme::style_card, 0);
+    lv_obj_set_pos(_card_vmax, 268, 32);
+    lv_obj_set_size(_card_vmax, 122, 120);
+    lv_obj_clear_flag(_card_vmax, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *title3 = lv_label_create(_card_vmax);
+    lv_obj_add_style(title3, &UiTheme::style_text_small, 0);
+    lv_obj_set_pos(title3, 4, 4);
+    lv_label_set_text(title3, "V-MAX (STR)");
+
+    _lbl_vmax = lv_label_create(_card_vmax);
+    lv_obj_add_style(_lbl_vmax, &UiTheme::style_text_huge, 0);
+    lv_obj_align(_lbl_vmax, LV_ALIGN_CENTER, 0, 8);
+    lv_label_set_text(_lbl_vmax, "--");
+
+    // ==========================================
+    // 3. BOTTOM-LEFT: LAP & DELTA
+    // ==========================================
+    _card_lap = lv_obj_create(_container);
+    lv_obj_remove_style_all(_card_lap);
+    lv_obj_add_style(_card_lap, &UiTheme::style_card, 0);
+    lv_obj_set_pos(_card_lap, 10, 158);
+    lv_obj_set_size(_card_lap, 185, 36);
+    lv_obj_clear_flag(_card_lap, LV_OBJ_FLAG_SCROLLABLE);
+
+    _lbl_lap_title = lv_label_create(_card_lap);
+    lv_obj_add_style(_lbl_lap_title, &UiTheme::style_text_small, 0);
+    lv_obj_set_pos(_lbl_lap_title, 4, 2);
+    lv_label_set_text(_lbl_lap_title, "LAP 01");
+
+    _lbl_lap_time = lv_label_create(_card_lap);
+    lv_obj_add_style(_lbl_lap_time, &UiTheme::style_text_bold, 0);
+    lv_obj_set_pos(_lbl_lap_time, 90, 8);
+    lv_label_set_text(_lbl_lap_time, "00:00.00");
+
+    _card_delta = lv_obj_create(_container);
+    lv_obj_remove_style_all(_card_delta);
+    lv_obj_add_style(_card_delta, &UiTheme::style_card, 0);
+    lv_obj_set_pos(_card_delta, 10, 198);
+    lv_obj_set_size(_card_delta, 185, 36);
+    lv_obj_clear_flag(_card_delta, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *title_delta = lv_label_create(_card_delta);
+    lv_obj_add_style(title_delta, &UiTheme::style_text_small, 0);
+    lv_obj_set_pos(title_delta, 4, 2);
+    lv_label_set_text(title_delta, "BEST DELTA");
+
+    _lbl_delta = lv_label_create(_card_delta);
+    lv_obj_add_style(_lbl_delta, &UiTheme::style_text_bold, 0);
+    lv_obj_set_pos(_lbl_delta, 100, 8);
+    lv_label_set_text(_lbl_delta, "+ 0.00");
+
+    // ==========================================
+    // 4. BOTTOM-RIGHT: SUMMARY
+    // ==========================================
+    _card_summary = lv_obj_create(_container);
+    lv_obj_remove_style_all(_card_summary);
+    lv_obj_add_style(_card_summary, &UiTheme::style_card, 0);
+    lv_obj_set_pos(_card_summary, 202, 158);
+    lv_obj_set_size(_card_summary, 188, 76);
+    lv_obj_clear_flag(_card_summary, LV_OBJ_FLAG_SCROLLABLE);
+
+    _lbl_summary_best = lv_label_create(_card_summary);
+    lv_obj_add_style(_lbl_summary_best, &UiTheme::style_text_small, 0);
+    lv_obj_set_pos(_lbl_summary_best, 6, 6);
+    lv_label_set_text(_lbl_summary_best, "BEST LAP: --.-- s");
+
+    _lbl_summary_temp = lv_label_create(_card_summary);
+    lv_obj_add_style(_lbl_summary_temp, &UiTheme::style_text_small, 0);
+    lv_obj_set_pos(_lbl_summary_temp, 6, 26);
+    lv_label_set_text(_lbl_summary_temp, "WATER: --.- C  |  EGT: --- C");
+
+    _lbl_summary_rpm = lv_label_create(_card_summary);
+    lv_obj_add_style(_lbl_summary_rpm, &UiTheme::style_text_small, 0);
+    lv_obj_set_pos(_lbl_summary_rpm, 6, 46);
+    lv_label_set_text(_lbl_summary_rpm, "PEAK RPM: 15,850");
+}
+
+void PageShumacher::update(const TelemetrySnapshot &t, const SystemSettings &s) {
+    if (!_container) return;
+
+    // Tacho
+    lv_bar_set_range(_bar_rpm, 0, s.max_rpm);
+    lv_bar_set_value(_bar_rpm, t.rpm, LV_ANIM_OFF);
+    lv_label_set_text_fmt(_lbl_rpm, "%u RPM", t.rpm);
+
+    // Speed Tracking logic
+    float spd = t.speed_kmh;
+    float lat = std::fabs(t.lateral_g);
+    float lon = t.longitudinal_g;
+
+    if (lat > 0.65f || lon < -0.30f) {
+        _in_corner = true;
+        if (spd < _current_corner_min) {
+            _current_corner_min = spd;
+        }
+    } else if (_in_corner && lon > 0.15f) {
+        _in_corner = false;
+        if (_current_corner_min > 5.0f && _current_corner_min < 900.0f) {
+            _held_vmin = _current_corner_min;
+        }
+        _current_corner_min = 999.0f;
+    }
+
+    if (lon > 0.20f && lat < 0.35f && spd > _current_straight_max) {
+        _current_straight_max = spd;
+    } else if (lon < -0.40f && _current_straight_max > 20.0f) {
         _held_vmax = _current_straight_max;
-      }
-      // 2. Reset corner minimum tracking for the new corner
-      _current_corner_min = speed;
-      _braking_or_cornering = true;
-      _flat_throttle_start_ms = 0;
-      _straight_tracking_active = false;
+        _current_straight_max = 0.0f;
     }
 
-    if (speed < _current_corner_min) {
-      _current_corner_min = speed;
-    }
-  } else if (lon_g > 0.10f || (speed > _current_corner_min + 3.0f && fabsf(lat_g) < 0.35f)) {
-    // Driver is accelerating out of the corner / on the straight:
-    if (_braking_or_cornering) {
-      // Corner completed: lock the apex minimum speed (held until next braking)
-      if (_current_corner_min > 5.0f && _current_corner_min < 900.0f) {
-        _held_vmin = _current_corner_min;
-      }
-      _braking_or_cornering = false;
-      _flat_throttle_start_ms = now;
-      _straight_tracking_active = false;
-    }
-
-    // On straight: keep holding previous straight max until flat on throttle for ~1.8s
-    if (!_straight_tracking_active) {
-      if (_flat_throttle_start_ms > 0 && (now - _flat_throttle_start_ms >= 1800)) {
-        _straight_tracking_active = true;
-        _current_straight_max = speed;
-      }
+    // 3 Speeds
+    if (_held_vmin > 0.0f) {
+        lv_label_set_text_fmt(_lbl_vmin, "%.0f", _held_vmin);
     } else {
-      if (speed > _current_straight_max) {
-        _current_straight_max = speed;
-      }
+        lv_label_set_text(_lbl_vmin, "--");
     }
-  } else {
-    // Neutral coasting or steady state
-    if (_braking_or_cornering && speed < _current_corner_min) {
-      _current_corner_min = speed;
+
+    lv_label_set_text_fmt(_lbl_vlive, "%.0f", spd);
+
+    if (_held_vmax > 0.0f) {
+        lv_label_set_text_fmt(_lbl_vmax, "%.0f", _held_vmax);
+    } else {
+        lv_label_set_text(_lbl_vmax, "--");
     }
-    if (_straight_tracking_active && speed > _current_straight_max) {
-      _current_straight_max = speed;
+
+    // Lap & Delta
+    if (t.total_sectors > 1) {
+        lv_label_set_text_fmt(_lbl_lap_title, "LAP %02u [%u/%u]", t.lap_number, t.current_sector, t.total_sectors);
+    } else {
+        lv_label_set_text_fmt(_lbl_lap_title, "LAP %02u", t.lap_number);
     }
-  }
+
+    uint32_t active_ms = t.current_lap_time_ms;
+    unsigned long lap_min = (unsigned long)(active_ms / 60000);
+    unsigned long lap_sec = (unsigned long)((active_ms % 60000) / 1000);
+    unsigned long lap_cen = (unsigned long)((active_ms % 1000) / 10);
+    lv_label_set_text_fmt(_lbl_lap_time, "%02lu:%02lu.%02lu", lap_min, lap_sec, lap_cen);
+
+    float delta = t.predictive_delta_s;
+    if (t.best_lap_time_ms > 0 || std::fabs(delta) > 0.001f) {
+        if (delta >= 0.0f) {
+            lv_label_set_text_fmt(_lbl_delta, "+ %.2f", delta);
+        } else {
+            lv_label_set_text_fmt(_lbl_delta, "- %.2f", -delta);
+        }
+    } else {
+        lv_label_set_text(_lbl_delta, "+ 0.00");
+    }
+
+    // Summary
+    if (t.best_lap_time_ms > 0) {
+        unsigned long b_sec = (unsigned long)((t.best_lap_time_ms % 60000) / 1000);
+        unsigned long b_cen = (unsigned long)((t.best_lap_time_ms % 1000) / 10);
+        lv_label_set_text_fmt(_lbl_summary_best, "BEST LAP: %02lu.%02lu s", b_sec, b_cen);
+    } else {
+        lv_label_set_text(_lbl_summary_best, "BEST LAP: --.-- s");
+    }
+
+    lv_label_set_text_fmt(_lbl_summary_temp, "WATER: %.1f C  |  EGT: %.0f C", t.water_temp_c, t.exhaust_temp_c);
 }
 
-void PageShumacher::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const SystemSettings &settings) {
-  char buf[48];
-  uint32_t now = millis();
-
-  // Update dynamic min/max corner speed tracking
-  updateSpeedTracking(telemetry.speed_kmh, telemetry.longitudinal_g, telemetry.lateral_g, now);
-
-  // Determine displayed speed values
-  float disp_vmin_val = _braking_or_cornering ? _current_corner_min : _held_vmin;
-  float disp_vmax_val = _straight_tracking_active ? _current_straight_max : _held_vmax;
-
-  // Unit conversion
-  float unit_mult = settings.use_kmh ? 1.0f : 0.621371f;
-  float disp_live = telemetry.speed_kmh * unit_mult;
-  float disp_vmin = disp_vmin_val * unit_mult;
-  float disp_vmax = disp_vmax_val * unit_mult;
-
-  // ==========================================
-  // 1. TOP TACHOMETER (RPM BAR GRAPH)
-  // ==========================================
-  if (settings.rpm_display_mode != RPM_DISP_LEDS_ONLY) {
-    u8g2->drawRFrame(6, 4, 388, 26, 3);
-
-    int shift_x = 6 + (int)((uint32_t)settings.shift_rpm * 384 / settings.max_rpm);
-    if (shift_x < 392) {
-      u8g2->drawVLine(shift_x, 2, 30);
-      u8g2->drawVLine(shift_x + 1, 2, 30);
-    }
-
-    int rpm_fill = (int)((uint32_t)telemetry.rpm * 384 / settings.max_rpm);
-    if (rpm_fill > 384) rpm_fill = 384;
-    if (rpm_fill > 0) {
-      u8g2->drawBox(8, 6, rpm_fill, 22);
-    }
-  }
-
-  // ==========================================
-  // 2. THE THREE SPEEDOMETER DIALS (y = 38, h = 118)
-  // ==========================================
-
-  // --- Left Dial: Held Minimum Corner Speed ---
-  u8g2->drawRFrame(10, 38, 120, 118, 6);
-  u8g2->drawBox(10, 38, 120, 18);
-  u8g2->setDrawColor(0);
-  u8g2->setFont(u8g2_font_helvB08_tr);
-  int tw_vmin = u8g2->getStrWidth("V-MIN (APEX)");
-  u8g2->drawStr(10 + (120 - tw_vmin) / 2, 51, "V-MIN (APEX)");
-  u8g2->setDrawColor(1);
-
-  u8g2->setFont(u8g2_font_logisoso42_tn);
-  snprintf(buf, sizeof(buf), "%d", (int)roundf(disp_vmin));
-  int w_vmin = u8g2->getStrWidth(buf);
-  u8g2->drawStr(10 + (120 - w_vmin) / 2, 126, buf);
-
-  // --- Center Dial: Live Real-time Speed ---
-  u8g2->drawRFrame(138, 38, 124, 118, 6);
-  u8g2->drawBox(138, 38, 124, 18);
-  u8g2->setDrawColor(0);
-  u8g2->setFont(u8g2_font_helvB08_tr);
-  int tw_live = u8g2->getStrWidth("LIVE SPEED");
-  u8g2->drawStr(138 + (124 - tw_live) / 2, 51, "LIVE SPEED");
-  u8g2->setDrawColor(1);
-
-  u8g2->setFont(u8g2_font_logisoso42_tn);
-  snprintf(buf, sizeof(buf), "%d", (int)roundf(disp_live));
-  int w_live = u8g2->getStrWidth(buf);
-  u8g2->drawStr(138 + (124 - w_live) / 2, 126, buf);
-
-  // --- Right Dial: Held Maximum Straight Speed ---
-  u8g2->drawRFrame(270, 38, 120, 118, 6);
-  u8g2->drawBox(270, 38, 120, 18);
-  u8g2->setDrawColor(0);
-  u8g2->setFont(u8g2_font_helvB08_tr);
-  int tw_vmax = u8g2->getStrWidth("V-MAX (STR)");
-  u8g2->drawStr(270 + (120 - tw_vmax) / 2, 51, "V-MAX (STR)");
-  u8g2->setDrawColor(1);
-
-  u8g2->setFont(u8g2_font_logisoso42_tn);
-  snprintf(buf, sizeof(buf), "%d", (int)roundf(disp_vmax));
-  int w_vmax = u8g2->getStrWidth(buf);
-  u8g2->drawStr(270 + (120 - w_vmax) / 2, 126, buf);
-
-  // ==========================================
-  // 3. BOTTOM-LEFT: LAP TIME & BEST LAP DELTA
-  // ==========================================
-
-  // --- Sub-panel A: Current Lap Time (y = 162, h = 52) ---
-  u8g2->drawRFrame(10, 162, 185, 52, 4);
-  u8g2->setFont(u8g2_font_helvB10_tr);
-  if (telemetry.total_sectors > 1) {
-    snprintf(buf, sizeof(buf), "%s %02u  [%s %d/%d]", 
-             I18n::get(STR_LABEL_LAP), telemetry.lap_number, 
-             I18n::get(STR_LABEL_SECTOR), telemetry.current_sector, telemetry.total_sectors);
-  } else {
-    snprintf(buf, sizeof(buf), "%s %02u", 
-             I18n::get(STR_LABEL_LAP), telemetry.lap_number);
-  }
-  u8g2->drawStr(18, 178, buf);
-
-  uint32_t active_lap_time = telemetry.current_lap_time_ms;
-  uint32_t lap_min = (active_lap_time / 60000);
-  uint32_t lap_sec = (active_lap_time % 60000) / 1000;
-  uint32_t lap_cen = (active_lap_time % 1000) / 10;
-  u8g2->setFont(u8g2_font_helvB14_tr);
-  snprintf(buf, sizeof(buf), "%02lu:%02lu.%02lu", (unsigned long)lap_min, (unsigned long)lap_sec, (unsigned long)lap_cen);
-  int tw = u8g2->getStrWidth(buf);
-  u8g2->drawStr(10 + (185 - tw) / 2, 202, buf);
-
-  // --- Sub-panel B: Predictive Best Lap Delta (y = 220, h = 52) ---
-  float delta_val = telemetry.predictive_delta_s;
-  if ((telemetry.current_sector != _prev_sector && _prev_sector != 0) ||
-      (telemetry.lap_number != _prev_lap && _prev_lap != 0) ||
-      (telemetry.best_lap_time_ms != _prev_best_lap && _prev_best_lap != 0) ||
-      (fabsf(delta_val - _prev_delta_val) > 0.001f && _prev_delta_val < 900.0f)) {
-    _delta_flash_start_ms = millis();
-  }
-  _prev_sector = telemetry.current_sector;
-  _prev_lap = telemetry.lap_number;
-  _prev_best_lap = telemetry.best_lap_time_ms;
-  _prev_delta_val = delta_val;
-
-  char delta_buf[32];
-  if (telemetry.best_lap_time_ms > 0 || fabsf(delta_val) > 0.001f) {
-    if (delta_val >= 0.0f) {
-      snprintf(delta_buf, sizeof(delta_buf), "+ %.2f", delta_val);
+void PageShumacher::setVisible(bool visible) {
+    if (!_container) return;
+    if (visible) {
+        lv_obj_clear_flag(_container, LV_OBJ_FLAG_HIDDEN);
     } else {
-      snprintf(delta_buf, sizeof(delta_buf), "- %.2f", -delta_val);
+        lv_obj_add_flag(_container, LV_OBJ_FLAG_HIDDEN);
     }
-  } else {
-    snprintf(delta_buf, sizeof(delta_buf), "+ 0.00");
-  }
-
-  u8g2->setFont(u8g2_font_helvB24_tr);
-  int d_w = u8g2->getStrWidth(delta_buf);
-
-  uint32_t flash_elapsed = millis() - _delta_flash_start_ms;
-  bool is_flashing = (flash_elapsed < 1500 && _delta_flash_start_ms > 0);
-  bool is_inverted = is_flashing && (((flash_elapsed / 250) % 2) == 0);
-
-  if (is_inverted) {
-    u8g2->drawRBox(10, 220, 185, 52, 4);
-    u8g2->setDrawColor(0);
-    u8g2->drawStr(10 + (185 - d_w) / 2, 256, delta_buf);
-    u8g2->setDrawColor(1);
-  } else {
-    u8g2->drawRFrame(10, 220, 185, 52, 4);
-    u8g2->drawStr(10 + (185 - d_w) / 2, 256, delta_buf);
-  }
-
-  // ==========================================
-  // 4. BOTTOM-RIGHT: UNIFIED ALARM PANEL (185 x 110 px)
-  // ==========================================
-  bool alm_active[5];
-  alm_active[ALARM_WATER] = (telemetry.water_temp_c >= settings.water_temp_alarm_c && settings.water_temp_alarm_c > 0);
-  alm_active[ALARM_EGT]   = (telemetry.exhaust_temp_c >= settings.exhaust_temp_alarm_c && settings.exhaust_temp_alarm_c > 0);
-  alm_active[ALARM_REV]   = (telemetry.rpm >= settings.over_rev_rpm && settings.over_rev_rpm > 0);
-  alm_active[ALARM_BAT]   = (telemetry.battery_voltage < settings.low_bat_alarm_v && telemetry.battery_voltage > 1.0f);
-  alm_active[ALARM_LINK]  = (!telemetry.track_module_connected);
-
-  bool alm_warn[5];
-  alm_warn[ALARM_WATER] = alm_active[ALARM_WATER] && settings.warn_trigger_water;
-  alm_warn[ALARM_EGT]   = alm_active[ALARM_EGT]   && settings.warn_trigger_egt;
-  alm_warn[ALARM_REV]   = alm_active[ALARM_REV]   && settings.warn_trigger_rev;
-  alm_warn[ALARM_BAT]   = alm_active[ALARM_BAT]   && settings.warn_trigger_battery;
-  alm_warn[ALARM_LINK]  = alm_active[ALARM_LINK]  && settings.warn_trigger_link;
-
-  int8_t top_alarm_id = -1;
-  for (int i = 0; i < 5; i++) {
-    uint8_t aid = settings.alarm_priority[i];
-    if (aid < 5 && alm_warn[aid]) {
-      top_alarm_id = aid;
-      break;
-    }
-  }
-
-  if (top_alarm_id >= 0) {
-    bool flash_phase = ((millis() / 350) % 2) == 0;
-    u8g2->drawRBox(205, 162, 185, 110, 6);
-    u8g2->setDrawColor(0);
-
-    if (flash_phase) {
-      // Phase A: Warning triangle icon + "WARN"
-      u8g2->drawXBMP(205 + (185 - 24) / 2, 180, 24, 24, icon_warn_24x24);
-      u8g2->setFont(u8g2_font_helvB24_tr);
-      int w_warn = u8g2->getStrWidth("WARN");
-      u8g2->drawStr(205 + (185 - w_warn) / 2, 248, "WARN");
-    } else {
-      // Phase B: Triggering alarm icon + short text
-      static const uint8_t* const alarm_icons[5] = {
-        icon_water_16x16,
-        icon_egt_16x16,
-        icon_rev_16x16,
-        icon_bat_16x16,
-        icon_link_16x16
-      };
-      static const char* const alarm_labels[5] = {
-        "H2O HIGH",
-        "EGT HIGH",
-        "OVER-REV",
-        "LOW BATT",
-        "NO LINK"
-      };
-
-      u8g2->drawXBMP(205 + (185 - 16) / 2, 184, 16, 16, alarm_icons[top_alarm_id]);
-      u8g2->setFont(u8g2_font_helvB18_tr);
-      int w_lbl = u8g2->getStrWidth(alarm_labels[top_alarm_id]);
-      u8g2->drawStr(205 + (185 - w_lbl) / 2, 246, alarm_labels[top_alarm_id]);
-    }
-    u8g2->setDrawColor(1);
-  } else {
-    // Normal System Status
-    u8g2->drawRFrame(205, 162, 185, 110, 6);
-    u8g2->setFont(u8g2_font_helvB14_tr);
-    int ok_w = u8g2->getStrWidth("SYSTEM OK");
-    u8g2->drawStr(205 + (185 - ok_w) / 2, 222, "SYSTEM OK");
-  }
-
-  // ==========================================
-  // 5. BOTTOM LINE: SENSOR ICONS & RUNTIMES (y = 276..300)
-  // ==========================================
-  u8g2->drawHLine(0, 276, 400);
-
-  float w_temp = settings.use_celsius ? telemetry.water_temp_c : (telemetry.water_temp_c * 1.8f + 32.0f);
-  float e_temp = settings.use_celsius ? telemetry.exhaust_temp_c : (telemetry.exhaust_temp_c * 1.8f + 32.0f);
-
-  // Water Temp
-  u8g2->drawXBMP(6, 280, 16, 16, icon_water_16x16);
-  u8g2->setFont(u8g2_font_helvB10_tr);
-  snprintf(buf, sizeof(buf), "%d", (int)roundf(w_temp));
-  u8g2->drawStr(24, 293, buf);
-
-  // EGT Temp
-  u8g2->drawXBMP(84, 280, 16, 16, icon_egt_16x16);
-  snprintf(buf, sizeof(buf), "%d", (int)roundf(e_temp));
-  u8g2->drawStr(102, 293, buf);
-
-  // Total Engine Hours
-  uint32_t eng_hrs = telemetry.engine_total_hours_sec / 3600;
-  uint32_t eng_min = (telemetry.engine_total_hours_sec % 3600) / 60;
-  u8g2->drawXBMP(156, 280, 16, 16, icon_engine_16x16);
-  snprintf(buf, sizeof(buf), "%02luh%02lu", (unsigned long)eng_hrs, (unsigned long)eng_min);
-  u8g2->drawStr(174, 293, buf);
-
-  // Current Session Time
-  uint32_t sess_hrs = telemetry.session_time_sec / 3600;
-  uint32_t sess_min = (telemetry.session_time_sec % 3600) / 60;
-  u8g2->drawXBMP(232, 280, 16, 16, icon_stopwatch_16x16);
-  snprintf(buf, sizeof(buf), "%02luh%02lu", (unsigned long)sess_hrs, (unsigned long)sess_min);
-  u8g2->drawStr(250, 293, buf);
-
-  // Battery & Link Status (Blinks if low/disconnected)
-  bool blink_1hz = ((millis() / 500) % 2) == 0;
-  bool show_bat = (telemetry.battery_percent >= 10) || blink_1hz;
-  bool show_link = telemetry.track_module_connected || blink_1hz;
-
-  if (show_bat) {
-    u8g2->drawXBMP(308, 280, 16, 16, icon_bat_16x16);
-    snprintf(buf, sizeof(buf), "%d%%", telemetry.battery_percent);
-    u8g2->drawStr(326, 293, buf);
-  }
-  u8g2->drawStr(354, 293, "|");
-  if (show_link) {
-    u8g2->drawStr(360, 293, telemetry.track_module_connected ? "LINK" : "ERR");
-  }
 }
+
+} // namespace ApexUi

@@ -11,6 +11,8 @@
 **/.pio/
 **/.pioenvs/
 **/.piolibdeps/
+**/managed_components/
+emu/native/build/
 *.elf
 *.bin
 *.hex
