@@ -386,6 +386,52 @@ class RlcdRenderer(QWidget):
 
         painter.restore()
 
+    def render_to_pixmap(self, width: int = 800, height: int = 600):
+        """Render the 400x300 RLCD dot-matrix display to a high-res QPixmap without letterboxing"""
+        from PySide6.QtGui import QPixmap
+        pix = QPixmap(width, height)
+        p = QPainter(pix)
+        p.setRenderHint(QPainter.Antialiasing, False)
+
+        scale = min(width / 400.0, height / 300.0)
+        target_w = 400.0 * scale
+        target_h = 300.0 * scale
+        offset_x = (width - target_w) / 2.0
+        offset_y = (height - target_h) / 2.0
+
+        if self.settings.inverted_display:
+            bg_color = QColor(228, 232, 230)
+            fg_color = QColor(15, 18, 20)
+        else:
+            bg_color = QColor(20, 22, 25)
+            fg_color = QColor(210, 215, 212)
+
+        pix.fill(bg_color)
+        p.save()
+        p.translate(offset_x, offset_y)
+        p.scale(scale, scale)
+        p.setPen(QPen(fg_color, 1))
+
+        if self.menu_active:
+            self._render_menu(p, bg_color, fg_color)
+        else:
+            if self.current_view == UiViewMode.VIEW_LIVE_RACE:
+                self._render_live_race(p, bg_color, fg_color)
+            elif self.current_view == UiViewMode.VIEW_TELEMETRY:
+                self._render_telemetry(p, bg_color, fg_color)
+            elif self.current_view == UiViewMode.VIEW_GPS_PADDOCK:
+                self._render_paddock(p, bg_color, fg_color)
+            elif self.current_view == UiViewMode.VIEW_DATA_RECALL:
+                self._render_data_recall(p, bg_color, fg_color)
+            elif self.current_view == UiViewMode.VIEW_SHUMACHER:
+                self._render_shumacher(p, bg_color, fg_color)
+
+            self._render_footer(p, bg_color, fg_color)
+
+        p.restore()
+        p.end()
+        return pix
+
     # --- View Renderers ---
     def _render_live_race(self, p: QPainter, bg: QColor, fg: QColor):
         t = self.telemetry
@@ -780,6 +826,7 @@ class RlcdRenderer(QWidget):
 
     def _render_paddock(self, p: QPainter, bg: QColor, fg: QColor):
         t = self.telemetry
+        s = self.settings
         p.setFont(QFont("SansSerif", 9, QFont.Bold))
         p.drawText(10, 20, "PADDOCK & PRE-RACE STATUS")
         p.drawText(290, 20, "[STANDBY MODE]")

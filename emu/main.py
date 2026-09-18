@@ -266,6 +266,17 @@ class MainWindow(QMainWindow):
         act_reset.triggered.connect(self._reset_sim)
         self.addAction(act_reset)
 
+        # Screenshot Shortcuts (F12, Ctrl+S)
+        act_shot = QAction(self)
+        act_shot.setShortcut(QKeySequence("F12"))
+        act_shot.triggered.connect(self._on_screenshot_triggered)
+        self.addAction(act_shot)
+
+        act_shot2 = QAction(self)
+        act_shot2.setShortcut(QKeySequence("Ctrl+S"))
+        act_shot2.triggered.connect(self._on_screenshot_triggered)
+        self.addAction(act_shot2)
+
         # Direct View Selectors (1, 2, 3, 4, 5)
         for i in range(5):
             act = QAction(self)
@@ -278,6 +289,11 @@ class MainWindow(QMainWindow):
         act_gate.setShortcut(QKeySequence("Tab"))
         act_gate.triggered.connect(lambda: self._on_gate_triggered("sf"))
         self.addAction(act_gate)
+
+    def _on_screenshot_triggered(self):
+        """Take and save a screenshot of the dashboard"""
+        path = self.bezel.save_screenshot()
+        self.statusBar.showMessage(f"📸 Screenshot saved to {path}", 4000)
 
     def _hot_reload(self):
         """Hot reload UI modules and repaint without restarting the process"""
@@ -351,19 +367,96 @@ class MainWindow(QMainWindow):
         )
 
 
+def export_all_screenshots(output_dir: Path):
+    """
+    Renders and exports clean high-resolution PNGs for each dashboard HUD view
+    and bezel enclosure mockups.
+    """
+    import os
+    from emu.ui.rlcd_renderer import UiViewMode
+    
+    output_dir.mkdir(parents=True, exist_ok=True)
+    app = QApplication.instance() or QApplication(sys.argv)
+    
+    window = MainWindow()
+    window.resize(860, 680)
+    window.show()
+    
+    # Step physics sim a few times to get realistic telemetry state
+    for _ in range(80):
+        window.sim.step(window.settings)
+    window.sim.lap_number = 3
+    window.sim.current_lap_time_ms = 48420
+    window.sim.current_sector = 2
+    window.sim.speed_kmh = 104.5
+    window.sim.rpm = 12450
+    window.sim.gear = 5
+    window.sim.predictive_delta_s = -0.34
+    window.sim.water_temp_c = 54.0
+    window.sim.exhaust_temp_c = 582.0
+    window._on_tick()
+    
+    # 1. Bezel Mockup (Flagship Live Race HUD)
+    window.bezel.screen.menu_active = False
+    window.bezel.screen.current_view = UiViewMode.VIEW_LIVE_RACE
+    window._on_tick()
+    window.bezel.grab().save(str(output_dir / "dash_bezel_live.png"), "PNG")
+    print(f"✔ Saved: {output_dir / 'dash_bezel_live.png'}")
+    
+    # 2. Bezel Mockup (Schumacher 3-Speedometer HUD)
+    window.bezel.screen.current_view = UiViewMode.VIEW_SHUMACHER
+    window.bezel.screen._held_vmin = 52.0
+    window.bezel.screen._held_vmax = 126.0
+    window._on_tick()
+    window.bezel.grab().save(str(output_dir / "dash_bezel_schumacher.png"), "PNG")
+    print(f"✔ Saved: {output_dir / 'dash_bezel_schumacher.png'}")
+    
+    # 3. Screen Views (Direct 400x300 RLCD Views)
+    views = [
+        (UiViewMode.VIEW_LIVE_RACE, "dash_live_race.png"),
+        (UiViewMode.VIEW_SHUMACHER, "dash_schumacher.png"),
+        (UiViewMode.VIEW_TELEMETRY, "dash_telemetry.png"),
+        (UiViewMode.VIEW_GPS_PADDOCK, "dash_gps_paddock.png"),
+        (UiViewMode.VIEW_DATA_RECALL, "dash_data_recall.png"),
+    ]
+    
+    for view_mode, filename in views:
+        window.bezel.screen.menu_active = False
+        window.bezel.screen.current_view = view_mode
+        window._on_tick()
+        window.bezel.screen.render_to_pixmap(800, 600).save(str(output_dir / filename), "PNG")
+        print(f"✔ Saved: {output_dir / filename}")
+        
+    print(f"\n✨ All dashboard screenshots successfully exported to: {output_dir}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Apex-Dash Desktop Telemetry & Hardware Emulator")
     parser.add_argument("-p", "--serial-port", type=str, default=None, help="Serial port for live Apex-Track link")
     parser.add_argument("-b", "--baud", type=int, default=115200, help="Baud rate (default 115200)")
     parser.add_argument("-r", "--replay", type=Path, default=None, help="Path to CSV/GPX session log to replay")
+    parser.add_argument("--export-screenshots", type=Path, nargs="?", const=REPO_ROOT / "docs" / "imgs", default=None,
+                        help="Export PNG screenshots of all dashboard pages to docs/imgs/ and exit")
+    parser.add_argument("--screenshot", type=Path, default=None, help="Capture a single screenshot to specified file and exit")
     args = parser.parse_args()
+
+    if args.export_screenshots:
+        export_all_screenshots(args.export_screenshots)
+        return
 
     app = QApplication.instance() or QApplication(sys.argv)
     app.setStyle("Fusion")
 
     window = MainWindow(port=args.serial_port, baud=args.baud, replay_file=args.replay)
-    window.show()
+    
+    if args.screenshot:
+        window.show()
+        window._on_tick()
+        window.bezel.save_screenshot(str(args.screenshot))
+        print(f"✔ Screenshot saved to: {args.screenshot}")
+        return
 
+    window.show()
     sys.exit(app.exec())
 
 

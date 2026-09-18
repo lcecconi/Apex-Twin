@@ -213,6 +213,31 @@ class BezelWidget(QFrame):
         """)
         header_row.addWidget(self.btn_reset)
 
+        self.btn_screenshot = QPushButton("📸 Screenshot [F12]")
+        self.btn_screenshot.setCursor(Qt.PointingHandCursor)
+        self.btn_screenshot.setToolTip("Save high-res screenshot to docs/imgs/\n[Hotkey: F12 / Ctrl+S]")
+        self.btn_screenshot.setStyleSheet("""
+            QPushButton {
+                background: #21262d;
+                color: #3fb950;
+                border: 1px solid #30363d;
+                border-radius: 4px;
+                padding: 3px 8px;
+                font-size: 10px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: #30363d;
+                color: #56d364;
+                border-color: #3fb950;
+            }
+            QPushButton:pressed {
+                background: #0d1117;
+            }
+        """)
+        self.btn_screenshot.clicked.connect(self._on_screenshot_clicked)
+        header_row.addWidget(self.btn_screenshot)
+
         main_layout.addLayout(header_row)
 
         # LED Bar
@@ -338,3 +363,36 @@ class BezelWidget(QFrame):
         painter.drawRoundedRect(rect.adjusted(6, 6, -6, -6), 12, 12)
 
         super().paintEvent(event)
+
+    def _on_screenshot_clicked(self):
+        saved_file = self.save_screenshot()
+        # Notify via tooltip or status
+        QToolTip.showText(self.btn_screenshot.mapToGlobal(self.btn_screenshot.rect().bottomLeft()),
+                          f"Saved: {saved_file}", self.btn_screenshot, self.btn_screenshot.rect(), 3000)
+
+    def save_screenshot(self, target_path: str = None, screen_only: bool = False) -> str:
+        """
+        Capture and save a PNG screenshot of the dashboard.
+        If screen_only=True, saves only the RLCD screen (400x300 dot matrix).
+        Otherwise saves the full simulated steering wheel bezel with RGB LEDs and buttons.
+        """
+        from pathlib import Path
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        out_dir = repo_root / "docs" / "imgs"
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        if not target_path:
+            import time
+            prefix = "screen" if screen_only else "dash"
+            view_name = self.screen.current_view.name.lower().replace("view_", "")
+            target_path = str(out_dir / f"{prefix}_{view_name}_{int(time.time())}.png")
+
+        dest = Path(target_path)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+        if screen_only:
+            pixmap = self.screen.render_to_pixmap(800, 600)
+        else:
+            pixmap = self.grab()
+        pixmap.save(str(dest), "PNG")
+        return str(dest)

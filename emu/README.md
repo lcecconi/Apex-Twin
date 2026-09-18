@@ -7,6 +7,7 @@ A high-fidelity Python/PySide6 desktop emulator for **Apex-Dash**, reproducing t
 ## Features
 
 ### 🖥️ Display & Hardware Emulation
+
 * **Pixel-accurate $400 \times 300$ Reflective LCD**:
   * Emulates the Sitronix ST7305 reflective display with true monochrome dot rendering and high-contrast dark/silver polarity inversion.
   * **5 Racing HUD Pages**:
@@ -25,6 +26,7 @@ A high-fidelity Python/PySide6 desktop emulator for **Apex-Dash**, reproducing t
     7. Hardware Diagnostics (Real-time I2C sensor bus scan, GPS status, RTC clock check).
 
 ### 💡 7-LED WS2812 RGB Light Bar
+
 * 5 Progressive RPM Shift LEDs (Green $\rightarrow$ Yellow $\rightarrow$ Red) + Strobe flash at shift point.
 * 2 Multi-color Alarm LEDs:
   * Overheat (Flashing Red)
@@ -34,6 +36,7 @@ A high-fidelity Python/PySide6 desktop emulator for **Apex-Dash**, reproducing t
 * Radial light glow simulation matching physical diffused polycarbonate light pipe.
 
 ### 🏎️ Multi-Source Telemetry Engine
+
 1. **Autonomous 25 Hz Kart Physics Simulator**: Real-time simulation around Lonato circuit with acceleration, braking, gear shifts, tyre slip angle, and temperature dynamics.
 2. **Live Apex-Track Link**: Real-time binary packet reception over USB-serial / ESP-NOW bridge directly from physical track hardware.
 3. **Session Log Replayer**: Timeline scrubbing, play/pause, and $0.5\times$ to $10\times$ playback of recorded CSV / GPX race sessions.
@@ -44,6 +47,7 @@ A high-fidelity Python/PySide6 desktop emulator for **Apex-Dash**, reproducing t
 ## Getting Started
 
 ### Prerequisites
+
 Make sure Python 3.10+ and dependencies (`PySide6`, `pyserial`) are available.
 
 ```bash
@@ -56,6 +60,7 @@ python3 emu/main.py
 ```
 
 ### Command Line Options
+
 ```bash
 # Launch with default physics simulation
 python3 emu/main.py
@@ -65,6 +70,9 @@ python3 emu/main.py --serial-port /dev/ttyUSB0 --baud 115200
 
 # Launch and replay a recorded race log
 python3 emu/main.py --replay session_lonato_kz.csv
+
+# Export high-res PNG screenshots of all dashboard views to docs/imgs/
+python3 emu/main.py --export-screenshots docs/imgs
 ```
 
 ---
@@ -72,13 +80,15 @@ python3 emu/main.py --replay session_lonato_kz.csv
 ## Controls & Keyboard Shortcuts
 
 | Button / Hotkey | Action in Race HUD | Action in Setup Menu |
-|---|---|---|
+| --- | --- | --- |
 | **`Space`** or **`Up`** / BOOT Click | Previous HUD Page | Move Cursor Up |
 | **`Esc`** or **`Shift+Space`** / BOOT Hold (>0.5s) | Enter Setup Menu | Exit / Back to Previous Menu |
 | **`Enter`** or **`Down`** / KEY Click | Next HUD Page | Move Cursor Down |
 | **`I`** or **`Shift+Enter`** / KEY Hold (>0.5s) | Invert Silver/Black Screen | Select / Toggle Item |
 | **`1`**, **`2`**, **`3`**, **`4`**, **`5`** | Direct Jump to HUD Page 1..5 | - |
 | **`Tab`** | Trigger Start/Finish Gate (New Lap) | - |
+| **`F12`** or **`Ctrl+S`** | **Save PNG Screenshot to docs/imgs/** | **Save PNG Screenshot** |
+| **`F5`** or **`Ctrl+R`** | Hot-Reload UI Modules | Hot-Reload UI Modules |
 | **Right-Click** on Button | Instant Long-Press Trigger | Instant Select / Enter |
 
 ---
