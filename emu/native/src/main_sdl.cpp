@@ -151,18 +151,19 @@ int main(int argc, char **argv) {
     printf("[Apex-Dash] Initializing LVGL v9 native SDL2 runner...\n");
     lv_init();
 
-    lv_display_t *disp = lv_sdl_window_create(400, 240);
+    lv_display_t *disp = lv_sdl_window_create(400, 300);
     if (!disp) {
         fprintf(stderr, "[Apex-Dash] Failed to create SDL2 window!\n");
         return 1;
     }
     lv_sdl_window_set_title(disp, "Apex-Dash | ST7305 RLCD Simulator (LVGL v9)");
-    lv_sdl_window_set_zoom(disp, 2.0f); // 800 x 480 window
+    lv_sdl_window_set_zoom(disp, 2.0f); // 800 x 600 window
 
     init_sim_state();
+    g_settings.inverted_display = false;
 
     UiManager ui_mgr;
-    ui_mgr.init(lv_screen_active(), true);
+    ui_mgr.init(lv_screen_active(), false);
 
     printf("[Apex-Dash] UI Manager initialized. Available views: 5.\n");
     printf("[Apex-Dash] Controls:\n");
