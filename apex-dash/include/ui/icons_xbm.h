@@ -1,5 +1,10 @@
 #pragma once
-#include <Arduino.h>
+#include <stdint.h>
+#include <stddef.h>
+
+#ifndef PROGMEM
+#define PROGMEM
+#endif
 
 // ============================================================================
 // Apex-Dash Custom 16x16 Monochrome XBM Bitmaps

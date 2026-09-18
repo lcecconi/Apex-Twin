@@ -4,6 +4,7 @@ idf_component_register(
          "apex_led_strip.cpp"
          "esp_now_transport.cpp"
          "ui/ui_theme.cpp"
+         "ui/ui_icons.cpp"
          "ui/ui_manager.cpp"
          "ui/page_live_race.cpp"
          "ui/page_shumacher.cpp"

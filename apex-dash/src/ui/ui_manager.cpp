@@ -5,6 +5,7 @@
 
 #include "ui/ui_manager.h"
 #include "ui/ui_theme.h"
+#include "ui/ui_icons.h"
 #include <cstdio>
 
 namespace ApexUi {
@@ -14,6 +15,7 @@ void UiManager::init(lv_obj_t *root_screen, bool inverted) {
         root_screen = lv_screen_active();
     }
 
+    init_ui_icons();
     UiTheme::init(inverted);
     lv_obj_add_style(root_screen, &UiTheme::style_screen, 0);
 

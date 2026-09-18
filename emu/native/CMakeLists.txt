@@ -29,6 +29,7 @@ find_package(SDL2 REQUIRED)
 
 set(SHARED_UI_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/../../apex-dash/src/ui/ui_theme.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../apex-dash/src/ui/ui_icons.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../apex-dash/src/ui/ui_manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../apex-dash/src/ui/page_live_race.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../apex-dash/src/ui/page_shumacher.cpp
