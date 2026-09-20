@@ -50,6 +50,9 @@ def resolve_target(target: str) -> tuple[str, Path]:
 
 def find_platformio_cmd() -> list:
     """Find the best available PlatformIO executable."""
+    venv_pio = REPO_ROOT / ".venv" / "bin" / "pio"
+    if venv_pio.exists() and os.access(venv_pio, os.X_OK):
+        return [str(venv_pio)]
     if subprocess.run(["which", "pio"], capture_output=True).returncode == 0:
         return ["pio"]
     if subprocess.run(["which", "platformio"], capture_output=True).returncode == 0:
@@ -168,6 +171,96 @@ def run_command_stream(cmd: list, cwd: Path, output_callback=None, cancel_event=
         return 1
 
 
+def perform_ota_upload(target_dir: Path, target_display_name: str, ip: str = None) -> bool:
+    """Stream compiled firmware.bin over HTTP to the Apex-Dash in Maintenance Mode."""
+    import http.client
+
+    if not ip:
+        print("\n[ERROR] Missing IP address for Wi-Fi OTA update.")
+        print("─" * 60)
+        print("HOW TO FLASH OVER WI-FI OTA:")
+        print("1. On the Dash display, open: Menu > System & Language > Maintenance Mode (Wi-Fi OTA).")
+        print("2. The dash will connect to your Wi-Fi network and display its assigned IP address.")
+        print("3. Run the flash command with the displayed IP, for example:")
+        print("       apex flash dash --ota --ip 192.168.1.50")
+        print("─" * 60)
+        return False
+
+    build_dir = target_dir / ".pio" / "build"
+    bin_candidates = list(build_dir.glob("*/firmware.bin"))
+    if not bin_candidates:
+        print(f"\n[ERROR] No compiled firmware.bin found in {build_dir}")
+        print("Please build firmware first or run without --no-build.")
+        return False
+
+    bin_path = max(bin_candidates, key=lambda p: p.stat().st_mtime)
+    file_size = bin_path.stat().st_size
+
+    print(f"\n=======================================================")
+    print(f"   APEX-TWIN: Wireless Over-The-Air (OTA) Flasher     ")
+    print(f"=======================================================")
+    print(f"Target:        {target_display_name}")
+    print(f"Endpoint:      http://{ip}/update")
+    print(f"Firmware File: {bin_path.name} ({file_size / 1024:.1f} KB)")
+    print(f"Path:          {bin_path}")
+
+    print(f"\n[1/3] Testing connection to Dashboard at http://{ip}/...")
+    try:
+        conn = http.client.HTTPConnection(ip, port=80, timeout=6)
+        conn.request("GET", "/")
+        resp = conn.getresponse()
+        resp.read()
+    except Exception as e:
+        print(f"\n[ERROR] Cannot connect to http://{ip}/ ({e})")
+        print("─" * 60)
+        print("TROUBLESHOOTING:")
+        print("1. On the Dash display, open: Menu > System & Language > Maintenance Mode (Wi-Fi OTA).")
+        print("2. Confirm the Dash shows 'Connected Wi-Fi' and verify the IP displayed on the screen.")
+        print(f"3. Ensure your computer is connected to the same local network and can reach {ip}.")
+        print("4. Verify the IP address: apex flash dash --ota --ip <ip_address>")
+        print("─" * 60)
+        return False
+
+    print(f"[2/3] Uploading firmware binary to flash partition...")
+    try:
+        conn = http.client.HTTPConnection(ip, port=80, timeout=40)
+        conn.putrequest("POST", "/update")
+        conn.putheader("Content-Length", str(file_size))
+        conn.putheader("Content-Type", "application/octet-stream")
+        conn.endheaders()
+
+        chunk_size = 4096
+        bytes_sent = 0
+        start_time = time.time()
+        with open(bin_path, "rb") as f:
+            while chunk := f.read(chunk_size):
+                conn.send(chunk)
+                bytes_sent += len(chunk)
+                pct = int((bytes_sent / file_size) * 100)
+                bar_len = 30
+                filled = int((pct / 100.0) * bar_len)
+                bar = "█" * filled + "░" * (bar_len - filled)
+                elapsed = max(0.01, time.time() - start_time)
+                speed_kb = (bytes_sent / 1024.0) / elapsed
+                print(f"\r      [{bar}] {pct:3d}% ({bytes_sent / 1024:.1f}/{file_size / 1024:.1f} KB @ {speed_kb:.1f} KB/s)", end="", flush=True)
+
+        print(f"\n[3/3] Validating checksum & switching boot partition...")
+        resp = conn.getresponse()
+        if resp.status == 200:
+            print("\n" + "=" * 60)
+            print("✔ [SUCCESS] Firmware successfully flashed over Wi-Fi OTA!")
+            print("  Dashboard is now rebooting into the updated partition.")
+            print("=" * 60)
+            return True
+        else:
+            err = resp.read().decode("utf-8", errors="ignore")
+            print(f"\n✖ [ERROR] OTA update failed on device (HTTP {resp.status}): {err}")
+            return False
+    except Exception as e:
+        print(f"\n✖ [ERROR] Communication failed during OTA upload: {e}")
+        return False
+
+
 # =========================================================================
 # Command Line Interface (CLI Mode)
 # =========================================================================
@@ -180,15 +273,21 @@ def run_cli(args):
         print(f"[ERROR] Target directory '{target_dir}' does not exist.")
         sys.exit(1)
 
+    is_ota = getattr(args, "ota", False)
+    ota_ip = getattr(args, "ip", None)
+
     print("=======================================================")
     print("   APEX-TWIN: Build, Flash & Serial Monitor           ")
     print("=======================================================")
     print(f"Target:   {target_display_name} ({target_dir.name})")
-    print(f"Platform: {' '.join(pio_cmd)}")
+    if is_ota:
+        print(f"Mode:     Wireless Over-The-Air (OTA) @ http://{ota_ip or '<IP>'}")
+    else:
+        print(f"Platform: {' '.join(pio_cmd)}")
 
     # 1. Automatic target-specific port detection if flashing or monitoring
     port = getattr(args, "port", None)
-    need_port = getattr(args, "flash", False) or getattr(args, "monitor", False) or getattr(args, "erase", False)
+    need_port = not is_ota and (getattr(args, "flash", False) or getattr(args, "monitor", False) or getattr(args, "erase", False))
     if need_port and not port:
         port, desc = find_target_port(raw_target)
         print(f"Auto-detected port: {desc}")
@@ -219,13 +318,18 @@ def run_cli(args):
 
     # 4. Flash / Upload
     if do_flash:
-        print(f"\n[FLASH] Uploading firmware to {port} ({target_display_name})...")
-        cmd = pio_cmd + ["run", "-d", str(target_dir), "-t", "upload", "--upload-port", port]
-        ret = subprocess.run(cmd, cwd=str(REPO_ROOT)).returncode
-        if ret != 0:
-            print("[ERROR] Flash upload failed.")
-            sys.exit(ret)
-        print("[SUCCESS] Firmware successfully flashed!")
+        if is_ota:
+            success = perform_ota_upload(target_dir, target_display_name, ip=ota_ip)
+            if not success:
+                sys.exit(1)
+        else:
+            print(f"\n[FLASH] Uploading firmware to {port} ({target_display_name})...")
+            cmd = pio_cmd + ["run", "-d", str(target_dir), "-t", "upload", "--upload-port", port]
+            ret = subprocess.run(cmd, cwd=str(REPO_ROOT)).returncode
+            if ret != 0:
+                print("[ERROR] Flash upload failed.")
+                sys.exit(ret)
+            print("[SUCCESS] Firmware successfully flashed!")
 
     # 5. Serial Monitor
     if do_monitor:

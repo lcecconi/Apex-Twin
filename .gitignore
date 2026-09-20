@@ -19,6 +19,8 @@
 *.a
 *.d
 *.map
+managed_components/
+dependencies.lock
 
 # Editor & IDE Directories
 .vscode/

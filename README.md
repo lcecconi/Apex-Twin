@@ -70,17 +70,22 @@ source setup_env.sh
 ### Essential Commands (`apex`)
 
 ```bash
-# 1. Launch Desktop Hardware & Telemetry Emulator
-apex emu                               # Run 25 Hz kart physics simulation
-apex emu --replay session_lonato.csv   # Replay recorded session log
+# 1. Apex-Dash Steering Display Unit
+apex dash build                         # Compile Apex-Dash display firmware
+apex dash flash                         # Build & flash display over USB serial
+apex dash flash --ota --ip 192.168.1.50 # Flash wirelessly over local Wi-Fi
+apex dash monitor                       # Open real-time serial telemetry monitor
 
-# 2. Build & Flash Module Firmware (PlatformIO)
-apex build dash                        # Compile Apex-Dash display firmware
-apex flash dash                        # Build & flash connected display module
-apex monitor dash                      # Open live serial telemetry monitor
+# 2. Apex-Track Data Acquisition Unit
+apex track build                        # Compile Apex-Track acquisition firmware
+apex track flash                        # Build & flash connected track module
+apex track monitor                      # Open live serial telemetry monitor
 
-# 3. Validation & Tests
-apex test                              # Run syntax checks and emulator smoke tests
+# 3. Desktop Emulator & Tools
+apex emu                                # Run 25 Hz kart physics simulation
+apex emu --replay session_lonato.csv    # Replay recorded session log
+apex util                               # Launch Desktop GUI flasher & monitor
+apex test                               # Run syntax checks and emulator smoke tests
 ```
 
 *(You can also use standard Make targets: `make emu`, `make build`, `make flash`, `make monitor`, `make test`).*

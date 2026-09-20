@@ -64,8 +64,8 @@ def handle_monitor(args):
     return run_cli(args)
 
 
-def handle_mon(args):
-    """Launch Desktop Graphical Serial Monitor & Flasher"""
+def handle_util(args):
+    """Launch Desktop Utility GUI (Flasher, Monitor & Diagnostics)"""
     from apex.flash_monitor import run_pyside_gui
     target = getattr(args, "target", "dash")
     return run_pyside_gui(initial_target=target)
@@ -119,45 +119,91 @@ def build_parser() -> argparse.ArgumentParser:
         description="Apex-Twin Unified Command Center",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    subparsers = parser.add_subparsers(dest="command", help="Available subcommands")
+    subparsers = parser.add_subparsers(dest="command", help="Target modules or actions")
 
-    # 1. emu
+    # =========================================================================
+    # 1. Target Subcommand: 'dash' (apex dash <action>)
+    # =========================================================================
+    p_dash = subparsers.add_parser("dash", help="Manage Apex-Dash display unit (build, flash, monitor, util, emu)")
+    dash_subs = p_dash.add_subparsers(dest="action", help="Apex-Dash action")
+
+    # apex dash build
+    p_db = dash_subs.add_parser("build", help="Compile Apex-Dash firmware using PlatformIO")
+    p_db.set_defaults(func=handle_build, target="dash")
+
+    # apex dash flash
+    p_df = dash_subs.add_parser("flash", help="Build & flash firmware to Apex-Dash (USB Serial or Wi-Fi OTA)")
+    p_df.add_argument("-p", "--port", type=str, help="Serial port (e.g. /dev/ttyACM0)")
+    p_df.add_argument("-b", "--build", action="store_true", default=True, help="Compile before flashing")
+    p_df.add_argument("--erase", action="store_true", help="Erase flash memory before upload")
+    p_df.add_argument("--ota", action="store_true", help="Flash firmware wirelessly over Wi-Fi in Maintenance Mode")
+    p_df.add_argument("--ip", type=str, default=None, help="Target IP address of dash module connected to Wi-Fi")
+    p_df.set_defaults(func=handle_flash, target="dash")
+
+    # apex dash monitor
+    p_dm = dash_subs.add_parser("monitor", help="Open real-time serial monitor for Apex-Dash")
+    p_dm.add_argument("-p", "--port", type=str, help="Serial port (e.g. /dev/ttyACM0)")
+    p_dm.add_argument("--baud", type=int, default=115200, help="Baud rate (default 115200)")
+    p_dm.set_defaults(func=handle_monitor, target="dash")
+
+    # apex dash util
+    p_du = dash_subs.add_parser("util", help="Launch desktop GUI flasher & monitor utility for Apex-Dash")
+    p_du.set_defaults(func=handle_util, target="dash")
+
+    # apex dash emu
+    p_de = dash_subs.add_parser("emu", help="Launch desktop hardware & telemetry emulator for Apex-Dash")
+    p_de.add_argument("-p", "--serial-port", type=str, default=None, help="Serial port for live Apex-Track link")
+    p_de.add_argument("-b", "--baud", type=int, default=115200, help="Baud rate (default 115200)")
+    p_de.add_argument("-r", "--replay", type=Path, default=None, help="Path to CSV/GPX session log to replay")
+    p_de.set_defaults(func=handle_emu)
+
+    # =========================================================================
+    # 2. Target Subcommand: 'track' (apex track <action>)
+    # =========================================================================
+    p_track = subparsers.add_parser("track", help="Manage Apex-Track acquisition module (build, flash, monitor, util)")
+    track_subs = p_track.add_subparsers(dest="action", help="Apex-Track action")
+
+    # apex track build
+    p_tb = track_subs.add_parser("build", help="Compile Apex-Track acquisition firmware using PlatformIO")
+    p_tb.set_defaults(func=handle_build, target="track")
+
+    # apex track flash
+    p_tf = track_subs.add_parser("flash", help="Build & flash firmware to Apex-Track")
+    p_tf.add_argument("-p", "--port", type=str, help="Serial port (e.g. /dev/ttyUSB0)")
+    p_tf.add_argument("-b", "--build", action="store_true", default=True, help="Compile before flashing")
+    p_tf.add_argument("--erase", action="store_true", help="Erase flash memory before upload")
+    p_tf.set_defaults(func=handle_flash, target="track")
+
+    # apex track monitor
+    p_tm = track_subs.add_parser("monitor", help="Open real-time serial monitor for Apex-Track")
+    p_tm.add_argument("-p", "--port", type=str, help="Serial port (e.g. /dev/ttyUSB0)")
+    p_tm.add_argument("--baud", type=int, default=115200, help="Baud rate (default 115200)")
+    p_tm.set_defaults(func=handle_monitor, target="track")
+
+    # apex track util
+    p_tu = track_subs.add_parser("util", help="Launch desktop GUI flasher & monitor utility for Apex-Track")
+    p_tu.set_defaults(func=handle_util, target="track")
+
+    # =========================================================================
+    # 3. Top-Level Standalone Actions (apex <action>)
+    # =========================================================================
+    # apex emu
     p_emu = subparsers.add_parser("emu", help="Launch desktop hardware & telemetry emulator")
     p_emu.add_argument("-p", "--serial-port", type=str, default=None, help="Serial port for live Apex-Track link")
     p_emu.add_argument("-b", "--baud", type=int, default=115200, help="Baud rate (default 115200)")
     p_emu.add_argument("-r", "--replay", type=Path, default=None, help="Path to CSV/GPX session log to replay")
     p_emu.set_defaults(func=handle_emu)
 
-    # 2. flash [dash|track]
-    p_flash = subparsers.add_parser("flash", help="Build & flash firmware to target module (dash or track)")
-    p_flash.add_argument("target", nargs="?", default="dash", choices=["dash", "track"], help="Target module (dash or track, default: dash)")
-    p_flash.add_argument("-p", "--port", type=str, help="Serial port (e.g. /dev/ttyACM0)")
-    p_flash.add_argument("-b", "--build", action="store_true", default=True, help="Compile before flashing")
-    p_flash.add_argument("--erase", action="store_true", help="Erase flash memory before upload")
-    p_flash.set_defaults(func=handle_flash)
+    # apex util (GUI)
+    p_util_gui = subparsers.add_parser("util", help="Launch desktop GUI flasher & live serial monitor")
+    p_util_gui.add_argument("target", nargs="?", default="dash", choices=["dash", "track"], help="Initial target module (dash or track)")
+    p_util_gui.set_defaults(func=handle_util)
 
-    # 3. build [dash|track]
-    p_build = subparsers.add_parser("build", help="Compile firmware using PlatformIO (dash or track)")
-    p_build.add_argument("target", nargs="?", default="dash", choices=["dash", "track"], help="Target module (dash or track, default: dash)")
-    p_build.set_defaults(func=handle_build)
-
-    # 4. monitor [dash|track]
-    p_mon = subparsers.add_parser("monitor", help="Open real-time terminal serial monitor (dash or track)")
-    p_mon.add_argument("target", nargs="?", default="dash", choices=["dash", "track"], help="Target module (dash or track, default: dash)")
-    p_mon.add_argument("-p", "--port", type=str, help="Serial port (e.g. /dev/ttyACM0)")
-    p_mon.add_argument("--baud", type=int, default=115200, help="Baud rate (default 115200)")
-    p_mon.set_defaults(func=handle_monitor)
-
-    # 5. mon [dash|track] (Desktop GUI Flasher & Monitor)
-    p_mon_gui = subparsers.add_parser("mon", help="Launch desktop GUI flasher & live serial monitor")
-    p_mon_gui.add_argument("target", nargs="?", default="dash", choices=["dash", "track"], help="Initial target module (dash or track)")
-    p_mon_gui.set_defaults(func=handle_mon)
-
-    # 6. test
+    # apex test
     p_tst = subparsers.add_parser("test", help="Run unit tests, syntax checks & smoke tests")
     p_tst.set_defaults(func=handle_test)
 
-    # 7. setup
+    # apex setup
     p_set = subparsers.add_parser("setup", help="Install/sync dependencies in editable mode (-e tools)")
     p_set.set_defaults(func=handle_setup)
 
@@ -171,6 +217,12 @@ def main():
         parser.print_help()
         sys.exit(0)
 
+    # Handle 'apex dash' or 'apex track' without sub-actions by showing sub-help
+    if len(sys.argv) == 2 and sys.argv[1] in ["dash", "track"]:
+        print_banner()
+        sub_help = parser.parse_args([sys.argv[1], "--help"])
+        sys.exit(0)
+
     args = parser.parse_args()
     if hasattr(args, "func"):
         sys.exit(args.func(args) or 0)
@@ -181,3 +233,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

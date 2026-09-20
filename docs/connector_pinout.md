@@ -17,7 +17,7 @@ The expansion connector / header on the Waveshare board exposes GPIOs for steeri
 | **1** | `+5V_VBUS` | — | Power Out / In | 5.0 V | **Main 5V Power** | USB 5V or external 5V regulated input from steering wheel battery pack. |
 | **2** | `+3V3` | — | Power Out | 3.3 V | **3.3V Rail** | Regulated onboard 3.3V rail (Max 500 mA external draw). |
 | **3** | `GND` | — | Ground | 0 V | **System Ground** | Common ground reference for LEDs, buttons, and sensors. |
-| **4** | `RGB_LED_DATA` | **GPIO 1** | Digital Out (RMT) | 3.3 V (5V tolerant DIN) | **WS2812 Shift & Alarm LEDs** | Data line for 7-LED external RGB strip (5 Shift LEDs + 2 Alarm LEDs). |
+| **4** | `RGB_LED_DATA` | **GPIO 1** | Digital Out (RMT) | 3.3 V (5V tolerant DIN) | **WS2812 Shift LED Bar** | Data line for 16-LED external RGB strip mapped progressively to the RPM shift bar. |
 | **5** | `BACKLIGHT_PWM`| **GPIO 2** | Digital Out (LEDC) | 3.3 V | **Backlight PWM Signal** | 5 kHz PWM signal (0–100% duty cycle) feeding external LED backlight driver. |
 | **6** | `AUX_BTN_LEFT` | **GPIO 3** | Digital In (Pull-Up) | 3.3 V | **Aux Left Button** | Optional steering wheel thumb button (Active LOW to GND). |
 | **7** | `AUX_BTN_RIGHT`| **GPIO 17** | Digital In (Pull-Up) | 3.3 V | **Aux Right Button** | Optional steering wheel thumb button (Active LOW to GND). |
@@ -67,8 +67,8 @@ The expansion connector / header on the Waveshare board exposes GPIOs for steeri
 ### D. User Buttons & Power Monitoring
 | Signal Name | ESP32-S3 Pin | Type | Logic / Circuit | Description |
 | :--- | :---: | :---: | :--- | :--- |
-| `BOOT_BTN` | **GPIO 0** | Digital In | Active LOW (Internal Pull-Up) | Short press: Scroll / Back. Long press: Open / Exit Menu. |
-| `KEY_BTN` | **GPIO 18** | Digital In | Active LOW (Internal Pull-Up) | Short press: Next page. Long press: Invert display / Confirm. |
+| `BOOT_BTN` | **GPIO 0** | Digital In | Active LOW (Internal Pull-Up) | Short press: Next page / Scroll down / Increment (+). Long press: Open / Exit Menu. |
+| `KEY_BTN` | **GPIO 18** | Digital In | Active LOW (Internal Pull-Up) | Short press: Prev page / Scroll up / Decrement (-). Long press: Invert display / Confirm / Select. |
 | `VBAT_SENSE` | **GPIO 4** | Analog In | ADC1_CH3 (1/3 divider: 200kΩ / 100kΩ) | Monitors 18650 / LiPo battery voltage (3.0 V – 4.2 V). |
 | `RTC_INT` | **GPIO 15** | Digital In | Active LOW | PCF85063A programmable timer & alarm interrupt. |
 
@@ -96,11 +96,9 @@ The expansion connector / header on the Waveshare board exposes GPIOs for steeri
        │  [Pin 2: +3.3V]    ──────> 3.3V Logic Supply                │
        │  [Pin 3: GND]      ──────> Common Ground                    │
        │                                                             │
-       │  [Pin 4: GPIO 1]   ──────> DIN ──[ 7x WS2812B RGB Strip ]   │
-       │                                   • LEDs 0..4: Shift Ladder │
-       │                                   • LED 5: Left Alarm (H2O) │
-       │                                   • LED 6: Right Alarm(EGT) │
-       │                                                             │
+       │  [Pin 4: GPIO 1]   ──────> DIN ──[ 16x WS2812B RGB Strip ]  │
+       │                                   • LEDs 0..15: RPM Shift Bar│
+       │                                                              │
        │  [Pin 5: GPIO 2]   ──────> PWM In [ Backlight LED Driver ]  │
        │                                                             │
        │  [Pin 6: GPIO 3]   ──────> [ Aux Left Wheel Button ] ── GND │
@@ -120,10 +118,10 @@ The expansion connector / header on the Waveshare board exposes GPIOs for steeri
 // apex-dash/include/config.h
 
 // WS2812 RGB LED Strip
-#define PIN_RGB_LED_STRIP       1   // 7 LEDs (5 Shift + 2 Alarm)
-#define NUM_SHIFT_LEDS          5
-#define NUM_ALARM_LEDS          2
-#define NUM_TOTAL_LEDS          7
+#define PIN_RGB_LED_STRIP       1   // 16 LEDs (Progressive RPM shift bar)
+#define NUM_SHIFT_LEDS          16
+#define NUM_ALARM_LEDS          0
+#define NUM_TOTAL_LEDS          16
 
 // PWM Backlight Output
 #define PIN_BACKLIGHT_PWM       2   // 5 kHz LEDC PWM

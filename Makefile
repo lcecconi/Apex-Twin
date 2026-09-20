@@ -1,6 +1,6 @@
 APEX ?= $(shell if command -v uv >/dev/null 2>&1; then echo "uv run apex"; elif [ -x .venv/bin/apex ]; then echo ".venv/bin/apex"; else echo "apex"; fi)
 
-.PHONY: help emu flash build monitor mon test setup
+.PHONY: help emu flash build monitor util mon test setup dash track
 
 help:
 	@$(APEX) --help
@@ -8,17 +8,23 @@ help:
 emu:
 	@$(APEX) emu
 
+dash:
+	@$(APEX) dash flash
+
+track:
+	@$(APEX) track flash
+
 flash:
-	@$(APEX) flash
+	@$(APEX) dash flash
 
 build:
-	@$(APEX) build
+	@$(APEX) dash build
 
 monitor:
-	@$(APEX) monitor
+	@$(APEX) dash monitor
 
-mon:
-	@$(APEX) mon
+util:
+	@$(APEX) util
 
 test:
 	@$(APEX) test
