@@ -181,6 +181,7 @@ class DashLocalState:
     rtc_epoch_s: int = 0
     session_time_sec: int = 1122
     session_active: bool = True
+    sd_card_present: bool = False
     current_track_name: str = "South Garda (Lonato)"
 
 
@@ -230,10 +231,12 @@ class TelemetrySnapshot:
     piston_hours_sec: int = 18600         # ~5.1 hours
     session_time_sec: int = 1122          # 18m 42s
     session_active: bool = True
+    sd_card_present: bool = False
     track_error_code: int = 0             # 0 = OK, >0 = Apex-Track error code
 
     # Lap History buffer for Data Recall
     lap_history: List[LapRecord] = field(default_factory=list)
+
 
 
 @dataclass
@@ -255,7 +258,7 @@ class SystemSettings:
     selected_track: str = "South Garda (Lonato)"
     selected_track_file: str = "lonato.json"
     language: Language = Language.LANG_EN
-    led_brightness: int = 80       # 0-100%
+    led_brightness: int = 50       # 0-100%
     rpm_display_mode: RpmDisplayMode = RpmDisplayMode.BOTH
     led_shift_enable: bool = True
     led_alarm_enable: bool = True

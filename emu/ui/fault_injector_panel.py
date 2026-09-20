@@ -58,8 +58,15 @@ class FaultInjectorPanel(QWidget):
         self.chk_override.toggled.connect(self._on_override_toggled)
         top_bar.addWidget(self.chk_override)
 
+        self.chk_sd = QCheckBox("SD Present")
+        self.chk_sd.setChecked(False)
+        self.chk_sd.setStyleSheet(self.chk_override.styleSheet())
+        self.chk_sd.toggled.connect(self._on_sd_toggled)
+        top_bar.addWidget(self.chk_sd)
+
         # Separator line / spacing
         top_bar.addSpacing(6)
+
 
         # Fast Triggers
         btn_gate_sf = QPushButton("🏁 S/F Gate")
@@ -268,6 +275,11 @@ class FaultInjectorPanel(QWidget):
         self.manual_override = checked
         self._update_slider_state(checked)
         self.override_changed.emit(checked)
+
+    def _on_sd_toggled(self, checked: bool):
+        self.injected_telemetry.sd_card_present = checked
+        self.injected_telemetry.local.sd_card_present = checked
+
 
     def _update_slider_state(self, enabled: bool):
         self.sld_rpm.setEnabled(enabled)

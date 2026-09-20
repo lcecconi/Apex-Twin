@@ -106,13 +106,13 @@ class BezelWidget(QFrame):
         self.screen = RlcdRenderer(self)
 
         # Buttons
-        self.btn_boot = HoldableButton("BOOT", "◄ PREV / MENU")
-        self.btn_boot.setToolTip("Click: Prev Page / Up\nHold (>0.5s) or Right-Click: Enter/Exit Menu\n[Hotkey: Space / Up]")
+        self.btn_boot = HoldableButton("BOOT", "NEXT / MENU ►")
+        self.btn_boot.setToolTip("Click: Next Page / Down / +\nHold (>0.5s) or Right-Click: Enter/Exit Menu\n[Hotkey: Space / Down]")
         self.btn_boot.short_pressed.connect(self.screen.handle_boot_short)
         self.btn_boot.long_pressed.connect(self.screen.handle_boot_long)
 
-        self.btn_key = HoldableButton("KEY", "NEXT / SEL ►")
-        self.btn_key.setToolTip("Click: Next Page / Down\nHold (>0.5s) or Right-Click: Invert Polarity / Select\n[Hotkey: Enter / Down]")
+        self.btn_key = HoldableButton("KEY", "◄ PREV / SEL")
+        self.btn_key.setToolTip("Click: Prev Page / Up / -\nHold (>0.5s) or Right-Click: Invert Polarity / Select\n[Hotkey: Enter / Up]")
         self.btn_key.short_pressed.connect(self.screen.handle_key_short)
         self.btn_key.long_pressed.connect(self.screen.handle_key_long)
 

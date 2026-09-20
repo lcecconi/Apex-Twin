@@ -33,6 +33,8 @@ class StrId(Enum):
     TRACK_SELECT = "TRACK_SELECT"
     TRACK_SD_LOAD = "TRACK_SD_LOAD"
     USB_MSC_START = "USB_MSC_START"
+    OTA_SD_UPDATE = "OTA_SD_UPDATE"
+    OTA_WIFI_START = "OTA_WIFI_START"
     LANGUAGE = "LANGUAGE"
     SHOW_SPEED = "SHOW_SPEED"
     INVERT_DISP = "INVERT_DISP"
@@ -99,6 +101,8 @@ STRINGS = {
         StrId.TRACK_SELECT: "Select Track",
         StrId.TRACK_SD_LOAD: "Reload Tracks from SD",
         StrId.USB_MSC_START: "Start PC USB Drive",
+        StrId.OTA_SD_UPDATE: "MicroSD Firmware Update",
+        StrId.OTA_WIFI_START: "Start Wi-Fi Web Update",
         StrId.LANGUAGE: "Language",
         StrId.SHOW_SPEED: "Show Speed",
         StrId.INVERT_DISP: "Display Polarity",
@@ -159,6 +163,8 @@ STRINGS = {
         StrId.TRACK_SELECT: "Seleziona Circuito",
         StrId.TRACK_SD_LOAD: "Ricarica Piste da SD",
         StrId.USB_MSC_START: "Avvia Storage USB PC",
+        StrId.OTA_SD_UPDATE: "Aggiornamento da MicroSD",
+        StrId.OTA_WIFI_START: "Avvia Portale Wi-Fi OTA",
         StrId.LANGUAGE: "Lingua",
         StrId.SHOW_SPEED: "Mostra Velocita",
         StrId.INVERT_DISP: "Polarita Display",
@@ -219,6 +225,8 @@ STRINGS = {
         StrId.TRACK_SELECT: "Choisir Circuit",
         StrId.TRACK_SD_LOAD: "Recharger Pistes SD",
         StrId.USB_MSC_START: "Lancer Disque USB PC",
+        StrId.OTA_SD_UPDATE: "Mise a jour MicroSD",
+        StrId.OTA_WIFI_START: "Demarrer Portail Wi-Fi",
         StrId.LANGUAGE: "Langue",
         StrId.SHOW_SPEED: "Afficher Vitesse",
         StrId.INVERT_DISP: "Polarite Ecran",
@@ -280,6 +288,8 @@ STRINGS = {
         StrId.TRACK_SELECT: "Strecke Wahlen",
         StrId.TRACK_SD_LOAD: "Strecken von SD Laden",
         StrId.USB_MSC_START: "PC USB-Speicher Starten",
+        StrId.OTA_SD_UPDATE: "MicroSD Firmware-Update",
+        StrId.OTA_WIFI_START: "WLAN Web-Update Starten",
         StrId.LANGUAGE: "Sprache",
         StrId.SHOW_SPEED: "Geschw. Anzeigen",
         StrId.INVERT_DISP: "Farbinversion",

@@ -1,11 +1,10 @@
 """
 WS2812 RGB LED Strip Widget for Apex-Dash Emulator
-Renders 5 Progressive RPM Shift LEDs + 2 Multi-Color Alarm LEDs with realistic glow.
+Renders 16 Progressive RPM Shift LEDs with CNC milled housing and realistic glow.
 """
 
-import math
 import time
-from PySide6.QtCore import Qt, QTimer, QRectF
+from PySide6.QtCore import Qt, QSize, QRectF
 from PySide6.QtGui import QColor, QPainter, QRadialGradient, QBrush, QPen
 from PySide6.QtWidgets import QWidget
 from emu.core.telemetry_model import SystemSettings, TelemetrySnapshot, RpmDisplayMode
@@ -14,13 +13,22 @@ from emu.core.telemetry_model import SystemSettings, TelemetrySnapshot, RpmDispl
 class LedBarWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumHeight(44)
-        self.setMaximumHeight(44)
-        self.led_colors = [QColor(30, 30, 30)] * 7
+        self.num_leds = 16
+        self.setMinimumSize(400, 42)
+        self.setFixedHeight(42)
+
+        self.led_colors = [QColor(20, 25, 30)] * self.num_leds
+        self.led_active = [False] * self.num_leds
         self.last_strobe_toggle = time.time()
         self.strobe_state = False
         self.in_test_mode = False
         self.test_start_time = 0.0
+
+    def sizeHint(self) -> QSize:
+        return QSize(440, 42)
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(400, 42)
 
     def trigger_test_pattern(self):
         self.in_test_mode = True
@@ -40,71 +48,65 @@ class LedBarWidget(QWidget):
                 self.in_test_mode = False
             else:
                 elapsed = now - self.test_start_time
-                for i in range(7):
-                    hue = int(((elapsed * 360.0) + (i * 360.0 / 7.0))) % 360
+                for i in range(self.num_leds):
+                    hue = int(((elapsed * 360.0) + (i * 360.0 / self.num_leds))) % 360
                     self.led_colors[i] = QColor.fromHsv(hue, 255, 255)
+                    self.led_active[i] = True
                 self.update()
                 return
 
-        brightness_scale = settings.led_brightness / 100.0
+        brightness_scale = max(0.1, settings.led_brightness / 100.0)
 
-        # 1. Shift Lights (LEDs 0..4)
+        # 1. Shift Lights (16 LEDs: 0..15 mapped to progressive RPM bar)
         if settings.led_shift_enable and settings.rpm_display_mode != RpmDisplayMode.DISPLAY_ONLY:
             shift_rpm = settings.shift_rpm
             rpm = telemetry.rpm
 
-            if rpm >= shift_rpm:
-                # Shift point reached -> Flash all 5 in Bright Cyan / White Strobe
-                strobe_col = QColor(0, 180, 255) if self.strobe_state else QColor(20, 20, 25)
-                for i in range(5):
+            if rpm >= shift_rpm and shift_rpm > 0:
+                # Shift point reached -> Flash all 16 in Bright Cyan / White Strobe
+                strobe_col = QColor(0, 220, 255) if self.strobe_state else QColor(20, 25, 35)
+                for i in range(self.num_leds):
                     self.led_colors[i] = strobe_col
-            else:
-                rpm_start = max(0, shift_rpm - 1600)
-                step = (shift_rpm - rpm_start) / 4.0
+                    self.led_active[i] = self.strobe_state
+            elif rpm > 100:
+                # Linear mapping: First LED lights up at > 100 RPM, then linearly up to max_rpm
+                max_rpm = settings.max_rpm if settings.max_rpm > 100 else 16000
+                span_rpm = max_rpm - 100
+                curr_rpm = min(span_rpm, rpm - 100)
+                active_leds = 1 + int((curr_rpm * (self.num_leds - 1)) / span_rpm)
+                active_leds = min(self.num_leds, active_leds)
 
-                # LED 0: Green
-                self.led_colors[0] = QColor(0, 255, 0) if rpm >= rpm_start else QColor(25, 30, 25)
-                # LED 1: Green
-                self.led_colors[1] = QColor(0, 255, 0) if rpm >= rpm_start + step else QColor(25, 30, 25)
-                # LED 2: Yellow
-                self.led_colors[2] = QColor(255, 210, 0) if rpm >= rpm_start + step * 2 else QColor(30, 30, 25)
-                # LED 3: Amber / Orange
-                self.led_colors[3] = QColor(255, 120, 0) if rpm >= rpm_start + step * 3 else QColor(30, 25, 25)
-                # LED 4: Red
-                self.led_colors[4] = QColor(255, 0, 0) if rpm >= shift_rpm - 50 else QColor(30, 20, 20)
+                for i in range(self.num_leds):
+                    if i < active_leds:
+                        self.led_active[i] = True
+                        # 6 Green, 5 Yellow/Amber, 5 Red
+                        if i < 6:
+                            self.led_colors[i] = QColor(0, 255, 50)       # Vivid Green
+                        elif i < 11:
+                            self.led_colors[i] = QColor(255, 200, 0)     # Amber / Yellow
+                        else:
+                            self.led_colors[i] = QColor(255, 20, 20)     # Vivid Red
+                    else:
+                        self.led_active[i] = False
+                        self.led_colors[i] = QColor(25, 30, 38)
+            else:
+                for i in range(self.num_leds):
+                    self.led_active[i] = False
+                    self.led_colors[i] = QColor(25, 30, 38)
         else:
-            for i in range(5):
-                self.led_colors[i] = QColor(20, 20, 20)
+            for i in range(self.num_leds):
+                self.led_active[i] = False
+                self.led_colors[i] = QColor(25, 30, 38)
 
-        # 2. Alarm Lights (LED 5 = Left Alarm, LED 6 = Right Alarm)
-        if settings.led_alarm_enable:
-            # Left Alarm: Water Overheat (> threshold) or Low Battery (< 3.4V)
-            if telemetry.water_temp_c >= settings.water_temp_alarm_c and settings.water_temp_alarm_c > 0:
-                self.led_colors[5] = QColor(255, 0, 0) if self.strobe_state else QColor(25, 20, 20)
-            elif telemetry.battery_voltage < settings.low_bat_alarm_v and telemetry.battery_voltage > 1.0:
-                self.led_colors[5] = QColor(255, 120, 0)
-            else:
-                self.led_colors[5] = QColor(25, 25, 25)
-
-            # Right Alarm: High EGT (> threshold) or Over-Rev (> threshold)
-            if telemetry.exhaust_temp_c >= settings.exhaust_temp_alarm_c and settings.exhaust_temp_alarm_c > 0:
-                self.led_colors[6] = QColor(255, 0, 220) if self.strobe_state else QColor(25, 20, 25)
-            elif telemetry.rpm >= settings.over_rev_rpm and settings.over_rev_rpm > 0:
-                self.led_colors[6] = QColor(255, 255, 255) if self.strobe_state else QColor(255, 0, 0)
-            else:
-                self.led_colors[6] = QColor(25, 25, 25)
-        else:
-            self.led_colors[5] = QColor(20, 20, 20)
-            self.led_colors[6] = QColor(20, 20, 20)
-
-        # Apply global brightness
-        for i in range(7):
-            c = self.led_colors[i]
-            self.led_colors[i] = QColor(
-                int(c.red() * brightness_scale),
-                int(c.green() * brightness_scale),
-                int(c.blue() * brightness_scale)
-            )
+        # Apply global brightness to active colors
+        for i in range(self.num_leds):
+            if self.led_active[i]:
+                c = self.led_colors[i]
+                self.led_colors[i] = QColor(
+                    min(255, int(c.red() * brightness_scale)),
+                    min(255, int(c.green() * brightness_scale)),
+                    min(255, int(c.blue() * brightness_scale))
+                )
 
         self.update()
 
@@ -115,45 +117,52 @@ class LedBarWidget(QWidget):
         width = self.width()
         height = self.height()
 
-        # LED Layout positions:
-        # Left Alarm (LED 5), 5 Shift LEDs (LEDs 0..4), Right Alarm (LED 6)
-        led_spacing = 38
-        start_x = (width - (6 * led_spacing)) / 2.0
+        led_spacing = 22.0
+        total_span = (self.num_leds - 1) * led_spacing
+        start_x = (width - total_span) / 2.0
         cy = height / 2.0
-        radius = 11.0
+        radius = 7.5
 
-        draw_order = [5, 0, 1, 2, 3, 4, 6]  # Physical layout on steering wheel
+        # Draw CNC milled housing tray / bay
+        tray_rect = QRectF(start_x - 16, cy - 14, total_span + 32, 28)
+        painter.setPen(QPen(QColor(50, 56, 68), 1.5))
+        painter.setBrush(QBrush(QColor(12, 14, 18)))
+        painter.drawRoundedRect(tray_rect, 14, 14)
 
-        for idx, led_idx in enumerate(draw_order):
-            cx = start_x + (idx * led_spacing)
-            color = self.led_colors[led_idx]
-            is_active = (color.red() > 40 or color.green() > 40 or color.blue() > 40)
+        for i in range(self.num_leds):
+            cx = start_x + (i * led_spacing)
+            color = self.led_colors[i]
+            is_active = self.led_active[i]
 
-            # Draw outer bezel ring
-            painter.setPen(QPen(QColor(45, 45, 55), 1.5))
-            painter.setBrush(QBrush(QColor(18, 18, 22)))
+            # Outer chrome / bezel ring
+            painter.setPen(QPen(QColor(70, 78, 92) if is_active else QColor(40, 45, 55), 1.5))
+            painter.setBrush(QBrush(QColor(18, 20, 26)))
             painter.drawEllipse(QRectF(cx - radius - 2, cy - radius - 2, (radius + 2) * 2, (radius + 2) * 2))
 
-            # Draw radial glow halo if lit
+            # Radial glow halo if lit
             if is_active:
-                glow = QRadialGradient(cx, cy, radius * 2.2)
-                glow_color = QColor(color.red(), color.green(), color.blue(), 140)
+                glow = QRadialGradient(cx, cy, radius * 2.4)
+                glow_color = QColor(color.red(), color.green(), color.blue(), 160)
                 glow.setColorAt(0.0, glow_color)
                 glow.setColorAt(1.0, QColor(0, 0, 0, 0))
                 painter.setPen(Qt.NoPen)
                 painter.setBrush(QBrush(glow))
-                painter.drawEllipse(QRectF(cx - radius * 2.2, cy - radius * 2.2, radius * 4.4, radius * 4.4))
+                painter.drawEllipse(QRectF(cx - radius * 2.4, cy - radius * 2.4, radius * 4.8, radius * 4.8))
 
-            # Draw inner LED lens with reflection highlight
+            # Inner LED lens with reflection gradient
             lens_gradient = QRadialGradient(cx - radius * 0.3, cy - radius * 0.3, radius)
-            lens_gradient.setColorAt(0.0, color.lighter(130) if is_active else QColor(40, 40, 45))
-            lens_gradient.setColorAt(1.0, color if is_active else QColor(15, 15, 20))
+            if is_active:
+                lens_gradient.setColorAt(0.0, color.lighter(140))
+                lens_gradient.setColorAt(1.0, color)
+            else:
+                lens_gradient.setColorAt(0.0, QColor(45, 50, 62))
+                lens_gradient.setColorAt(1.0, QColor(20, 23, 30))
 
-            painter.setPen(QPen(QColor(0, 0, 0, 180), 1.0))
+            painter.setPen(QPen(QColor(0, 0, 0, 200), 1.0))
             painter.setBrush(QBrush(lens_gradient))
             painter.drawEllipse(QRectF(cx - radius, cy - radius, radius * 2, radius * 2))
 
-            # Small specular reflection point
+            # Specular lens highlight
             painter.setPen(Qt.NoPen)
-            painter.setBrush(QBrush(QColor(255, 255, 255, 160 if is_active else 40)))
+            painter.setBrush(QBrush(QColor(255, 255, 255, 180 if is_active else 50)))
             painter.drawEllipse(QRectF(cx - radius * 0.5, cy - radius * 0.5, radius * 0.45, radius * 0.35))

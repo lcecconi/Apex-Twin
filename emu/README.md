@@ -81,9 +81,9 @@ python3 emu/main.py --export-screenshots docs/imgs
 
 | Button / Hotkey | Action in Race HUD | Action in Setup Menu |
 | --- | --- | --- |
-| **`Space`** or **`Up`** / BOOT Click | Previous HUD Page | Move Cursor Up |
+| **`Space`** or **`Down`** / BOOT Click | Next HUD Page | Move Cursor Down / + Increment |
 | **`Esc`** or **`Shift+Space`** / BOOT Hold (>0.5s) | Enter Setup Menu | Exit / Back to Previous Menu |
-| **`Enter`** or **`Down`** / KEY Click | Next HUD Page | Move Cursor Down |
+| **`Enter`** or **`Up`** / KEY Click | Previous HUD Page | Move Cursor Up / - Decrement |
 | **`I`** or **`Shift+Enter`** / KEY Hold (>0.5s) | Invert Silver/Black Screen | Select / Toggle Item |
 | **`1`**, **`2`**, **`3`**, **`4`**, **`5`** | Direct Jump to HUD Page 1..5 | - |
 | **`Tab`** | Trigger Start/Finish Gate (New Lap) | - |

@@ -22,12 +22,14 @@ from emu.ui.icons import (
     ICON_LIGHTBULB_16X16,
     ICON_FLAG_16X16,
     ICON_SDCARD_16X16,
+    ICON_NO_SD_16X16,
     ICON_SUN_16X16,
     ICON_GLOBE_16X16,
     ICON_WRENCH_16X16,
     ICON_BACK_16X16,
     ICON_ENGINE_16X16,
     ICON_STOPWATCH_16X16,
+
     ICON_WARN_24X24,
 )
 
@@ -53,6 +55,7 @@ class MenuState(IntEnum):
     MENU_USB_MSC_SCREEN = 8
     MENU_WARN_TRIGGERS = 9
     MENU_ALARM_PRIORITY = 10
+    MENU_OTA_SCREEN = 11
 
 
 
@@ -93,47 +96,7 @@ class RlcdRenderer(QWidget):
 
     # --- Button / Input Navigation Handlers ---
     def handle_key_short(self):
-        """KEY Button Short Press (Next Page in Race / Next Item or + Increase in Menu)"""
-        if self.menu_active:
-            if self.edit_mode:
-                # Increase parameter (+500 RPM / +step)
-                if self.menu_state == MenuState.MENU_RACE_SETUP:
-                    if self.cursor_idx == 1:
-                        self.settings.max_rpm = min(22000, self.settings.max_rpm + 500)
-                    elif self.cursor_idx == 2:
-                        self.settings.shift_rpm = min(20000, self.settings.shift_rpm + 500)
-                    elif self.cursor_idx == 3:
-                        self.settings.over_rev_rpm = min(22000, self.settings.over_rev_rpm + 500)
-                elif self.menu_state == MenuState.MENU_LEDS_ALARMS:
-                    if self.cursor_idx == 0:
-                        self.settings.led_brightness = min(100, self.settings.led_brightness + 10)
-                    elif self.cursor_idx == 5:
-                        self.settings.water_temp_alarm_c = min(95.0, self.settings.water_temp_alarm_c + 5.0)
-                    elif self.cursor_idx == 6:
-                        self.settings.over_rev_rpm = min(22000, self.settings.over_rev_rpm + 500)
-                elif self.menu_state == MenuState.MENU_DISPLAY_PWM:
-                    if self.cursor_idx == 0:
-                        self.settings.backlight_percent = min(100, self.settings.backlight_percent + 10)
-            else:
-                max_items = self._get_menu_item_count()
-                self.cursor_idx = (self.cursor_idx + 1) % max_items
-        else:
-            self.current_view = UiViewMode((self.current_view + 1) % len(UiViewMode))
-        self.update()
-
-    def handle_key_long(self):
-        """KEY Button Long Press (Invert Polarity in Race / Select / Save in Menu)"""
-        if self.menu_active:
-            if self.edit_mode:
-                self.edit_mode = False
-            else:
-                self._handle_menu_select()
-        else:
-            self.settings.inverted_display = not self.settings.inverted_display
-        self.update()
-
-    def handle_boot_short(self):
-        """BOOT Button Short Press (Prev Page in Race / Prev Item or - Decrease in Menu)"""
+        """KEY Button Short Press (Prev Page in Race / Prev Item or - Decrease in Menu)"""
         if self.menu_active:
             if self.edit_mode:
                 # Decrease parameter (-500 RPM / -step)
@@ -159,6 +122,46 @@ class RlcdRenderer(QWidget):
                 self.cursor_idx = (self.cursor_idx - 1 + max_items) % max_items
         else:
             self.current_view = UiViewMode((self.current_view - 1 + len(UiViewMode)) % len(UiViewMode))
+        self.update()
+
+    def handle_key_long(self):
+        """KEY Button Long Press (Invert Polarity in Race / Select / Save in Menu)"""
+        if self.menu_active:
+            if self.edit_mode:
+                self.edit_mode = False
+            else:
+                self._handle_menu_select()
+        else:
+            self.settings.inverted_display = not self.settings.inverted_display
+        self.update()
+
+    def handle_boot_short(self):
+        """BOOT Button Short Press (Next Page in Race / Next Item or + Increase in Menu)"""
+        if self.menu_active:
+            if self.edit_mode:
+                # Increase parameter (+500 RPM / +step)
+                if self.menu_state == MenuState.MENU_RACE_SETUP:
+                    if self.cursor_idx == 1:
+                        self.settings.max_rpm = min(22000, self.settings.max_rpm + 500)
+                    elif self.cursor_idx == 2:
+                        self.settings.shift_rpm = min(20000, self.settings.shift_rpm + 500)
+                    elif self.cursor_idx == 3:
+                        self.settings.over_rev_rpm = min(22000, self.settings.over_rev_rpm + 500)
+                elif self.menu_state == MenuState.MENU_LEDS_ALARMS:
+                    if self.cursor_idx == 0:
+                        self.settings.led_brightness = min(100, self.settings.led_brightness + 10)
+                    elif self.cursor_idx == 5:
+                        self.settings.water_temp_alarm_c = min(95.0, self.settings.water_temp_alarm_c + 5.0)
+                    elif self.cursor_idx == 6:
+                        self.settings.over_rev_rpm = min(22000, self.settings.over_rev_rpm + 500)
+                elif self.menu_state == MenuState.MENU_DISPLAY_PWM:
+                    if self.cursor_idx == 0:
+                        self.settings.backlight_percent = min(100, self.settings.backlight_percent + 10)
+            else:
+                max_items = self._get_menu_item_count()
+                self.cursor_idx = (self.cursor_idx + 1) % max_items
+        else:
+            self.current_view = UiViewMode((self.current_view + 1) % len(UiViewMode))
         self.update()
 
     def handle_boot_long(self):
@@ -204,7 +207,7 @@ class RlcdRenderer(QWidget):
         elif self.menu_state == MenuState.MENU_DISPLAY_PWM:
             return 6
         elif self.menu_state == MenuState.MENU_SYSTEM_LANG:
-            return 3
+            return 5
         return 1
 
     def _handle_menu_select(self):
@@ -327,9 +330,22 @@ class RlcdRenderer(QWidget):
             if self.cursor_idx == 0:
                 self.settings.language = (self.settings.language + 1) % 4
                 I18n.set_language(self.settings.language)
+            elif self.cursor_idx == 1:
+                self.menu_state = MenuState.MENU_OTA_SCREEN
+                self.ota_mode = "SD"
+            elif self.cursor_idx == 2:
+                self.menu_state = MenuState.MENU_OTA_SCREEN
+                self.ota_mode = "WIFI"
+            elif self.cursor_idx == 3:
+                from emu.core.telemetry_model import SystemSettings
+                self.settings = SystemSettings()
+                I18n.set_language(self.settings.language)
             else:
                 self.menu_state = MenuState.MENU_ROOT
                 self.cursor_idx = 5
+        elif self.menu_state == MenuState.MENU_OTA_SCREEN:
+            self.menu_state = MenuState.MENU_SYSTEM_LANG
+            self.cursor_idx = 1
         elif self.menu_state in (MenuState.MENU_TRACK_GPS, MenuState.MENU_DIAGNOSTICS, MenuState.MENU_USB_MSC_SCREEN):
             self.menu_state = MenuState.MENU_ROOT
             self.cursor_idx = 0
@@ -736,23 +752,33 @@ class RlcdRenderer(QWidget):
         blink_1hz = (int(time.time() * 2.0) % 2) == 0
         show_bat = (t.battery_percent >= 10) or blink_1hz
         show_link = t.track_module_connected or blink_1hz
+        show_no_sd = not t.sd_card_present
 
-        bat_str = f"BAT: {t.battery_voltage:.1f}V ({t.battery_percent}%)"
-        sep_str = " | "
-        link_str = "LINK OK" if t.track_module_connected else "NO LINK"
-
+        bat_str = f"{t.battery_voltage:.1f}V ({t.battery_percent}%)"
         fm = p.fontMetrics()
-        bat_w = fm.horizontalAdvance(bat_str)
-        sep_w = fm.horizontalAdvance(sep_str)
-        link_w = fm.horizontalAdvance(link_str)
-        total_w = bat_w + sep_w + link_w
-        start_x = 392 - total_w
+        bat_text_w = fm.horizontalAdvance(bat_str)
+
+        # Right-aligned status block: [NO-SD] | [BAT ICON] 4.1V (92%) | [WIFI ICON]
+        x_link = 376
+        if show_link:
+            draw_xbm(p, x_link, 280, ICON_LINK_16X16, 16, 16, color=fg)
+
+        x_sep2 = x_link - 12
+        p.drawText(x_sep2, 292, "|")
+
+        x_bat_text = x_sep2 - 4 - bat_text_w
+        x_bat_icon = x_bat_text - 20
 
         if show_bat:
-            p.drawText(start_x, 292, bat_str)
-        p.drawText(start_x + bat_w, 292, sep_str)
-        if show_link:
-            p.drawText(start_x + bat_w + sep_w, 292, link_str)
+            draw_xbm(p, x_bat_icon, 280, ICON_BAT_16X16, 16, 16, color=fg)
+            p.drawText(x_bat_text, 292, bat_str)
+
+        if show_no_sd:
+            x_sep1 = x_bat_icon - 10
+            p.drawText(x_sep1, 292, "|")
+            x_sd_icon = x_sep1 - 20
+            draw_xbm(p, x_sd_icon, 280, ICON_NO_SD_16X16, 16, 16, color=fg)
+
 
 
     def _render_telemetry(self, p: QPainter, bg: QColor, fg: QColor):
@@ -1192,22 +1218,27 @@ class RlcdRenderer(QWidget):
         w_temp = t.water_temp_c if s.use_celsius else (t.water_temp_c * 1.8 + 32.0)
         e_temp = t.exhaust_temp_c if s.use_celsius else (t.exhaust_temp_c * 1.8 + 32.0)
 
+        # Water Temp
         draw_xbm(p, 6, 280, ICON_WATER_16X16, 16, 16, color=fg)
         p.setFont(QFont("SansSerif", 8, QFont.Bold))
         p.drawText(24, 293, f"{int(round(w_temp))}")
 
-        draw_xbm(p, 84, 280, ICON_EGT_16X16, 16, 16, color=fg)
-        p.drawText(102, 293, f"{int(round(e_temp))}")
+        draw_xbm(p, 74, 280, ICON_EGT_16X16, 16, 16, color=fg)
+        p.drawText(92, 293, f"{int(round(e_temp))}")
 
         eng_hrs = t.engine_total_hours_sec // 3600
         eng_min = (t.engine_total_hours_sec % 3600) // 60
-        draw_xbm(p, 156, 280, ICON_ENGINE_16X16, 16, 16, color=fg)
-        p.drawText(174, 293, f"{eng_hrs:02d}h{eng_min:02d}")
+        draw_xbm(p, 142, 280, ICON_ENGINE_16X16, 16, 16, color=fg)
+        p.drawText(160, 293, f"{eng_hrs:02d}h{eng_min:02d}")
 
         sess_hrs = t.session_time_sec // 3600
         sess_min = (t.session_time_sec % 3600) // 60
-        draw_xbm(p, 232, 280, ICON_STOPWATCH_16X16, 16, 16, color=fg)
-        p.drawText(250, 293, f"{sess_hrs:02d}h{sess_min:02d}")
+        draw_xbm(p, 212, 280, ICON_STOPWATCH_16X16, 16, 16, color=fg)
+        p.drawText(230, 293, f"{sess_hrs:02d}h{sess_min:02d}")
+
+        # MicroSD absent status symbol
+        if not t.sd_card_present:
+            draw_xbm(p, 282, 280, ICON_NO_SD_16X16, 16, 16, color=fg)
 
         blink_1hz = (int(time.time() * 2) % 2) == 0
         show_bat = (t.battery_percent >= 10) or blink_1hz
@@ -1216,9 +1247,10 @@ class RlcdRenderer(QWidget):
         if show_bat:
             draw_xbm(p, 308, 280, ICON_BAT_16X16, 16, 16, color=fg)
             p.drawText(326, 293, f"{t.battery_percent}%")
-        p.drawText(354, 293, "|")
+        p.drawText(356, 293, "|")
         if show_link:
-            p.drawText(360, 293, "LINK" if t.track_module_connected else "ERR")
+            draw_xbm(p, 368, 280, ICON_LINK_16X16, 16, 16, color=fg)
+
 
     def _render_menu(self, p: QPainter, bg: QColor, fg: QColor):
         p.fillRect(0, 0, 400, 24, fg)
@@ -1385,18 +1417,51 @@ class RlcdRenderer(QWidget):
             p.drawText(12, 46, I18n.get(StrId.CAT_SYSTEM_LANG))
             items = [
                 f"{I18n.get(StrId.LANGUAGE)}: [{I18n.get_language_name(self.settings.language)}]",
+                I18n.get(StrId.OTA_SD_UPDATE),
+                I18n.get(StrId.OTA_WIFI_START),
                 I18n.get(StrId.RESET_CONFIG),
                 "< Return >"
             ]
             for i, text in enumerate(items):
-                y = 90 + (i * 45)
+                y = 74 + (i * 38)
                 if i == self.cursor_idx:
-                    p.fillRect(12, y - 22, 376, 36, fg)
+                    p.fillRect(12, y - 20, 376, 30, fg)
                     p.setPen(bg)
                     p.drawText(24, y, text)
                     p.setPen(fg)
                 else:
                     p.drawText(24, y, text)
+
+        elif self.menu_state == MenuState.MENU_OTA_SCREEN:
+            p.drawRoundedRect(15, 32, 370, 238, 6, 6)
+            p.setFont(QFont("SansSerif", 10, QFont.Bold))
+            if getattr(self, "ota_mode", "SD") == "WIFI":
+                p.drawText(30, 56, "WI-FI OTA FIRMWARE PORTAL")
+                p.drawLine(30, 62, 370, 62)
+                p.setFont(QFont("Monospace", 8))
+                p.drawText(30, 84, "1. Connect PC / Phone Wi-Fi to:")
+                p.setFont(QFont("SansSerif", 9, QFont.Bold))
+                p.drawText(46, 104, "SSID: ApexDash-OTA")
+                p.setFont(QFont("Monospace", 8))
+                p.drawText(30, 126, "2. Open Web Browser and navigate to:")
+                p.setFont(QFont("SansSerif", 9, QFont.Bold))
+                p.drawText(46, 146, "http://192.168.4.1")
+                p.setFont(QFont("Monospace", 8))
+                p.drawText(30, 168, "3. Select firmware.bin and upload")
+            else:
+                p.drawText(30, 56, "MICROSD FIRMWARE UPDATE")
+                p.drawLine(30, 62, 370, 62)
+                p.setFont(QFont("Monospace", 8))
+                p.drawText(30, 90, "File: /sdcard/firmware.bin")
+                p.drawText(30, 110, "Writing firmware to flash partition...")
+                p.drawRect(30, 130, 340, 22)
+                p.fillRect(33, 133, 200, 16, fg)
+                p.drawText(160, 170, "Flashing: 60%")
+            p.fillRect(30, 220, 340, 30, fg)
+            p.setPen(bg)
+            p.setFont(QFont("SansSerif", 10, QFont.Bold))
+            p.drawText(90, 241, "PRESS BOOT / KEY TO EXIT")
+            p.setPen(fg)
 
         elif self.menu_state == MenuState.MENU_USB_MSC_SCREEN:
             p.drawRoundedRect(20, 45, 360, 200, 6, 6)
@@ -1412,13 +1477,13 @@ class RlcdRenderer(QWidget):
             p.setPen(fg)
 
         # Menu Footer Navigation
-        if self.menu_state != MenuState.MENU_USB_MSC_SCREEN:
+        if self.menu_state != MenuState.MENU_USB_MSC_SCREEN and self.menu_state != MenuState.MENU_OTA_SCREEN:
             p.drawLine(0, 276, 400, 276)
             p.setFont(QFont("Monospace", 7))
             if self.edit_mode:
-                p.drawText(8, 292, "KEY: + / Inc (+500) | BOOT: - / Dec (-500) | Long: Save")
+                p.drawText(8, 292, "BOOT: + / Inc (+500) | KEY: - / Dec (-500) | Long KEY: Save")
             else:
-                p.drawText(8, 292, "KEY: Next | BOOT: Prev | Long KEY: Edit/Select | Long BOOT: Back")
+                p.drawText(8, 292, "BOOT: Next | KEY: Prev | Long KEY: Edit/Select | Long BOOT: Back")
 
 
     def _render_footer(self, p: QPainter, bg: QColor, fg: QColor):
@@ -1428,5 +1493,5 @@ class RlcdRenderer(QWidget):
         p.drawLine(0, 276, 400, 276)
         p.setFont(QFont("Monospace", 7))
         views = ["RACE HUD", "SCHUMACHER", "TELEMETRY", "PADDOCK", "DATA RECALL"]
-        p.drawText(6, 292, f"KEY: [{views[self.current_view]} {self.current_view+1}/5] | BOOT (Long): Menu | Enter: Invert")
+        p.drawText(6, 292, f"BOOT: [{views[self.current_view]} {self.current_view+1}/5] | BOOT (Long): Menu | Enter: Invert")
 
