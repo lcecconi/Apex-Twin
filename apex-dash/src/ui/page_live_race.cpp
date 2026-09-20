@@ -411,26 +411,37 @@ void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const 
   bool blink_1hz = ((millis() / 500) % 2) == 0;
   bool show_bat = (telemetry.battery_percent >= 10) || blink_1hz;
   bool show_link = telemetry.track_module_connected || blink_1hz;
+  bool show_no_sd = !telemetry.sd_card_present;
 
   char bat_str[32];
-  snprintf(bat_str, sizeof(bat_str), "BAT: %.1fV (%d%%)", telemetry.battery_voltage, telemetry.battery_percent);
-  const char *sep_str = " | ";
-  const char *link_str = telemetry.track_module_connected ? "LINK OK" : "NO LINK";
+  snprintf(bat_str, sizeof(bat_str), "%.1fV (%d%%)", telemetry.battery_voltage, telemetry.battery_percent);
+  int bat_text_w = u8g2->getStrWidth(bat_str);
 
-  int bat_w = u8g2->getStrWidth(bat_str);
-  int sep_w = u8g2->getStrWidth(sep_str);
-  int link_w = u8g2->getStrWidth(link_str);
-  int total_w = bat_w + sep_w + link_w;
-  int start_x = 392 - total_w;
+  // Right-aligned status block: [NO-SD] | [BAT ICON] 4.1V (92%) | [WIFI ICON]
+  int x_link = 376;
+  if (show_link) {
+    u8g2->drawXBMP(x_link, 280, 16, 16, icon_link_16x16);
+  }
+
+  int x_sep2 = x_link - 12;
+  u8g2->drawStr(x_sep2, 292, "|");
+
+  int x_bat_text = x_sep2 - 4 - bat_text_w;
+  int x_bat_icon = x_bat_text - 20;
 
   if (show_bat) {
-    u8g2->drawStr(start_x, 292, bat_str);
+    u8g2->drawXBMP(x_bat_icon, 280, 16, 16, icon_bat_16x16);
+    u8g2->drawStr(x_bat_text, 292, bat_str);
   }
-  u8g2->drawStr(start_x + bat_w, 292, sep_str);
-  if (show_link) {
-    u8g2->drawStr(start_x + bat_w + sep_w, 292, link_str);
+
+  if (show_no_sd) {
+    int x_sep1 = x_bat_icon - 10;
+    u8g2->drawStr(x_sep1, 292, "|");
+    int x_sd_icon = x_sep1 - 20;
+    u8g2->drawXBMP(x_sd_icon, 280, 16, 16, icon_no_sd_16x16);
   }
 }
+
 
 
 

@@ -72,13 +72,13 @@ void LEDStripManager::update(const TelemetrySnapshot &telemetry, const SystemSet
     _last_strobe_ms = now;
   }
 
-  // 1. Shift Lights (LEDs 0..4)
+  // 1. Shift Lights (Progressive RPM ladder mapped across NUM_SHIFT_LEDS)
   if (settings.led_shift_enable && settings.rpm_display_mode != RPM_DISP_DISPLAY_ONLY) {
     uint16_t shift_rpm = settings.shift_rpm;
     uint16_t rpm = telemetry.rpm;
 
     if (rpm >= shift_rpm && shift_rpm > 0) {
-      // Shift Point Strobe: Flash all 5 shift LEDs in brilliant Blue/White
+      // Shift Point Strobe: Flash all shift LEDs in brilliant Blue/White
       for (int i = 0; i < NUM_SHIFT_LEDS; i++) {
         if (_strobe_state) {
           _set_pixel(i, 0, 150, 255);
@@ -86,22 +86,37 @@ void LEDStripManager::update(const TelemetrySnapshot &telemetry, const SystemSet
           _set_pixel(i, 0, 0, 0);
         }
       }
-    } else {
-      // Progressive Shift Ladder: 5 LEDs
-      uint16_t rpm_start = (shift_rpm > 1600) ? (shift_rpm - 1600) : 0;
-      uint16_t step = (shift_rpm > rpm_start) ? ((shift_rpm - rpm_start) / 4) : 1;
-      if (step == 0) step = 1;
+    } else if (rpm > 100) {
+      // Linear mapping: First LED lights up at > 100 RPM, then linearly up to max_rpm
+      uint32_t max_rpm = (settings.max_rpm > 100) ? settings.max_rpm : DEFAULT_MAX_RPM;
+      uint32_t span_rpm = max_rpm - 100;
+      uint32_t curr_rpm = (rpm > max_rpm) ? span_rpm : (rpm - 100);
+      int active_leds = 1 + (int)((curr_rpm * (NUM_SHIFT_LEDS - 1)) / span_rpm);
+      if (active_leds > NUM_SHIFT_LEDS) active_leds = NUM_SHIFT_LEDS;
 
-      // LED 0: Green
-      if (rpm >= rpm_start && rpm > 0) _set_pixel(0, 0, 255, 0); else _set_pixel(0, 0, 0, 0);
-      // LED 1: Green
-      if (rpm >= rpm_start + step) _set_pixel(1, 0, 255, 0); else _set_pixel(1, 0, 0, 0);
-      // LED 2: Yellow / Amber
-      if (rpm >= rpm_start + step * 2) _set_pixel(2, 255, 200, 0); else _set_pixel(2, 0, 0, 0);
-      // LED 3: Yellow / Orange
-      if (rpm >= rpm_start + step * 3) _set_pixel(3, 255, 120, 0); else _set_pixel(3, 0, 0, 0);
-      // LED 4: Red
-      if (rpm >= shift_rpm - 50 && shift_rpm > 50) _set_pixel(4, 255, 0, 0); else _set_pixel(4, 0, 0, 0);
+      // Color stage boundaries (for 16 LEDs: 6 Green, 5 Yellow/Amber, 5 Red)
+      int green_count = (NUM_SHIFT_LEDS * 6) / 16;
+      int yellow_count = (NUM_SHIFT_LEDS * 5) / 16;
+      if (green_count < 1) green_count = 1;
+      if (yellow_count < 1) yellow_count = 1;
+
+      for (int i = 0; i < NUM_SHIFT_LEDS; i++) {
+        if (i < active_leds) {
+          if (i < green_count) {
+            _set_pixel(i, 0, 255, 0);       // Green
+          } else if (i < green_count + yellow_count) {
+            _set_pixel(i, 255, 200, 0);     // Yellow / Amber
+          } else {
+            _set_pixel(i, 255, 0, 0);       // Red
+          }
+        } else {
+          _set_pixel(i, 0, 0, 0);
+        }
+      }
+    } else {
+      for (int i = 0; i < NUM_SHIFT_LEDS; i++) {
+        _set_pixel(i, 0, 0, 0);
+      }
     }
   } else {
     for (int i = 0; i < NUM_SHIFT_LEDS; i++) {
@@ -109,6 +124,7 @@ void LEDStripManager::update(const TelemetrySnapshot &telemetry, const SystemSet
     }
   }
 
+#if NUM_ALARM_LEDS > 0
   // 2. Alarm Lights (LED 5 = Left Alarm, LED 6 = Right Alarm)
   if (settings.led_alarm_enable) {
     // Left Alarm: Water Overheat (> threshold) or Low Battery (< 3.4V)
@@ -132,6 +148,7 @@ void LEDStripManager::update(const TelemetrySnapshot &telemetry, const SystemSet
     _set_pixel(5, 0, 0, 0);
     _set_pixel(6, 0, 0, 0);
   }
+#endif
 
   led_strip_refresh(_led_strip);
 }

@@ -87,13 +87,16 @@ Holding down the **BOOT Button (GPIO 0)** opens the hierarchical setup menu:
 ### Option A: Using the Unified Apex Command Center (`apex`)
 ```bash
 # Build & Flash firmware (auto-detects serial port)
-apex flash dash
+apex dash flash
+
+# Flash wirelessly over local Wi-Fi (Maintenance Mode)
+apex dash flash --ota --ip 192.168.1.50
 
 # Live Serial Terminal Monitor
-apex monitor dash
+apex dash monitor
 
 # Launch Graphical Desktop Flasher & Monitor GUI
-apex mon dash
+apex dash util
 ```
 
 ### Option B: Using PlatformIO CLI Directly

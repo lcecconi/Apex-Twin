@@ -300,23 +300,28 @@ void PageShumacher::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const
   u8g2->drawStr(24, 293, buf);
 
   // EGT Temp
-  u8g2->drawXBMP(84, 280, 16, 16, icon_egt_16x16);
+  u8g2->drawXBMP(74, 280, 16, 16, icon_egt_16x16);
   snprintf(buf, sizeof(buf), "%d", (int)roundf(e_temp));
-  u8g2->drawStr(102, 293, buf);
+  u8g2->drawStr(92, 293, buf);
 
   // Total Engine Hours
   uint32_t eng_hrs = telemetry.engine_total_hours_sec / 3600;
   uint32_t eng_min = (telemetry.engine_total_hours_sec % 3600) / 60;
-  u8g2->drawXBMP(156, 280, 16, 16, icon_engine_16x16);
+  u8g2->drawXBMP(142, 280, 16, 16, icon_engine_16x16);
   snprintf(buf, sizeof(buf), "%02luh%02lu", (unsigned long)eng_hrs, (unsigned long)eng_min);
-  u8g2->drawStr(174, 293, buf);
+  u8g2->drawStr(160, 293, buf);
 
   // Current Session Time
   uint32_t sess_hrs = telemetry.session_time_sec / 3600;
   uint32_t sess_min = (telemetry.session_time_sec % 3600) / 60;
-  u8g2->drawXBMP(232, 280, 16, 16, icon_stopwatch_16x16);
+  u8g2->drawXBMP(212, 280, 16, 16, icon_stopwatch_16x16);
   snprintf(buf, sizeof(buf), "%02luh%02lu", (unsigned long)sess_hrs, (unsigned long)sess_min);
-  u8g2->drawStr(250, 293, buf);
+  u8g2->drawStr(230, 293, buf);
+
+  // MicroSD absent status symbol
+  if (!telemetry.sd_card_present) {
+    u8g2->drawXBMP(282, 280, 16, 16, icon_no_sd_16x16);
+  }
 
   // Battery & Link Status (Blinks if low/disconnected)
   bool blink_1hz = ((millis() / 500) % 2) == 0;
@@ -328,8 +333,9 @@ void PageShumacher::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const
     snprintf(buf, sizeof(buf), "%d%%", telemetry.battery_percent);
     u8g2->drawStr(326, 293, buf);
   }
-  u8g2->drawStr(354, 293, "|");
+  u8g2->drawStr(356, 293, "|");
   if (show_link) {
-    u8g2->drawStr(360, 293, telemetry.track_module_connected ? "LINK" : "ERR");
+    u8g2->drawXBMP(368, 280, 16, 16, icon_link_16x16);
   }
 }
+

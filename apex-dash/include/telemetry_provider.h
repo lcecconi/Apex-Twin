@@ -9,10 +9,11 @@
 #define MAX_SAVED_LAPS 30
 
 class StorageManager;
+class SDManager;
 
 class TelemetryProvider {
 public:
-  void begin(const SystemSettings &settings, StorageManager *storage = nullptr);
+  void begin(const SystemSettings &settings, StorageManager *storage = nullptr, SDManager *sd_mgr = nullptr);
   void update(const DeviceSensorsData &local_sensors, const SystemSettings &settings);
   const TelemetrySnapshot &getSnapshot() const { return _snapshot; }
 
@@ -30,6 +31,8 @@ private:
   uint16_t _completed_laps_count = 0;
   int16_t _best_lap_index = -1;
   StorageManager *_storage = nullptr;
+  SDManager *_sd_mgr = nullptr;
+
 
   // Runtime tracking
   uint32_t _last_engine_time_ms = 0;

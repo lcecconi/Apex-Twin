@@ -6,22 +6,38 @@
 #include "backlight_manager.h"
 #include "usb_storage_manager.h"
 #include "sd_manager.h"
+#include "ota_manager.h"
+#include "storage_manager.h"
+#include "esp_log.h"
 #include "esp_system.h"
 #include <cstdio>
 #include <cmath>
 #include <cstring>
 
+static const char *TAG = "MENU";
+
 #define ROOT_MENU_COUNT 8
 
-void MenuSystem::begin(TrackManager *trackMgr, LEDStripManager *ledMgr, BacklightManager *blMgr, USBStorageManager *usbMgr, SDManager *sdMgr) {
+void MenuSystem::begin(TrackManager *trackMgr, LEDStripManager *ledMgr, BacklightManager *blMgr, USBStorageManager *usbMgr, SDManager *sdMgr, StorageManager *storageMgr) {
   _trackMgr = trackMgr;
   _ledMgr = ledMgr;
   _blMgr = blMgr;
   _usbMgr = usbMgr;
   _sdMgr = sdMgr;
+  _storageMgr = storageMgr;
   _active = false;
   _current_state = MENU_ROOT;
   _cursor_idx = 0;
+}
+
+void MenuSystem::closeMenu(const SystemSettings &settings) {
+  _active = false;
+  _edit_mode = false;
+  if (_storageMgr && (settings != _settings_on_open)) {
+    ESP_LOGI(TAG, "Settings changed in setup menu. Auto-persisting changes to NVS...");
+    _storageMgr->saveSettings(settings);
+    _settings_on_open = settings;
+  }
 }
 
 static void cycleAlarmPriority(SystemSettings &settings, uint8_t rank) {
@@ -47,6 +63,20 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings, Tel
       _current_state = MENU_STORAGE_PC;
       _cursor_idx = 0;
       return true;
+    }
+    return true;
+  }
+
+  // Handle OTA / Maintenance active screen escape
+  if (_current_state == MENU_OTA_SCREEN) {
+    if (event == INPUT_SELECT || event == INPUT_BACK_MENU || event == INPUT_NEXT || event == INPUT_PREV) {
+      OtaStatus st = OtaManager::instance().getStatus();
+      if (st != OTA_SD_IN_PROGRESS && st != MAINTENANCE_RECEIVING && st != OTA_SD_COMPLETED && st != MAINTENANCE_COMPLETED) {
+        OtaManager::instance().cancel();
+        _current_state = MENU_SYSTEM_LANG;
+        _cursor_idx = 2;
+        return true;
+      }
     }
     return true;
   }
@@ -114,7 +144,7 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings, Tel
   // Handle Global Back
   if (event == INPUT_BACK_MENU) {
     if (_current_state == MENU_ROOT) {
-      closeMenu();
+      closeMenu(settings);
     } else if (_current_state == MENU_WARN_TRIGGERS) {
       _current_state = MENU_LEDS_ALARMS;
       _cursor_idx = 7;
@@ -143,7 +173,7 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings, Tel
         case 4: _current_state = MENU_DISPLAY_PWM; _cursor_idx = 0; break;
         case 5: _current_state = MENU_SYSTEM_LANG; _cursor_idx = 0; break;
         case 6: _current_state = MENU_DIAGNOSTICS_COUNTERS; _cursor_idx = 0; break;
-        case 7: closeMenu(); break;
+        case 7: closeMenu(settings); break;
       }
     }
     return true;
@@ -286,6 +316,7 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings, Tel
           const TrackDefinition *t = _trackMgr->getActiveTrack();
           if (t) {
             strncpy(settings.selected_track, t->name, sizeof(settings.selected_track) - 1);
+            strncpy(settings.selected_track_file, t->id, sizeof(settings.selected_track_file) - 1);
           }
         }
         _current_state = MENU_ROOT;
@@ -349,7 +380,7 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings, Tel
 
   // --- 6. SYSTEM & LANGUAGE ---
   if (_current_state == MENU_SYSTEM_LANG) {
-    int max_items = 3;
+    int max_items = 5;
     if (event == INPUT_NEXT) {
       _cursor_idx = (_cursor_idx + 1) % max_items;
     } else if (event == INPUT_PREV) {
@@ -360,6 +391,14 @@ bool MenuSystem::handleInput(UserInputEvent event, SystemSettings &settings, Tel
         settings.language = (settings.language + 1) % LANG_COUNT;
         I18n::setLanguage((Language)settings.language);
       } else if (_cursor_idx == 1) {
+        // MicroSD Offline OTA
+        _current_state = MENU_OTA_SCREEN;
+        OtaManager::instance().startSdUpdate();
+      } else if (_cursor_idx == 2) {
+        // Maintenance Mode (Wi-Fi OTA)
+        _current_state = MENU_OTA_SCREEN;
+        OtaManager::instance().startMaintenanceMode(settings.wifi_ssid, settings.wifi_pass);
+      } else if (_cursor_idx == 3) {
         // Reset defaults
         settings = SystemSettings();
         I18n::setLanguage((Language)settings.language);
@@ -418,17 +457,18 @@ void MenuSystem::render(U8G2 *u8g2, const SystemSettings &settings, const Teleme
     case MENU_USB_MSC_SCREEN: renderUsbMscScreen(u8g2); break;
     case MENU_WARN_TRIGGERS: renderWarnTriggersMenu(u8g2, settings); break;
     case MENU_ALARM_PRIORITY: renderAlarmPriorityMenu(u8g2, settings); break;
+    case MENU_OTA_SCREEN: renderOtaScreen(u8g2); break;
   }
 
 
   // Footer Navigation
-  if (_current_state != MENU_USB_MSC_SCREEN) {
+  if (_current_state != MENU_USB_MSC_SCREEN && _current_state != MENU_OTA_SCREEN) {
     u8g2->drawHLine(0, 276, 400);
     u8g2->setFont(u8g2_font_6x10_tr);
     if (_edit_mode) {
-      u8g2->drawStr(8, 292, "KEY: + / Inc (+500) | BOOT: - / Dec (-500) | Long: Save");
+      u8g2->drawStr(8, 292, "BOOT: + / Inc (+500) | KEY: - / Dec (-500) | Long KEY: Save");
     } else {
-      u8g2->drawStr(8, 292, "KEY: Next | BOOT: Prev | Long KEY: Edit/Select | Long BOOT: Back");
+      u8g2->drawStr(8, 292, "BOOT: Next | KEY: Prev | Long KEY: Edit/Select | Long BOOT: Back");
     }
   }
 }
@@ -530,8 +570,8 @@ void MenuSystem::renderLedsAlarmsMenu(U8G2 *u8g2, const SystemSettings &settings
   }
   snprintf(b1, sizeof(b1), "%s: [%s]", I18n::get(STR_RPM_DISP_MODE), rpm_mode_str);
   snprintf(b2, sizeof(b2), "%s [Click to run]", I18n::get(STR_LED_TEST));
-  snprintf(b3, sizeof(b3), "Shift LEDs (5x): [%s]", settings.led_shift_enable ? "ENABLED" : "OFF");
-  snprintf(b4, sizeof(b4), "Alarm LEDs (2x): [%s]", settings.led_alarm_enable ? "ENABLED" : "OFF");
+  snprintf(b3, sizeof(b3), "Shift LEDs (%dx): [%s]", NUM_SHIFT_LEDS, settings.led_shift_enable ? "ENABLED" : "OFF");
+  snprintf(b4, sizeof(b4), "Alarm LEDs (%dx): [%s]", NUM_ALARM_LEDS, settings.led_alarm_enable ? "ENABLED" : "OFF");
   if (_edit_mode && _cursor_idx == 5) {
     snprintf(b5, sizeof(b5), "%s: [- %.0f \xb0\x43 +]", I18n::get(STR_WATER_ALARM), settings.water_temp_alarm_c);
   } else {
@@ -739,16 +779,18 @@ void MenuSystem::renderSystemLangMenu(U8G2 *u8g2, const SystemSettings &settings
   char b0[64];
   snprintf(b0, sizeof(b0), "%s: [%s]", I18n::get(STR_LANGUAGE), I18n::getLanguageName((Language)settings.language));
 
-  const char *items[3] = {
+  const char *items[5] = {
     b0,
+    I18n::get(STR_OTA_SD_UPDATE),
+    I18n::get(STR_OTA_WIFI_START),
     I18n::get(STR_RESET_CONFIG),
     "< Return to Main Menu >"
   };
 
-  for (int i = 0; i < 3; i++) {
-    int y = 90 + (i * 45);
+  for (int i = 0; i < 5; i++) {
+    int y = 74 + (i * 38);
     if (i == _cursor_idx) {
-      u8g2->drawRBox(12, y - 22, 376, 36, 4);
+      u8g2->drawRBox(12, y - 20, 376, 30, 4);
       u8g2->setDrawColor(0);
       u8g2->drawStr(24, y, items[i]);
       u8g2->setDrawColor(1);
@@ -829,3 +871,120 @@ void MenuSystem::renderUsbMscScreen(U8G2 *u8g2) {
   u8g2->drawStr(80, 217, "PRESS BOOT/KEY TO EXIT");
   u8g2->setDrawColor(1);
 }
+
+void MenuSystem::renderOtaScreen(U8G2 *u8g2) {
+  OtaStatus st = OtaManager::instance().getStatus();
+  uint8_t pct = OtaManager::instance().getProgress();
+  const char *errMsg = OtaManager::instance().getErrorMessage();
+  const char *activeFile = OtaManager::instance().getActiveFilename();
+  const char *ipAddr = OtaManager::instance().getConnectedIP();
+  const char *targetSSID = OtaManager::instance().getTargetSSID();
+
+  u8g2->drawRFrame(15, 32, 370, 238, 8);
+
+  bool isMaint = (st == MAINTENANCE_CONNECTING || st == MAINTENANCE_READY ||
+                  st == MAINTENANCE_RECEIVING || st == MAINTENANCE_COMPLETED ||
+                  st == MAINTENANCE_FAILED);
+
+  u8g2->setFont(u8g2_font_helvB10_tr);
+  if (isMaint) {
+    u8g2->drawStr(30, 56, "MAINTENANCE MODE (WI-FI OTA)");
+  } else {
+    u8g2->drawStr(30, 56, "MICROSD FIRMWARE UPDATE");
+  }
+  u8g2->drawHLine(30, 62, 340);
+
+  u8g2->setFont(u8g2_font_6x12_tr);
+
+  if (isMaint) {
+    if (st == MAINTENANCE_CONNECTING) {
+      char sbuf[80];
+      snprintf(sbuf, sizeof(sbuf), "Connecting to SSID: %s", (targetSSID && strlen(targetSSID)) ? targetSSID : DEFAULT_WIFI_SSID);
+      u8g2->drawStr(30, 95, sbuf);
+      u8g2->drawStr(30, 120, "Obtaining IP address via DHCP...");
+      u8g2->drawStr(30, 150, "Please ensure Wi-Fi Access Point is in range.");
+    } else if (st == MAINTENANCE_READY) {
+      char sbuf[80], ipbuf[80];
+      snprintf(sbuf, sizeof(sbuf), "Connected Wi-Fi: %s", (targetSSID && strlen(targetSSID)) ? targetSSID : DEFAULT_WIFI_SSID);
+      snprintf(ipbuf, sizeof(ipbuf), "Assigned IP: %s", (ipAddr && strlen(ipAddr)) ? ipAddr : "...");
+      u8g2->drawStr(30, 84, sbuf);
+      u8g2->setFont(u8g2_font_helvB10_tr);
+      u8g2->drawStr(30, 108, ipbuf);
+      u8g2->setFont(u8g2_font_6x12_tr);
+      u8g2->drawStr(30, 134, "To flash wirelessly from your PC:");
+      u8g2->setFont(u8g2_font_helvB08_tr);
+      char cmdBuf[96];
+      snprintf(cmdBuf, sizeof(cmdBuf), "apex dash flash --ota --ip %s", (ipAddr && strlen(ipAddr)) ? ipAddr : "...");
+      u8g2->drawStr(40, 154, cmdBuf);
+      u8g2->setFont(u8g2_font_6x12_tr);
+      char urlBuf[64];
+      snprintf(urlBuf, sizeof(urlBuf), "Or Web: http://%s", (ipAddr && strlen(ipAddr)) ? ipAddr : "...");
+      u8g2->drawStr(30, 178, urlBuf);
+    } else if (st == MAINTENANCE_RECEIVING) {
+      u8g2->drawStr(30, 95, "Receiving firmware binary over Wi-Fi...");
+      u8g2->drawStr(30, 115, "Writing to flash partition (ota_0/ota_1)...");
+      // Progress bar
+      u8g2->drawRFrame(30, 135, 340, 22, 3);
+      int fill_w = (int)((pct * 334) / 100);
+      if (fill_w > 0) {
+        u8g2->drawBox(33, 138, fill_w, 16);
+      }
+      char pbuf[32];
+      snprintf(pbuf, sizeof(pbuf), "Flashing: %d%%", pct);
+      u8g2->drawStr(160, 175, pbuf);
+    } else if (st == MAINTENANCE_COMPLETED) {
+      u8g2->drawStr(30, 110, "Update Successful!");
+      u8g2->setFont(u8g2_font_helvB10_tr);
+      u8g2->drawStr(30, 140, "REBOOTING DASHBOARD...");
+    } else if (st == MAINTENANCE_FAILED) {
+      u8g2->drawStr(30, 100, "Maintenance Wi-Fi Failed!");
+      char ebuf[144];
+      snprintf(ebuf, sizeof(ebuf), "Reason: %s", (errMsg && strlen(errMsg) > 0) ? errMsg : "Unknown error");
+      u8g2->drawStr(30, 130, ebuf);
+    }
+  } else {
+    // MicroSD
+    if (st == OTA_SD_IN_PROGRESS) {
+      char fbuf[80];
+      snprintf(fbuf, sizeof(fbuf), "File: %s", activeFile);
+      u8g2->drawStr(30, 90, fbuf);
+      u8g2->drawStr(30, 110, "Writing firmware to flash partition...");
+
+      // Progress bar
+      u8g2->drawRFrame(30, 130, 340, 22, 3);
+      int fill_w = (int)((pct * 334) / 100);
+      if (fill_w > 0) {
+        u8g2->drawBox(33, 133, fill_w, 16);
+      }
+      char pbuf[32];
+      snprintf(pbuf, sizeof(pbuf), "Flashing: %d%%", pct);
+      u8g2->drawStr(160, 170, pbuf);
+    } else if (st == OTA_SD_COMPLETED) {
+      u8g2->drawStr(30, 110, "MicroSD Update Successful!");
+      u8g2->setFont(u8g2_font_helvB10_tr);
+      u8g2->drawStr(30, 140, "REBOOTING DASHBOARD...");
+    } else if (st == OTA_SD_FAILED) {
+      u8g2->drawStr(30, 100, "MicroSD Update Failed!");
+      char ebuf[144];
+      snprintf(ebuf, sizeof(ebuf), "Reason: %s", (errMsg && strlen(errMsg) > 0) ? errMsg : "No valid firmware found");
+      u8g2->drawStr(30, 130, ebuf);
+    }
+  }
+
+  // Footer button / instruction
+  bool isFlashing = (st == OTA_SD_IN_PROGRESS || st == MAINTENANCE_RECEIVING || st == OTA_SD_COMPLETED || st == MAINTENANCE_COMPLETED);
+  if (isFlashing) {
+    u8g2->drawRBox(30, 220, 340, 30, 4);
+    u8g2->setDrawColor(0);
+    u8g2->setFont(u8g2_font_helvB10_tr);
+    u8g2->drawStr(70, 241, "DO NOT DISCONNECT POWER");
+    u8g2->setDrawColor(1);
+  } else {
+    u8g2->drawRBox(30, 220, 340, 30, 4);
+    u8g2->setDrawColor(0);
+    u8g2->setFont(u8g2_font_helvB10_tr);
+    u8g2->drawStr(80, 241, "PRESS BOOT/KEY TO EXIT");
+    u8g2->setDrawColor(1);
+  }
+}
+

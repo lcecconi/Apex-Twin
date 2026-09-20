@@ -37,6 +37,8 @@ static const char* const STRINGS[LANG_COUNT][STR_MAX_STRINGS] = {
     /* STR_INVERT_DISP          */ "Display Polarity",
     /* STR_UNITS_SPEED          */ "Speed Unit",
     /* STR_UNITS_TEMP           */ "Temp Unit",
+    /* STR_OTA_SD_UPDATE        */ "MicroSD Firmware Update",
+    /* STR_OTA_WIFI_START       */ "Maintenance Mode (Wi-Fi OTA)",
     /* STR_RESET_CONFIG         */ "Factory Reset",
 
     /* STR_DRIVE_DIRECT         */ "Direct Drive (1-Speed)",
@@ -106,6 +108,8 @@ static const char* const STRINGS[LANG_COUNT][STR_MAX_STRINGS] = {
     /* STR_INVERT_DISP          */ "Polarita Display",
     /* STR_UNITS_SPEED          */ "Unita Velocita",
     /* STR_UNITS_TEMP           */ "Unita Temperatura",
+    /* STR_OTA_SD_UPDATE        */ "Aggiorna da MicroSD",
+    /* STR_OTA_WIFI_START       */ "Modo Manutenzione (OTA Wi-Fi)",
     /* STR_RESET_CONFIG         */ "Ripristino Fabbrica",
 
     /* STR_DRIVE_DIRECT         */ "Presa Diretta (1-Marcia)",
@@ -175,6 +179,8 @@ static const char* const STRINGS[LANG_COUNT][STR_MAX_STRINGS] = {
     /* STR_INVERT_DISP          */ "Polarite Ecran",
     /* STR_UNITS_SPEED          */ "Unite Vitesse",
     /* STR_UNITS_TEMP           */ "Unite Temperature",
+    /* STR_OTA_SD_UPDATE        */ "Mise a jour via MicroSD",
+    /* STR_OTA_WIFI_START       */ "Mode Maintenance (OTA Wi-Fi)",
     /* STR_RESET_CONFIG         */ "Reinit. Usine",
 
     /* STR_DRIVE_DIRECT         */ "Prise Directe (1-Vit)",
@@ -246,6 +252,8 @@ static const char* const STRINGS[LANG_COUNT][STR_MAX_STRINGS] = {
 
     /* STR_UNITS_SPEED          */ "Geschw.-Einheit",
     /* STR_UNITS_TEMP           */ "Temp.-Einheit",
+    /* STR_OTA_SD_UPDATE        */ "MicroSD Firmware-Update",
+    /* STR_OTA_WIFI_START       */ "Wartungsmodus (WLAN OTA)",
     /* STR_RESET_CONFIG         */ "Werkseinstellungen",
 
     /* STR_DRIVE_DIRECT         */ "Direktantrieb (1-Gang)",

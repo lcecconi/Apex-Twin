@@ -1,9 +1,9 @@
 #include "ui/ui_manager.h"
 #include "i18n.h"
 
-void UiManager::begin(TrackManager *trackMgr, LEDStripManager *ledMgr, BacklightManager *blMgr, USBStorageManager *usbMgr, SDManager *sdMgr) {
+void UiManager::begin(TrackManager *trackMgr, LEDStripManager *ledMgr, BacklightManager *blMgr, USBStorageManager *usbMgr, SDManager *sdMgr, StorageManager *storageMgr) {
   _current_view = VIEW_LIVE_RACE;
-  _menu.begin(trackMgr, ledMgr, blMgr, usbMgr, sdMgr);
+  _menu.begin(trackMgr, ledMgr, blMgr, usbMgr, sdMgr, storageMgr);
 }
 
 void UiManager::handleInput(UserInputEvent event, SystemSettings &settings, TelemetryProvider &provider) {
@@ -17,7 +17,7 @@ void UiManager::handleInput(UserInputEvent event, SystemSettings &settings, Tele
 
   // Open Menu on Back/Menu button event (BOOT long press)
   if (event == INPUT_BACK_MENU) {
-    _menu.openMenu();
+    _menu.openMenu(settings);
     return;
   }
 
@@ -83,7 +83,7 @@ void UiManager::renderFooter(U8G2 *u8g2, const TelemetrySnapshot &telemetry) {
   };
 
   char buf[80];
-  snprintf(buf, sizeof(buf), "KEY: Page [%s %d/%d] | BOOT (Long): Menu | Select: Invert",
+  snprintf(buf, sizeof(buf), "BOOT: Page [%s %d/%d] | BOOT (Long): Menu | KEY (Long): Invert",
            view_names[_current_view], _current_view + 1, VIEW_COUNT);
   u8g2->drawStr(6, 292, buf);
 }

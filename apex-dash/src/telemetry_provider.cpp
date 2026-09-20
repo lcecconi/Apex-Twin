@@ -1,5 +1,6 @@
 #include "telemetry_provider.h"
 #include "storage_manager.h"
+#include "sd_manager.h"
 #include "esp_timer.h"
 #include <cmath>
 #include <cstring>
@@ -12,10 +13,12 @@ static inline uint32_t get_millis() {
   return (uint32_t)(esp_timer_get_time() / 1000ULL);
 }
 
-void TelemetryProvider::begin(const SystemSettings &settings, StorageManager *storage) {
+void TelemetryProvider::begin(const SystemSettings &settings, StorageManager *storage, SDManager *sd_mgr) {
   memset(&_snapshot, 0, sizeof(_snapshot));
   memset(_lap_history, 0, sizeof(_lap_history));
   _storage = storage;
+  _sd_mgr = sd_mgr;
+
 
   strncpy(_snapshot.current_track_name, settings.selected_track, sizeof(_snapshot.current_track_name) - 1);
   _snapshot.satellites_visible = 15;
@@ -243,8 +246,14 @@ void TelemetryProvider::update(const DeviceSensorsData &local_sensors, const Sys
   _snapshot.battery_voltage = local_sensors.battery_voltage;
   _snapshot.battery_percent = local_sensors.battery_percent;
 
+  if (_sd_mgr) {
+    _snapshot.sd_card_present = _sd_mgr->isAvailable();
+    _snapshot.local.sd_card_present = _snapshot.sd_card_present;
+  }
+
   bool live_received = false;
-  if (!settings.simulation_mode) {
+
+  if (_receiver.isConnected() || !settings.simulation_mode) {
     live_received = _receiver.applyLatestTelemetry(_snapshot);
   }
 

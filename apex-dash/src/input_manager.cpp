@@ -33,7 +33,7 @@ UserInputEvent InputManager::update() {
     }
   } else if (!key_raw && _last_key_state) {
     if (!_key_long_handled && (now - _key_press_start_ms >= DEBOUNCE_MS)) {
-      event = INPUT_NEXT; // Short press = Next / Down
+      event = INPUT_PREV; // Short press = Prev / Up
     }
   }
   _last_key_state = key_raw;
@@ -53,7 +53,7 @@ UserInputEvent InputManager::update() {
     }
   } else if (!boot_raw && _last_boot_state) {
     if (!_boot_long_handled && (now - _boot_press_start_ms >= DEBOUNCE_MS)) {
-      event = INPUT_PREV; // Short press = Prev / Up
+      event = INPUT_NEXT; // Short press = Next / Down
     }
   }
   _last_boot_state = boot_raw;

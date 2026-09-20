@@ -26,16 +26,18 @@ class LEDStripManager;
 class BacklightManager;
 class USBStorageManager;
 class SDManager;
+class StorageManager;
 
 class UiManager {
 public:
-  void begin(TrackManager *trackMgr, LEDStripManager *ledMgr, BacklightManager *blMgr, USBStorageManager *usbMgr, SDManager *sdMgr);
+  void begin(TrackManager *trackMgr, LEDStripManager *ledMgr, BacklightManager *blMgr, USBStorageManager *usbMgr, SDManager *sdMgr, StorageManager *storageMgr = nullptr);
   void handleInput(UserInputEvent event, SystemSettings &settings, TelemetryProvider &provider);
   void render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const TelemetryProvider &provider, const SystemSettings &settings);
 
   UiViewMode getViewMode() const { return _current_view; }
   void setViewMode(UiViewMode mode) { _current_view = mode; }
   bool isMSCActive() const { return _menu.isMSCActive(); }
+  bool isOtaActive() const { return _menu.isOtaActive(); }
 
 private:
   UiViewMode _current_view = VIEW_LIVE_RACE;

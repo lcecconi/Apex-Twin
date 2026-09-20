@@ -43,6 +43,8 @@ enum StrId : uint16_t {
   STR_INVERT_DISP,
   STR_UNITS_SPEED,
   STR_UNITS_TEMP,
+  STR_OTA_SD_UPDATE,
+  STR_OTA_WIFI_START,
   STR_RESET_CONFIG,
 
   // Drive Types

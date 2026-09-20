@@ -17,7 +17,8 @@ enum MenuState : uint8_t {
   MENU_DIAGNOSTICS_COUNTERS,
   MENU_USB_MSC_SCREEN,
   MENU_WARN_TRIGGERS,
-  MENU_ALARM_PRIORITY
+  MENU_ALARM_PRIORITY,
+  MENU_OTA_SCREEN
 };
 
 class TrackManager;
@@ -26,17 +27,24 @@ class BacklightManager;
 class USBStorageManager;
 class SDManager;
 class TelemetryProvider;
+class StorageManager;
 
 class MenuSystem {
 public:
-  void begin(TrackManager *trackMgr, LEDStripManager *ledMgr, BacklightManager *blMgr, USBStorageManager *usbMgr, SDManager *sdMgr);
+  void begin(TrackManager *trackMgr, LEDStripManager *ledMgr, BacklightManager *blMgr, USBStorageManager *usbMgr, SDManager *sdMgr, StorageManager *storageMgr = nullptr);
   bool handleInput(UserInputEvent event, SystemSettings &settings, TelemetryProvider *provider = nullptr);
   void render(U8G2 *u8g2, const SystemSettings &settings, const TelemetrySnapshot &telemetry);
 
   bool isMenuActive() const { return _active; }
   bool isMSCActive() const { return _current_state == MENU_USB_MSC_SCREEN; }
-  void openMenu() { _active = true; _current_state = MENU_ROOT; _cursor_idx = 0; }
-  void closeMenu() { _active = false; }
+  bool isOtaActive() const { return _current_state == MENU_OTA_SCREEN; }
+  void openMenu(const SystemSettings &settings) {
+    _active = true;
+    _current_state = MENU_ROOT;
+    _cursor_idx = 0;
+    _settings_on_open = settings;
+  }
+  void closeMenu(const SystemSettings &settings);
 
 private:
   bool _active = false;
@@ -49,6 +57,8 @@ private:
   BacklightManager *_blMgr = nullptr;
   USBStorageManager *_usbMgr = nullptr;
   SDManager *_sdMgr = nullptr;
+  StorageManager *_storageMgr = nullptr;
+  SystemSettings _settings_on_open;
 
   void renderRootMenu(U8G2 *u8g2);
   void renderRaceSetupMenu(U8G2 *u8g2, const SystemSettings &settings);
@@ -61,4 +71,5 @@ private:
   void renderUsbMscScreen(U8G2 *u8g2);
   void renderWarnTriggersMenu(U8G2 *u8g2, const SystemSettings &settings);
   void renderAlarmPriorityMenu(U8G2 *u8g2, const SystemSettings &settings);
+  void renderOtaScreen(U8G2 *u8g2);
 };

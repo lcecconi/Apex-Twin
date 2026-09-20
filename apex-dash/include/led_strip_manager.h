@@ -17,7 +17,7 @@ public:
 
 private:
   led_strip_handle_t _led_strip = nullptr;
-  uint8_t _brightness = 80;
+  uint8_t _brightness = 50;
   uint32_t _last_strobe_ms = 0;
   bool _strobe_state = false;
   uint32_t _test_pattern_start_ms = 0;

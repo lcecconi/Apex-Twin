@@ -103,6 +103,7 @@ struct DashLocalState {
   uint32_t rtc_epoch_s = 0;          // NXP PCF85063A RTC
   uint32_t session_time_sec = 0;
   bool session_active = false;
+  bool sd_card_present = false;
   char current_track_name[32] = "South Garda (Lonato)";
 };
 
@@ -149,6 +150,7 @@ struct TelemetrySnapshot {
   uint32_t piston_hours_sec = 0;
   uint32_t session_time_sec = 0;
   bool session_active = false;
+  bool sd_card_present = false;
   uint16_t track_error_code = 0;
 
   void syncFlatFields() {
@@ -182,9 +184,11 @@ struct TelemetrySnapshot {
     ambient_humidity_pct = local.ambient_humidity_pct;
     session_time_sec = local.session_time_sec;
     session_active = local.session_active;
+    sd_card_present = local.sd_card_present;
     strncpy(current_track_name, local.current_track_name, sizeof(current_track_name) - 1);
   }
 };
+
 
 enum TrackErrorCode : uint16_t {
   TRACK_ERR_NONE = 0,
@@ -224,7 +228,7 @@ struct SystemSettings {
   char selected_track[32] = "South Garda (Lonato)";
   char selected_track_file[64] = "lonato.json";
   uint8_t language = 0; // 0 = LANG_EN, 1 = LANG_IT, 2 = LANG_FR, 3 = LANG_DE
-  uint8_t led_brightness = 80; // 0 - 100%
+  uint8_t led_brightness = 50; // 0 - 100%
   RpmDisplayMode rpm_display_mode = RPM_DISP_BOTH;
   bool led_shift_enable = true;
   bool led_alarm_enable = true;
@@ -235,4 +239,31 @@ struct SystemSettings {
   bool warn_trigger_battery = true;
   bool warn_trigger_link = true;
   uint8_t alarm_priority[5] = {0, 1, 2, 3, 4}; // 0=Water, 1=EGT, 2=OverRev, 3=LowBat, 4=Link
+  char wifi_ssid[33] = "ApexTelemetry";
+  char wifi_pass[65] = "apex1234";
+
+  bool operator==(const SystemSettings &o) const {
+    if (drive_type != o.drive_type) return false;
+    if (max_rpm != o.max_rpm || shift_rpm != o.shift_rpm || over_rev_rpm != o.over_rev_rpm) return false;
+    if (water_temp_alarm_c != o.water_temp_alarm_c || exhaust_temp_alarm_c != o.exhaust_temp_alarm_c || low_bat_alarm_v != o.low_bat_alarm_v) return false;
+    if (use_kmh != o.use_kmh || use_celsius != o.use_celsius || show_speed != o.show_speed || inverted_display != o.inverted_display) return false;
+    if (lap_hold_seconds != o.lap_hold_seconds || simulation_mode != o.simulation_mode || track_mode != o.track_mode) return false;
+    if (language != o.language || led_brightness != o.led_brightness || rpm_display_mode != o.rpm_display_mode) return false;
+    if (led_shift_enable != o.led_shift_enable || led_alarm_enable != o.led_alarm_enable || backlight_percent != o.backlight_percent) return false;
+    if (warn_trigger_water != o.warn_trigger_water || warn_trigger_egt != o.warn_trigger_egt || warn_trigger_rev != o.warn_trigger_rev ||
+        warn_trigger_battery != o.warn_trigger_battery || warn_trigger_link != o.warn_trigger_link) return false;
+    if (strncmp(selected_track, o.selected_track, sizeof(selected_track)) != 0) return false;
+    if (strncmp(selected_track_file, o.selected_track_file, sizeof(selected_track_file)) != 0) return false;
+    if (strncmp(wifi_ssid, o.wifi_ssid, sizeof(wifi_ssid)) != 0) return false;
+    if (strncmp(wifi_pass, o.wifi_pass, sizeof(wifi_pass)) != 0) return false;
+    for (int i = 0; i < 5; i++) {
+      if (alarm_priority[i] != o.alarm_priority[i]) return false;
+    }
+    return true;
+  }
+
+  bool operator!=(const SystemSettings &o) const {
+    return !(*this == o);
+  }
 };
+
