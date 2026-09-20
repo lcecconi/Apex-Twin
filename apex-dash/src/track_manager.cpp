@@ -1,9 +1,17 @@
 #include "track_manager.h"
+#include "esp_log.h"
+#include "cJSON.h"
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <sys/stat.h>
+#include <dirent.h>
+
+static const char *TAG = "TRACK_MGR";
 
 void TrackManager::begin() {
   loadDefaultTracks();
+  seedTracksToSD();
   loadTracksFromSD();
 }
 
@@ -71,7 +79,189 @@ void TrackManager::loadDefaultTracks() {
   _tracks.push_back(wackersdorf);
 }
 
+bool TrackManager::saveTrackToSD(const TrackDefinition &track) {
+  struct stat st;
+  if (stat("/sdcard/tracks", &st) != 0) return false;
+
+  cJSON *root = cJSON_CreateObject();
+  if (!root) return false;
+
+  cJSON_AddStringToObject(root, "id", track.id);
+  cJSON_AddStringToObject(root, "name", track.name);
+  cJSON_AddStringToObject(root, "location", track.location);
+  cJSON_AddNumberToObject(root, "length_m", track.length_m);
+
+  cJSON *finish = cJSON_CreateObject();
+  cJSON_AddNumberToObject(finish, "lat", track.finish_line.lat);
+  cJSON_AddNumberToObject(finish, "lon", track.finish_line.lon);
+  cJSON_AddNumberToObject(finish, "heading_deg", track.finish_line.heading_deg);
+  cJSON_AddNumberToObject(finish, "width_m", track.finish_line.width_m);
+  cJSON_AddItemToObject(root, "finish_line", finish);
+
+  cJSON *splits_arr = cJSON_CreateArray();
+  for (const auto &sp : track.intermediate_splits) {
+    cJSON *split = cJSON_CreateObject();
+    cJSON_AddNumberToObject(split, "lat", sp.lat);
+    cJSON_AddNumberToObject(split, "lon", sp.lon);
+    cJSON_AddNumberToObject(split, "heading_deg", sp.heading_deg);
+    cJSON_AddNumberToObject(split, "width_m", sp.width_m);
+    cJSON_AddItemToArray(splits_arr, split);
+  }
+  cJSON_AddItemToObject(root, "splits", splits_arr);
+
+  char *json_str = cJSON_Print(root);
+  cJSON_Delete(root);
+
+  if (!json_str) return false;
+
+  char file_path[128];
+  snprintf(file_path, sizeof(file_path), "/sdcard/tracks/%s.json", track.id);
+
+  FILE *f = fopen(file_path, "w");
+  if (!f) {
+    free(json_str);
+    return false;
+  }
+
+  fputs(json_str, f);
+  fclose(f);
+  free(json_str);
+  ESP_LOGI(TAG, "Saved track definition to %s", file_path);
+  return true;
+}
+
+void TrackManager::seedTracksToSD() {
+  struct stat st;
+  if (stat("/sdcard/tracks", &st) != 0) return;
+
+  for (const auto &track : _tracks) {
+    char path[128];
+    snprintf(path, sizeof(path), "/sdcard/tracks/%s.json", track.id);
+    if (stat(path, &st) != 0) {
+      // File does not exist, seed it
+      saveTrackToSD(track);
+    }
+  }
+}
+
 void TrackManager::loadTracksFromSD() {
+  DIR *dir = opendir("/sdcard/tracks");
+  if (!dir) return;
+
+  struct dirent *ent;
+  while ((ent = readdir(dir)) != nullptr) {
+    size_t len = strlen(ent->d_name);
+    if (len < 5 || strcmp(ent->d_name + len - 5, ".json") != 0) {
+      continue;
+    }
+
+    char file_path[300];
+    snprintf(file_path, sizeof(file_path), "/sdcard/tracks/%s", ent->d_name);
+
+    FILE *f = fopen(file_path, "r");
+    if (!f) continue;
+
+    fseek(f, 0, SEEK_END);
+    long f_len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (f_len <= 0 || f_len > 32768) {
+      fclose(f);
+      continue;
+    }
+
+    char *buf = (char *)malloc(f_len + 1);
+    if (!buf) {
+      fclose(f);
+      continue;
+    }
+
+    size_t r = fread(buf, 1, f_len, f);
+    fclose(f);
+    buf[r] = '\0';
+
+    cJSON *root = cJSON_Parse(buf);
+    free(buf);
+    if (!root) continue;
+
+    TrackDefinition track;
+    cJSON *item = cJSON_GetObjectItem(root, "id");
+    if (item && cJSON_IsString(item) && item->valuestring) {
+      strncpy(track.id, item->valuestring, sizeof(track.id) - 1);
+    } else {
+      // Use filename stem as id
+      strncpy(track.id, ent->d_name, sizeof(track.id) - 1);
+      char *dot = strrchr(track.id, '.');
+      if (dot) *dot = '\0';
+    }
+
+    item = cJSON_GetObjectItem(root, "name");
+    if (item && cJSON_IsString(item) && item->valuestring) {
+      strncpy(track.name, item->valuestring, sizeof(track.name) - 1);
+    }
+
+    item = cJSON_GetObjectItem(root, "location");
+    if (item && cJSON_IsString(item) && item->valuestring) {
+      strncpy(track.location, item->valuestring, sizeof(track.location) - 1);
+    }
+
+    item = cJSON_GetObjectItem(root, "length_m");
+    if (item && cJSON_IsNumber(item)) {
+      track.length_m = (uint16_t)item->valueint;
+    }
+
+    cJSON *finish = cJSON_GetObjectItem(root, "finish_line");
+    if (finish) {
+      cJSON *lat = cJSON_GetObjectItem(finish, "lat");
+      cJSON *lon = cJSON_GetObjectItem(finish, "lon");
+      cJSON *hdg = cJSON_GetObjectItem(finish, "heading_deg");
+      cJSON *w = cJSON_GetObjectItem(finish, "width_m");
+      if (lat && lon) {
+        track.finish_line.lat = lat->valuedouble;
+        track.finish_line.lon = lon->valuedouble;
+        if (hdg) track.finish_line.heading_deg = (float)hdg->valuedouble;
+        if (w) track.finish_line.width_m = (float)w->valuedouble;
+      }
+    }
+
+    cJSON *splits = cJSON_GetObjectItem(root, "splits");
+    if (splits && cJSON_IsArray(splits)) {
+      int count = cJSON_GetArraySize(splits);
+      for (int i = 0; i < count; i++) {
+        cJSON *sp = cJSON_GetArrayItem(splits, i);
+        if (sp) {
+          cJSON *lat = cJSON_GetObjectItem(sp, "lat");
+          cJSON *lon = cJSON_GetObjectItem(sp, "lon");
+          cJSON *hdg = cJSON_GetObjectItem(sp, "heading_deg");
+          cJSON *w = cJSON_GetObjectItem(sp, "width_m");
+          if (lat && lon) {
+            SplitGate gate(lat->valuedouble, lon->valuedouble,
+                           hdg ? (float)hdg->valuedouble : 0.0f,
+                           w ? (float)w->valuedouble : 10.0f);
+            track.intermediate_splits.push_back(gate);
+          }
+        }
+      }
+    }
+
+    cJSON_Delete(root);
+
+    // Check if track already exists in list (by id)
+    bool found = false;
+    for (size_t i = 0; i < _tracks.size(); i++) {
+      if (strcmp(_tracks[i].id, track.id) == 0) {
+        _tracks[i] = track;
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      track.is_custom_sd = true;
+      _tracks.push_back(track);
+      ESP_LOGI(TAG, "Loaded custom track from SD: %s (%s)", track.name, track.id);
+    }
+  }
+
+  closedir(dir);
 }
 
 size_t TrackManager::getTrackCount() const {
@@ -114,3 +304,4 @@ bool TrackManager::setActiveTrackById(const char *id) {
   }
   return false;
 }
+

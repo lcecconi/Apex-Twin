@@ -22,9 +22,10 @@
 #define I2C_BUS_SPEED     400000
 
 // MicroSD (TF Card Slot) - SDMMC 1-Bit Mode
-#define PIN_SD_CLK        39
-#define PIN_SD_CMD        38
-#define PIN_SD_DAT0       47
+// Hardware schematic verified: SD Slot Pin 5 (CLK) = GPIO38, Pin 3 (CMD) = GPIO21, Pin 7 (DAT0) = GPIO39
+#define PIN_SD_CLK        38
+#define PIN_SD_CMD        21
+#define PIN_SD_DAT0       39
 
 // Power Sensing
 #define PIN_VBAT_ADC      4   // ADC1_CH3, 200k/100k (1/3) divider
@@ -36,10 +37,10 @@
 // ==========================================
 // Expansion Header Interfaces (Steering Wheel Harness)
 // ==========================================
-#define PIN_RGB_LED_STRIP       1   // WS2812B NeoPixel Data line (7 LEDs total)
-#define NUM_SHIFT_LEDS          5   // LEDs 0..4: Progressive RPM shift bar
-#define NUM_ALARM_LEDS          2   // LED 5: Left Alarm, LED 6: Right Alarm
-#define NUM_TOTAL_LEDS          7
+#define PIN_RGB_LED_STRIP       1   // WS2812B NeoPixel Data line (16 LEDs total)
+#define NUM_SHIFT_LEDS          16  // LEDs 0..15: Progressive RPM shift bar
+#define NUM_ALARM_LEDS          0   // All 16 LEDs mapped to RPM shift bar
+#define NUM_TOTAL_LEDS          16
 
 #define PIN_BACKLIGHT_PWM       2   // PWM output to external backlight LED driver
 #define LEDC_BACKLIGHT_CH       0
@@ -61,5 +62,9 @@
 #define DEFAULT_SPEED_UNIT_KMH      true
 #define DEFAULT_TEMP_UNIT_CELSIUS   true
 #define DEFAULT_INVERTED_DISPLAY    true  // High-contrast Black on Silver
-#define DEFAULT_LED_BRIGHTNESS      80    // 0-100%
+#define DEFAULT_LED_BRIGHTNESS      50    // 0-100%
 #define DEFAULT_BACKLIGHT_PERCENT   0     // 0-100% (Default 0% for pure reflective mode)
+
+// Maintenance Mode Wi-Fi Credentials
+#define DEFAULT_WIFI_SSID           "ApexTelemetry"
+#define DEFAULT_WIFI_PASS           "apex1234"

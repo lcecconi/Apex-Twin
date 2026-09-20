@@ -10,6 +10,7 @@
 #include "led_strip_manager.h"
 #include "backlight_manager.h"
 #include "sd_manager.h"
+#include "ota_manager.h"
 #include "track_manager.h"
 #include "usb_storage_manager.h"
 #include "freertos/FreeRTOS.h"
@@ -79,9 +80,19 @@ extern "C" void app_main(void) {
   // 3. Initialize MicroSD & Track Database
   ESP_LOGI(TAG, "Initializing MicroSD card & Open Track Database...");
   sd_manager.begin();
+  if (sd_manager.isAvailable()) {
+    storage_manager.syncSDCard(settings);
+    I18n::setLanguage((Language)settings.language);
+    last_applied_lang = settings.language;
+  }
   track_manager.begin();
   track_manager.setActiveTrackById(settings.selected_track_file);
   ESP_LOGI(TAG, "Tracks loaded: %u circuits available", (unsigned int)track_manager.getTrackCount());
+
+
+  // 3b. Initialize OTA Manager (MicroSD & Wi-Fi Web Portal)
+  ESP_LOGI(TAG, "Initializing OTA Manager...");
+  OtaManager::instance().begin(&sd_manager);
 
   // 4. Initialize RGB Shift/Alarm LEDs and PWM Backlight
   ESP_LOGI(TAG, "Initializing WS2812 RGB LED strip (GPIO 1) & Backlight PWM (GPIO 2)...");
@@ -95,11 +106,12 @@ extern "C" void app_main(void) {
 
   // 6. Initialize Telemetry Provider
   ESP_LOGI(TAG, "Initializing Telemetry Provider (Physics Simulation Active)...");
-  telemetry_provider.begin(settings, &storage_manager);
+  telemetry_provider.begin(settings, &storage_manager, &sd_manager);
+
 
   // 7. Initialize UI Subsystem & Menu System
   ESP_LOGI(TAG, "Initializing UI Manager & Menus...");
-  ui_manager.begin(&track_manager, &led_manager, &backlight_manager, &usb_storage_manager, &sd_manager);
+  ui_manager.begin(&track_manager, &led_manager, &backlight_manager, &usb_storage_manager, &sd_manager, &storage_manager);
 
   // 8. Initialize ST7305 RLCD Display
   ESP_LOGI(TAG, "Initializing ST7305 4.2\" Reflective LCD (400x300)...");
@@ -133,16 +145,28 @@ extern "C" void app_main(void) {
       ESP_LOGI(TAG, "Language changed: %s", I18n::getLanguageName((Language)settings.language));
     }
 
+    // Sync SD card if detected after boot retry
+    static bool s_sd_synced = sd_manager.isAvailable();
+    if (sd_manager.isAvailable() && !s_sd_synced) {
+      s_sd_synced = true;
+      storage_manager.syncSDCard(settings);
+      track_manager.seedTracksToSD();
+      track_manager.loadTracksFromSD();
+      I18n::setLanguage((Language)settings.language);
+      last_applied_lang = settings.language;
+    }
+
     // 2. Poll Onboard Hardware Sensors
     onboard_sensors.update();
     const DeviceSensorsData &local_sensors = onboard_sensors.getData();
+
 
     // 3. Update Telemetry State
     telemetry_provider.update(local_sensors, settings);
     const TelemetrySnapshot &telemetry = telemetry_provider.getSnapshot();
 
     // 4. Update RGB Shift Lights & Alarm LEDs (25 Hz)
-    if (!ui_manager.isMSCActive()) {
+    if (!ui_manager.isMSCActive() && !ui_manager.isOtaActive()) {
       led_manager.update(telemetry, settings);
     }
 

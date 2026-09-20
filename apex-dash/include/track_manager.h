@@ -50,7 +50,9 @@ struct TrackDefinition {
 class TrackManager {
 public:
   void begin();
+  void seedTracksToSD();
   void loadTracksFromSD();
+  bool saveTrackToSD(const TrackDefinition &track);
   size_t getTrackCount() const;
   const TrackDefinition* getTrack(size_t index) const;
   const TrackDefinition* getTrackById(const char *id) const;

@@ -11,6 +11,7 @@ idf_component_register(
          "track_manager.cpp"
          "telemetry_provider.cpp"
          "esp_now_receiver.cpp"
+         "ota_manager.cpp"
          "i18n.cpp"
          "ui/ui_manager.cpp"
          "ui/menu_system.cpp"
@@ -20,5 +21,5 @@ idf_component_register(
          "ui/page_gps_paddock.cpp"
          "ui/page_data_recall.cpp"
     INCLUDE_DIRS "." "../include"
-    REQUIRES u8g2 led_strip esp_wifi esp_event nvs_flash driver esp_timer esp_netif
+    REQUIRES u8g2 led_strip esp_wifi esp_event nvs_flash driver esp_timer esp_netif app_update esp_http_server esp_tinyusb cjson
 )
