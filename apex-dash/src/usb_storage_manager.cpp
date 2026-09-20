@@ -1,4 +1,5 @@
 #include "usb_storage_manager.h"
+#include <cstdio>
 
 void USBStorageManager::begin(SDManager *sdManager) {
   _sd = sdManager;
@@ -11,10 +12,10 @@ bool USBStorageManager::isMSCActive() const {
 
 void USBStorageManager::startMSCMode() {
   _mscActive = true;
-  Serial.println("[USB-MSC] Mass storage mode activated. SD card accessible for file sync.");
+  printf("[USB-MSC] Mass storage mode activated.\n");
 }
 
 void USBStorageManager::stopMSCMode() {
   _mscActive = false;
-  Serial.println("[USB-MSC] Mass storage mode stopped. Resuming telemetry engine.");
+  printf("[USB-MSC] Mass storage mode stopped.\n");
 }

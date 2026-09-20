@@ -1,8 +1,9 @@
 #pragma once
 
-#include <Arduino.h>
-#include <WiFi.h>
-#include <esp_now.h>
+#include <cstdint>
+#include <cstring>
+#include "esp_now.h"
+#include "esp_idf_version.h"
 #include "telemetry_can.h"
 #include "telemetry_data.h"
 #include "telemetry_transport.h"

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Arduino.h>
+#include <cstdint>
 #include "config.h"
 
 class BacklightManager {

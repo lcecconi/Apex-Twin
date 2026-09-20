@@ -1,7 +1,14 @@
 #include "ui/page_shumacher.h"
 #include "ui/icons_xbm.h"
 #include "i18n.h"
-#include <math.h>
+#include "esp_timer.h"
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+
+static inline uint32_t millis() {
+  return (uint32_t)(esp_timer_get_time() / 1000ULL);
+}
 
 void PageShumacher::updateSpeedTracking(float speed, float lon_g, float lat_g, uint32_t now) {
   _current_speed = speed;

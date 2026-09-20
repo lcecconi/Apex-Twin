@@ -1,4 +1,7 @@
 #include "ui/page_telemetry.h"
+#include <cstdio>
+#include <cmath>
+#include <cstring>
 
 void PageTelemetry::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const SystemSettings &settings) {
   char buf[48];

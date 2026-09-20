@@ -1,7 +1,6 @@
 #pragma once
 
-#include <Arduino.h>
-#include <U8g2lib.h>
+#include "U8g2lib.h"
 #include "telemetry_data.h"
 
 class PageTelemetry {

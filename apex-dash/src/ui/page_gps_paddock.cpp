@@ -1,4 +1,7 @@
 #include "ui/page_gps_paddock.h"
+#include <cstdio>
+#include <cmath>
+#include <cstring>
 
 void PageGpsPaddock::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const SystemSettings &settings) {
   char buf[64];

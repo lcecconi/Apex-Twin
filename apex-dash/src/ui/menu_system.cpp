@@ -6,7 +6,10 @@
 #include "backlight_manager.h"
 #include "usb_storage_manager.h"
 #include "sd_manager.h"
-#include <esp_system.h>
+#include "esp_system.h"
+#include <cstdio>
+#include <cmath>
+#include <cstring>
 
 #define ROOT_MENU_COUNT 8
 
@@ -778,9 +781,8 @@ void MenuSystem::renderDiagnosticsCountersMenu(U8G2 *u8g2, const TelemetrySnapsh
   snprintf(buf, sizeof(buf), "Sensirion SHTC3: %+.1f \xb0\x43  |  %0.1f %% RH", telemetry.ambient_temp_c, telemetry.ambient_humidity_pct);
   u8g2->drawStr(24, 144, buf);
 
-  snprintf(buf, sizeof(buf), "ESP32-S3 Memory: Heap %luKB | PSRAM %luKB",
-           (unsigned long)(ESP.getFreeHeap() / 1024),
-           (unsigned long)(ESP.getFreePsram() / 1024));
+  snprintf(buf, sizeof(buf), "ESP32-S3 Memory: Heap %luKB",
+           (unsigned long)(esp_get_free_heap_size() / 1024));
   u8g2->drawStr(24, 167, buf);
 
   // Button 0: Reset Engine Hours

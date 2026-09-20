@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Arduino.h>
-#include <ArduinoJson.h>
+#include <cstdint>
+#include <cstring>
 #include <vector>
 #include "telemetry_data.h"
 

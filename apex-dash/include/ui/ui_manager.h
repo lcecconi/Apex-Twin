@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Arduino.h>
-#include <U8g2lib.h>
+#include <cstdint>
+#include "U8g2lib.h"
 #include "telemetry_data.h"
 #include "telemetry_provider.h"
 #include "input_manager.h"

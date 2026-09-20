@@ -1,6 +1,7 @@
 #pragma once
 
-#include <Arduino.h>
+#include <cstdint>
+#include <cstring>
 #include "telemetry_data.h"
 #include "onboard_sensors.h"
 #include "esp_now_receiver.h"

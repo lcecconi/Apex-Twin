@@ -1,8 +1,10 @@
 #pragma once
 
-#include <Arduino.h>
-#include <SPI.h>
-#include <U8g2lib.h>
+#include <cstdint>
+#include <cstddef>
+#include "driver/spi_master.h"
+#include "driver/gpio.h"
+#include "U8g2lib.h"
 
 class ST7305_U8g2 {
 private:
@@ -11,7 +13,7 @@ private:
   int _dc;
   int _cs;
   int _rst;
-  SPIClass *_spi = nullptr;
+  spi_device_handle_t _spi_dev = nullptr;
   U8G2 u8g2_wrapper;
   uint8_t *_my_buf = nullptr;
 

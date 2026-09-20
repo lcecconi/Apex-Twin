@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Arduino.h>
-#include <Wire.h>
+#include <cstdint>
+#include <cstddef>
 #include "config.h"
 
 struct DeviceSensorsData {

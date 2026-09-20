@@ -1,4 +1,13 @@
 #include "esp_now_receiver.h"
+#include "esp_wifi.h"
+#include "esp_netif.h"
+#include "esp_event.h"
+#include "esp_log.h"
+#include "esp_timer.h"
+#include "nvs_flash.h"
+#include <cmath>
+
+static const char *TAG = "ESP_NOW_RX";
 
 ChassisTelemetry EspNowReceiver::_chassis;
 uint32_t EspNowReceiver::_last_packet_ms = 0;
@@ -14,11 +23,23 @@ EspNowReceiver::EspNowReceiver() {
 }
 
 bool EspNowReceiver::begin() {
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
+  esp_err_t ret = nvs_flash_init();
+  if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    nvs_flash_erase();
+    nvs_flash_init();
+  }
+
+  esp_netif_init();
+  esp_event_loop_create_default();
+  
+  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+  esp_wifi_init(&cfg);
+  esp_wifi_set_storage(WIFI_STORAGE_RAM);
+  esp_wifi_set_mode(WIFI_MODE_STA);
+  esp_wifi_start();
 
   if (esp_now_init() != ESP_OK) {
-    log_e("ESP-NOW Init Failed");
+    ESP_LOGE(TAG, "ESP-NOW Init Failed");
     return false;
   }
 
@@ -31,12 +52,13 @@ bool EspNowReceiver::begin() {
   peerInfo.encrypt = false;
   esp_now_add_peer(&peerInfo);
 
-  log_i("Virtual CAN-FD ESP-NOW Receiver initialized on channel %d", WiFi.channel());
+  ESP_LOGI(TAG, "Virtual CAN-FD ESP-NOW Receiver initialized");
   return true;
 }
 
 bool EspNowReceiver::isConnected() const {
-  return (_last_packet_ms > 0 && (millis() - _last_packet_ms < 2500));
+  uint32_t now = (uint32_t)(esp_timer_get_time() / 1000ULL);
+  return (_last_packet_ms > 0 && (now - _last_packet_ms < 2500));
 }
 
 int8_t EspNowReceiver::getRssi() const {
@@ -184,6 +206,7 @@ void EspNowReceiver::onDataRecv(const uint8_t *mac, const uint8_t *data, int len
   if (len < 4) return;
 
   uint32_t magic = *(const uint32_t*)data;
+  uint32_t now = (uint32_t)(esp_timer_get_time() / 1000ULL);
 
   // Track sender MAC address for direct unicast responses
   if (!_peer_registered || memcmp(_peer_mac, mac, 6) != 0) {
@@ -209,7 +232,7 @@ void EspNowReceiver::onDataRecv(const uint8_t *mac, const uint8_t *data, int len
       processIncomingCanFrame(pkt->frames[i]);
     }
 
-    _last_packet_ms = millis();
+    _last_packet_ms = now;
     _new_packet_ready = true;
     _chassis.connected = true;
     _chassis.last_packet_ms = _last_packet_ms;
@@ -220,7 +243,7 @@ void EspNowReceiver::onDataRecv(const uint8_t *mac, const uint8_t *data, int len
   if (len == sizeof(CanFdFrame)) {
     const CanFdFrame *frame = (const CanFdFrame*)data;
     processIncomingCanFrame(*frame);
-    _last_packet_ms = millis();
+    _last_packet_ms = now;
     _new_packet_ready = true;
     _chassis.connected = true;
     _chassis.last_packet_ms = _last_packet_ms;

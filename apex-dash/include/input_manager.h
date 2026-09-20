@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Arduino.h>
+#include <cstdint>
 #include "config.h"
 
 enum UserInputEvent : uint8_t {
@@ -17,8 +17,8 @@ public:
   UserInputEvent update();
 
 private:
-  bool _last_key_state = true;
-  bool _last_boot_state = true;
+  bool _last_key_state = false;
+  bool _last_boot_state = false;
   uint32_t _key_press_start_ms = 0;
   uint32_t _boot_press_start_ms = 0;
   bool _key_long_handled = false;

@@ -1,6 +1,7 @@
 #pragma once
 
-#include <Arduino.h>
+#include <cstdint>
+#include <cstddef>
 
 // ==========================================
 // Hardware Pinout: Waveshare ESP32-S3-RLCD-4.2

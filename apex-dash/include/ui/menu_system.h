@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Arduino.h>
-#include <U8g2lib.h>
+#include <cstdint>
+#include "U8g2lib.h"
 #include "telemetry_data.h"
 #include "input_manager.h"
 #include "i18n.h"
@@ -20,13 +20,11 @@ enum MenuState : uint8_t {
   MENU_ALARM_PRIORITY
 };
 
-
 class TrackManager;
 class LEDStripManager;
 class BacklightManager;
 class USBStorageManager;
 class SDManager;
-
 class TelemetryProvider;
 
 class MenuSystem {
@@ -64,4 +62,3 @@ private:
   void renderWarnTriggersMenu(U8G2 *u8g2, const SystemSettings &settings);
   void renderAlarmPriorityMenu(U8G2 *u8g2, const SystemSettings &settings);
 };
-

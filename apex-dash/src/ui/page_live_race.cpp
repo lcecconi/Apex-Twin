@@ -1,6 +1,14 @@
 #include "ui/page_live_race.h"
 #include "ui/icons_xbm.h"
 #include "i18n.h"
+#include "esp_timer.h"
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+
+static inline uint32_t millis() {
+  return (uint32_t)(esp_timer_get_time() / 1000ULL);
+}
 
 void PageLiveRace::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const SystemSettings &settings) {
   char buf[48];

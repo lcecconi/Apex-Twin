@@ -1,6 +1,7 @@
 #pragma once
 
-#include <Arduino.h>
+#include <cstdint>
+#include <cstddef>
 #include "telemetry_can.h"
 
 #define MAX_TRACK_SECTORS 5

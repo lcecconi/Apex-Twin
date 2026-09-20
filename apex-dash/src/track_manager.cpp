@@ -1,6 +1,6 @@
 #include "track_manager.h"
-#include <SD_MMC.h>
-#include <FS.h>
+#include <cstdio>
+#include <cstring>
 
 void TrackManager::begin() {
   loadDefaultTracks();
@@ -72,69 +72,6 @@ void TrackManager::loadDefaultTracks() {
 }
 
 void TrackManager::loadTracksFromSD() {
-  File root = SD_MMC.open("/tracks");
-  if (!root || !root.isDirectory()) {
-    return;
-  }
-
-  File file = root.openNextFile();
-  while (file) {
-    if (!file.isDirectory() && String(file.name()).endsWith(".json")) {
-      JsonDocument doc;
-      DeserializationError err = deserializeJson(doc, file);
-      if (!err) {
-        TrackDefinition track;
-        strncpy(track.id, doc["id"] | file.name(), sizeof(track.id) - 1);
-        strncpy(track.name, doc["name"] | file.name(), sizeof(track.name) - 1);
-        strncpy(track.location, doc["location"] | "Custom SD", sizeof(track.location) - 1);
-        track.length_m = doc["length_m"] | 0;
-
-        track.finish_line = SplitGate(
-          doc["finish_line"]["lat"] | 0.0,
-          doc["finish_line"]["lon"] | 0.0,
-          doc["finish_line"]["bearing_deg"] | 0.0f,
-          doc["finish_line"]["width_m"] | 12.0f
-        );
-
-        // Dynamic Splits: array "splits" (up to 4 intermediate splits)
-        if (doc["splits"].is<JsonArray>()) {
-          for (JsonObject splitObj : doc["splits"].as<JsonArray>()) {
-            if (track.intermediate_splits.size() >= 4) break; // Cap at 4 splits (5 sectors)
-            track.intermediate_splits.push_back(SplitGate(
-              splitObj["lat"] | 0.0,
-              splitObj["lon"] | 0.0,
-              splitObj["bearing_deg"] | 0.0f,
-              splitObj["width_m"] | 10.0f
-            ));
-          }
-        } else {
-          // Fallback to legacy "split1" and "split2"
-          if (doc["split1"].is<JsonObject>()) {
-            track.intermediate_splits.push_back(SplitGate(
-              doc["split1"]["lat"] | 0.0,
-              doc["split1"]["lon"] | 0.0,
-              doc["split1"]["bearing_deg"] | 0.0f,
-              doc["split1"]["width_m"] | 10.0f
-            ));
-          }
-          if (doc["split2"].is<JsonObject>() && track.intermediate_splits.size() < 4) {
-            track.intermediate_splits.push_back(SplitGate(
-              doc["split2"]["lat"] | 0.0,
-              doc["split2"]["lon"] | 0.0,
-              doc["split2"]["bearing_deg"] | 0.0f,
-              doc["split2"]["width_m"] | 10.0f
-            ));
-          }
-        }
-
-        track.is_custom_sd = true;
-        _tracks.push_back(track);
-        Serial.printf("[Track] Loaded SD circuit: %s (%s) - %u Sectors\n",
-                      track.name, track.location, track.getSectorCount());
-      }
-    }
-    file = root.openNextFile();
-  }
 }
 
 size_t TrackManager::getTrackCount() const {
@@ -142,35 +79,33 @@ size_t TrackManager::getTrackCount() const {
 }
 
 const TrackDefinition* TrackManager::getTrack(size_t index) const {
-  if (index < _tracks.size()) {
-    return &_tracks[index];
-  }
-  return nullptr;
+  if (index >= _tracks.size()) return nullptr;
+  return &_tracks[index];
 }
 
 const TrackDefinition* TrackManager::getTrackById(const char *id) const {
-  for (const auto &t : _tracks) {
-    if (strcmp(t.id, id) == 0) return &t;
+  if (!id) return nullptr;
+  for (const auto &track : _tracks) {
+    if (strcmp(track.id, id) == 0) {
+      return &track;
+    }
   }
   return nullptr;
 }
 
 const TrackDefinition* TrackManager::getActiveTrack() const {
-  if (_activeTrackIndex < _tracks.size()) {
-    return &_tracks[_activeTrackIndex];
-  }
-  return nullptr;
+  if (_tracks.empty()) return nullptr;
+  return &_tracks[_activeTrackIndex];
 }
 
 bool TrackManager::setActiveTrack(size_t index) {
-  if (index < _tracks.size()) {
-    _activeTrackIndex = index;
-    return true;
-  }
-  return false;
+  if (index >= _tracks.size()) return false;
+  _activeTrackIndex = index;
+  return true;
 }
 
 bool TrackManager::setActiveTrackById(const char *id) {
+  if (!id) return false;
   for (size_t i = 0; i < _tracks.size(); i++) {
     if (strcmp(_tracks[i].id, id) == 0) {
       _activeTrackIndex = i;

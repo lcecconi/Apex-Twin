@@ -1,90 +1,113 @@
 #include "storage_manager.h"
+#include "nvs_flash.h"
+#include "nvs.h"
+#include <cstring>
 
 #define PREFS_NAMESPACE "apex_dash"
 
+static nvs_handle_t s_nvs_handle = 0;
+static bool s_nvs_open = false;
+
 void StorageManager::begin() {
-  _prefs.begin(PREFS_NAMESPACE, false);
+  esp_err_t err = nvs_flash_init();
+  if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    nvs_flash_erase();
+    nvs_flash_init();
+  }
+  if (nvs_open(PREFS_NAMESPACE, NVS_READWRITE, &s_nvs_handle) == ESP_OK) {
+    s_nvs_open = true;
+  }
 }
 
 void StorageManager::loadSettings(SystemSettings &settings) {
-  if (!_prefs.isKey("init")) {
-    saveSettings(settings); // First run: save factory defaults
-    _prefs.putBool("init", true);
+  if (!s_nvs_open) return;
+
+  uint8_t init_val = 0;
+  if (nvs_get_u8(s_nvs_handle, "init", &init_val) != ESP_OK) {
+    saveSettings(settings);
+    nvs_set_u8(s_nvs_handle, "init", 1);
+    nvs_commit(s_nvs_handle);
     return;
   }
 
-  settings.drive_type = (DriveType)_prefs.getUChar("drive_type", (uint8_t)settings.drive_type);
-  settings.max_rpm = _prefs.getUShort("max_rpm", settings.max_rpm);
-  settings.shift_rpm = _prefs.getUShort("shift_rpm", settings.shift_rpm);
-  settings.over_rev_rpm = _prefs.getUShort("over_rev_rpm", settings.over_rev_rpm);
-  settings.water_temp_alarm_c = _prefs.getFloat("w_temp_alarm", settings.water_temp_alarm_c);
-  settings.exhaust_temp_alarm_c = _prefs.getFloat("egt_alarm", settings.exhaust_temp_alarm_c);
-  settings.use_kmh = _prefs.getBool("use_kmh", settings.use_kmh);
-  settings.use_celsius = _prefs.getBool("use_celsius", settings.use_celsius);
-  settings.show_speed = _prefs.getBool("show_spd", settings.show_speed);
-  settings.inverted_display = _prefs.getBool("inverted", settings.inverted_display);
-  settings.simulation_mode = _prefs.getBool("sim_mode", settings.simulation_mode);
-  settings.language = _prefs.getUChar("lang", settings.language);
-  settings.led_brightness = _prefs.getUChar("led_bright", settings.led_brightness);
-  settings.rpm_display_mode = (RpmDisplayMode)_prefs.getUChar("rpm_disp", (uint8_t)settings.rpm_display_mode);
-  settings.led_shift_enable = _prefs.getBool("led_shift_en", settings.led_shift_enable);
-  settings.led_alarm_enable = _prefs.getBool("led_alarm_en", settings.led_alarm_enable);
-  settings.backlight_percent = _prefs.getUChar("backlight_pct", settings.backlight_percent);
-  settings.warn_trigger_water = _prefs.getBool("w_water", settings.warn_trigger_water);
-  settings.warn_trigger_egt = _prefs.getBool("w_egt", settings.warn_trigger_egt);
-  settings.warn_trigger_rev = _prefs.getBool("w_rev", settings.warn_trigger_rev);
-  settings.warn_trigger_battery = _prefs.getBool("w_bat", settings.warn_trigger_battery);
-  settings.warn_trigger_link = _prefs.getBool("w_link", settings.warn_trigger_link);
+  uint8_t u8val = 0;
+  uint16_t u16val = 0;
 
-  String track = _prefs.getString("track", String(settings.selected_track));
-  strncpy(settings.selected_track, track.c_str(), sizeof(settings.selected_track) - 1);
+  if (nvs_get_u8(s_nvs_handle, "drive_type", &u8val) == ESP_OK) settings.drive_type = (DriveType)u8val;
+  if (nvs_get_u16(s_nvs_handle, "max_rpm", &u16val) == ESP_OK) settings.max_rpm = u16val;
+  if (nvs_get_u16(s_nvs_handle, "shift_rpm", &u16val) == ESP_OK) settings.shift_rpm = u16val;
+  if (nvs_get_u16(s_nvs_handle, "over_rev_rpm", &u16val) == ESP_OK) settings.over_rev_rpm = u16val;
 
-  String trackFile = _prefs.getString("track_file", String(settings.selected_track_file));
-  strncpy(settings.selected_track_file, trackFile.c_str(), sizeof(settings.selected_track_file) - 1);
+  if (nvs_get_u8(s_nvs_handle, "use_kmh", &u8val) == ESP_OK) settings.use_kmh = (u8val != 0);
+  if (nvs_get_u8(s_nvs_handle, "use_celsius", &u8val) == ESP_OK) settings.use_celsius = (u8val != 0);
+  if (nvs_get_u8(s_nvs_handle, "show_spd", &u8val) == ESP_OK) settings.show_speed = (u8val != 0);
+  if (nvs_get_u8(s_nvs_handle, "inverted", &u8val) == ESP_OK) settings.inverted_display = (u8val != 0);
+  if (nvs_get_u8(s_nvs_handle, "sim_mode", &u8val) == ESP_OK) settings.simulation_mode = (u8val != 0);
+  if (nvs_get_u8(s_nvs_handle, "lang", &u8val) == ESP_OK) settings.language = u8val;
+  if (nvs_get_u8(s_nvs_handle, "led_bright", &u8val) == ESP_OK) settings.led_brightness = u8val;
+  if (nvs_get_u8(s_nvs_handle, "rpm_disp", &u8val) == ESP_OK) settings.rpm_display_mode = (RpmDisplayMode)u8val;
+  if (nvs_get_u8(s_nvs_handle, "led_shift_en", &u8val) == ESP_OK) settings.led_shift_enable = (u8val != 0);
+  if (nvs_get_u8(s_nvs_handle, "led_alarm_en", &u8val) == ESP_OK) settings.led_alarm_enable = (u8val != 0);
+  if (nvs_get_u8(s_nvs_handle, "backlight_pct", &u8val) == ESP_OK) settings.backlight_percent = u8val;
+  if (nvs_get_u8(s_nvs_handle, "w_water", &u8val) == ESP_OK) settings.warn_trigger_water = (u8val != 0);
+  if (nvs_get_u8(s_nvs_handle, "w_egt", &u8val) == ESP_OK) settings.warn_trigger_egt = (u8val != 0);
+  if (nvs_get_u8(s_nvs_handle, "w_rev", &u8val) == ESP_OK) settings.warn_trigger_rev = (u8val != 0);
+  if (nvs_get_u8(s_nvs_handle, "w_bat", &u8val) == ESP_OK) settings.warn_trigger_battery = (u8val != 0);
+  if (nvs_get_u8(s_nvs_handle, "w_link", &u8val) == ESP_OK) settings.warn_trigger_link = (u8val != 0);
 
-  if (_prefs.isKey("alm_prio")) {
-    _prefs.getBytes("alm_prio", settings.alarm_priority, sizeof(settings.alarm_priority));
-  }
+  size_t prio_len = sizeof(settings.alarm_priority);
+  nvs_get_blob(s_nvs_handle, "alm_prio", settings.alarm_priority, &prio_len);
+
+  size_t str_len = sizeof(settings.selected_track);
+  nvs_get_str(s_nvs_handle, "track", settings.selected_track, &str_len);
 }
 
 void StorageManager::saveSettings(const SystemSettings &settings) {
-  _prefs.putUChar("drive_type", (uint8_t)settings.drive_type);
-  _prefs.putUShort("max_rpm", settings.max_rpm);
-  _prefs.putUShort("shift_rpm", settings.shift_rpm);
-  _prefs.putUShort("over_rev_rpm", settings.over_rev_rpm);
-  _prefs.putFloat("w_temp_alarm", settings.water_temp_alarm_c);
-  _prefs.putFloat("egt_alarm", settings.exhaust_temp_alarm_c);
-  _prefs.putBool("use_kmh", settings.use_kmh);
-  _prefs.putBool("use_celsius", settings.use_celsius);
-  _prefs.putBool("show_spd", settings.show_speed);
-  _prefs.putBool("inverted", settings.inverted_display);
-  _prefs.putBool("sim_mode", settings.simulation_mode);
-  _prefs.putUChar("lang", settings.language);
-  _prefs.putUChar("led_bright", settings.led_brightness);
-  _prefs.putUChar("rpm_disp", (uint8_t)settings.rpm_display_mode);
-  _prefs.putBool("led_shift_en", settings.led_shift_enable);
-  _prefs.putBool("led_alarm_en", settings.led_alarm_enable);
-  _prefs.putUChar("backlight_pct", settings.backlight_percent);
-  _prefs.putBool("w_water", settings.warn_trigger_water);
-  _prefs.putBool("w_egt", settings.warn_trigger_egt);
-  _prefs.putBool("w_rev", settings.warn_trigger_rev);
-  _prefs.putBool("w_bat", settings.warn_trigger_battery);
-  _prefs.putBool("w_link", settings.warn_trigger_link);
-  _prefs.putBytes("alm_prio", settings.alarm_priority, sizeof(settings.alarm_priority));
-  _prefs.putString("track", String(settings.selected_track));
-  _prefs.putString("track_file", String(settings.selected_track_file));
+  if (!s_nvs_open) return;
+
+  nvs_set_u8(s_nvs_handle, "drive_type", (uint8_t)settings.drive_type);
+  nvs_set_u16(s_nvs_handle, "max_rpm", settings.max_rpm);
+  nvs_set_u16(s_nvs_handle, "shift_rpm", settings.shift_rpm);
+  nvs_set_u16(s_nvs_handle, "over_rev_rpm", settings.over_rev_rpm);
+
+  nvs_set_u8(s_nvs_handle, "use_kmh", settings.use_kmh ? 1 : 0);
+  nvs_set_u8(s_nvs_handle, "use_celsius", settings.use_celsius ? 1 : 0);
+  nvs_set_u8(s_nvs_handle, "show_spd", settings.show_speed ? 1 : 0);
+  nvs_set_u8(s_nvs_handle, "inverted", settings.inverted_display ? 1 : 0);
+  nvs_set_u8(s_nvs_handle, "sim_mode", settings.simulation_mode ? 1 : 0);
+  nvs_set_u8(s_nvs_handle, "lang", settings.language);
+  nvs_set_u8(s_nvs_handle, "led_bright", settings.led_brightness);
+  nvs_set_u8(s_nvs_handle, "rpm_disp", (uint8_t)settings.rpm_display_mode);
+  nvs_set_u8(s_nvs_handle, "led_shift_en", settings.led_shift_enable ? 1 : 0);
+  nvs_set_u8(s_nvs_handle, "led_alarm_en", settings.led_alarm_enable ? 1 : 0);
+  nvs_set_u8(s_nvs_handle, "backlight_pct", settings.backlight_percent);
+  nvs_set_u8(s_nvs_handle, "w_water", settings.warn_trigger_water ? 1 : 0);
+  nvs_set_u8(s_nvs_handle, "w_egt", settings.warn_trigger_egt ? 1 : 0);
+  nvs_set_u8(s_nvs_handle, "w_rev", settings.warn_trigger_rev ? 1 : 0);
+  nvs_set_u8(s_nvs_handle, "w_bat", settings.warn_trigger_battery ? 1 : 0);
+  nvs_set_u8(s_nvs_handle, "w_link", settings.warn_trigger_link ? 1 : 0);
+
+  nvs_set_blob(s_nvs_handle, "alm_prio", settings.alarm_priority, sizeof(settings.alarm_priority));
+  nvs_set_str(s_nvs_handle, "track", settings.selected_track);
+
+  nvs_commit(s_nvs_handle);
 }
 
 uint32_t StorageManager::getEngineHours() {
-  return _prefs.getUInt("eng_hrs_sec", 14 * 3600 + 18 * 60);
+  if (!s_nvs_open) return 14 * 3600 + 18 * 60;
+  uint32_t hrs = 14 * 3600 + 18 * 60;
+  nvs_get_u32(s_nvs_handle, "eng_hrs_sec", &hrs);
+  return hrs;
 }
 
 void StorageManager::saveEngineHours(uint32_t seconds) {
-  _prefs.putUInt("eng_hrs_sec", seconds);
+  if (!s_nvs_open) return;
+  nvs_set_u32(s_nvs_handle, "eng_hrs_sec", seconds);
+  nvs_commit(s_nvs_handle);
 }
 
 void StorageManager::resetEngineHours() {
-  _prefs.putUInt("eng_hrs_sec", 0);
+  if (!s_nvs_open) return;
+  nvs_set_u32(s_nvs_handle, "eng_hrs_sec", 0);
+  nvs_commit(s_nvs_handle);
 }
-
-

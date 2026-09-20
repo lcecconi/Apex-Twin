@@ -1,4 +1,9 @@
 #include "ST7305_U8g2.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_rom_sys.h"
+#include <cstring>
+#include <cstdlib>
 
 #define SPI_CLK 24000000
 #define ST7305_TILE_WIDTH 38
@@ -32,15 +37,15 @@ static u8x8_display_info_t st7305_display_info = {
 ST7305_U8g2::ST7305_U8g2(int sck, int mosi, int dc, int cs, int rst)
   : _sck(sck), _mosi(mosi), _dc(dc), _cs(cs), _rst(rst)
 {
-  _spi = new SPIClass(HSPI);
   g_lcd_instance = this;
 }
 
 ST7305_U8g2::~ST7305_U8g2()
 {
-  if (_spi) {
-    _spi->end();
-    delete _spi;
+  if (_spi_dev) {
+    spi_bus_remove_device(_spi_dev);
+    spi_bus_free(SPI2_HOST);
+    _spi_dev = nullptr;
   }
   if (_my_buf) {
     free(_my_buf);
@@ -52,40 +57,49 @@ ST7305_U8g2::~ST7305_U8g2()
 
 void ST7305_U8g2::_cmd(uint8_t cmd)
 {
-  digitalWrite(_dc, LOW);
-  digitalWrite(_cs, LOW);
-  _spi->transfer(cmd);
-  digitalWrite(_cs, HIGH);
+  gpio_set_level((gpio_num_t)_dc, 0);
+  gpio_set_level((gpio_num_t)_cs, 0);
+  
+  spi_transaction_t t;
+  memset(&t, 0, sizeof(t));
+  t.length = 8;
+  t.tx_buffer = &cmd;
+  spi_device_polling_transmit(_spi_dev, &t);
+
+  gpio_set_level((gpio_num_t)_cs, 1);
 }
 
 void ST7305_U8g2::_data(const uint8_t *data, size_t len)
 {
-  digitalWrite(_dc, HIGH);
-  digitalWrite(_cs, LOW);
-  _spi->transferBytes((uint8_t *)data, nullptr, len);
-  digitalWrite(_cs, HIGH);
+  if (len == 0) return;
+  gpio_set_level((gpio_num_t)_dc, 1);
+  gpio_set_level((gpio_num_t)_cs, 0);
+
+  spi_transaction_t t;
+  memset(&t, 0, sizeof(t));
+  t.length = len * 8;
+  t.tx_buffer = data;
+  spi_device_polling_transmit(_spi_dev, &t);
+
+  gpio_set_level((gpio_num_t)_cs, 1);
 }
 
 void ST7305_U8g2::_cmd_data(uint8_t cmd, const uint8_t *data, size_t len)
 {
-  digitalWrite(_dc, LOW);
-  digitalWrite(_cs, LOW);
-  _spi->transfer(cmd);
+  _cmd(cmd);
   if (len > 0) {
-    digitalWrite(_dc, HIGH);
-    _spi->transferBytes((uint8_t *)data, nullptr, len);
+    _data(data, len);
   }
-  digitalWrite(_cs, HIGH);
 }
 
 void ST7305_U8g2::reset()
 {
-  digitalWrite(_rst, HIGH);
-  delay(50);
-  digitalWrite(_rst, LOW);
-  delay(20);
-  digitalWrite(_rst, HIGH);
-  delay(50);
+  gpio_set_level((gpio_num_t)_rst, 1);
+  vTaskDelay(pdMS_TO_TICKS(50));
+  gpio_set_level((gpio_num_t)_rst, 0);
+  vTaskDelay(pdMS_TO_TICKS(20));
+  gpio_set_level((gpio_num_t)_rst, 1);
+  vTaskDelay(pdMS_TO_TICKS(50));
 }
 
 uint8_t ST7305_U8g2::u8x8_byte_custom(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
@@ -187,15 +201,35 @@ uint8_t ST7305_U8g2::u8x8_d_st7305_custom(u8x8_t *u8x8, uint8_t msg, uint8_t arg
 
 void ST7305_U8g2::begin(uint8_t tile_buf_height, const u8g2_cb_t *rotation)
 {
-  pinMode(_dc, OUTPUT);
-  pinMode(_cs, OUTPUT);
-  pinMode(_rst, OUTPUT);
-  digitalWrite(_cs, HIGH);
-  digitalWrite(_dc, HIGH);
-  digitalWrite(_rst, HIGH);
+  gpio_config_t io_conf = {};
+  io_conf.intr_type = GPIO_INTR_DISABLE;
+  io_conf.mode = GPIO_MODE_OUTPUT;
+  io_conf.pin_bit_mask = (1ULL << _dc) | (1ULL << _cs) | (1ULL << _rst);
+  io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+  io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+  gpio_config(&io_conf);
 
-  _spi->begin(_sck, -1, _mosi, -1);
-  _spi->beginTransaction(SPISettings(SPI_CLK, MSBFIRST, SPI_MODE0));
+  gpio_set_level((gpio_num_t)_cs, 1);
+  gpio_set_level((gpio_num_t)_dc, 1);
+  gpio_set_level((gpio_num_t)_rst, 1);
+
+  spi_bus_config_t buscfg = {};
+  buscfg.mosi_io_num = _mosi;
+  buscfg.miso_io_num = -1;
+  buscfg.sclk_io_num = _sck;
+  buscfg.quadwp_io_num = -1;
+  buscfg.quadhd_io_num = -1;
+  buscfg.max_transfer_sz = 4096;
+
+  spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
+
+  spi_device_interface_config_t devcfg = {};
+  devcfg.clock_speed_hz = SPI_CLK;
+  devcfg.mode = 0;
+  devcfg.spics_io_num = -1;
+  devcfg.queue_size = 7;
+
+  spi_bus_add_device(SPI2_HOST, &devcfg, &_spi_dev);
 
   u8g2_t *u = u8g2_wrapper.getU8g2();
   u8x8_Setup(u8g2_GetU8x8(u), u8x8_d_st7305_custom, u8x8_dummy_cb, u8x8_byte_custom, u8x8_dummy_cb);
@@ -259,7 +293,7 @@ void ST7305_U8g2::fullInit()
   _cmd_data(0xB7, b7, sizeof(b7));
   _cmd_data(0xB0, b0, sizeof(b0));
   _cmd(0x11);
-  delay(120);
+  vTaskDelay(pdMS_TO_TICKS(120));
   _cmd_data(0xC9, c9, sizeof(c9));
   _cmd_data(0x36, m36, sizeof(m36));
   _cmd_data(0x3A, m3a, sizeof(m3a));

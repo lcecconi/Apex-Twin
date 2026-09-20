@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Arduino.h>
 #include "sd_manager.h"
 
 class USBStorageManager {

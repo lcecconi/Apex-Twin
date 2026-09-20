@@ -1,4 +1,7 @@
 #include "ui/page_data_recall.h"
+#include <cstdio>
+#include <cmath>
+#include <cstring>
 
 void PageDataRecall::render(U8G2 *u8g2, const TelemetryProvider &provider, const SystemSettings &settings) {
   char buf[64];

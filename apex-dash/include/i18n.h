@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Arduino.h>
+#include <cstdint>
 
 enum Language : uint8_t {
   LANG_EN = 0, // English (Default)

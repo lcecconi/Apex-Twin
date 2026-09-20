@@ -1,7 +1,6 @@
 #pragma once
 
-#include <Arduino.h>
-#include <Preferences.h>
+#include <cstdint>
 #include "telemetry_data.h"
 
 class StorageManager {
@@ -13,7 +12,4 @@ public:
   uint32_t getEngineHours();
   void saveEngineHours(uint32_t seconds);
   void resetEngineHours();
-
-private:
-  Preferences _prefs;
 };
