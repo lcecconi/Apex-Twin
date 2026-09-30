@@ -1,12 +1,8 @@
 #include "apex_utils.h"
 #include "driver/uart.h"
-#include "esp_event.h"
 #include "esp_log.h"
-#include "esp_netif.h"
-#include "esp_wifi.h"
+#include "nvs.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/event_groups.h"
-#include "nvs_flash.h"
 #include <math.h>
 #include <netdb.h>
 #include <stdio.h>
@@ -15,64 +11,15 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#define WIFI_CONNECTED_BIT BIT0
-
-static EventGroupHandle_t wifi_event_group;
-
-static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
-{
-    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-        esp_wifi_connect();
-    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        xEventGroupClearBits(wifi_event_group, WIFI_CONNECTED_BIT);
-        esp_wifi_connect();
-    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-        xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
-    }
-}
-
-esp_err_t wifi_start(void)
-{
-    esp_err_t nvs_error = nvs_flash_init();
-    if (nvs_error == ESP_ERR_NVS_NO_FREE_PAGES || nvs_error == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        nvs_error = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(nvs_error);
-
-    wifi_event_group = xEventGroupCreate();
-    if (wifi_event_group == NULL) {
-        return ESP_ERR_NO_MEM;
-    }
-
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_create_default_wifi_sta();
-
-    const wifi_init_config_t wifi_config = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&wifi_config));
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL));
-
-    wifi_config_t station_config = {
-        .sta = {
-            .ssid = WIFI_SSID,
-            .password = WIFI_PASSWORD,
-            .threshold.authmode = WIFI_AUTH_WPA2_PSK,
-        },
-    };
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &station_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
-
-    EventBits_t bits = xEventGroupWaitBits(
-        wifi_event_group,
-        WIFI_CONNECTED_BIT,
-        pdFALSE,
-        pdTRUE,
-        portMAX_DELAY);
-    return (bits & WIFI_CONNECTED_BIT) != 0 ? ESP_OK : ESP_FAIL;
-}
+static ntrip_config_t ntrip_config = {
+    .host = NTRIP_HOST,
+    .port = NTRIP_PORT,
+    .mountpoint = NTRIP_MOUNTPOINT,
+    .username = NTRIP_USERNAME,
+    .password = NTRIP_PASSWORD,
+    .client_name = NTRIP_CLIENT_NAME,
+    .gga_interval_ms = NTRIP_GGA_INTERVAL_MS,
+};
 
 static size_t ntrip_base64_encode(const char *input, char *output, size_t output_size)
 {
@@ -118,15 +65,15 @@ bool ntrip_send_all(int socket, const char *data, size_t length)
 int ntrip_connect(void)
 {
     char port[8];
-    snprintf(port, sizeof(port), "%d", NTRIP_PORT);
+    snprintf(port, sizeof(port), "%u", ntrip_config.port);
 
     struct addrinfo hints = {
         .ai_family = AF_UNSPEC,
         .ai_socktype = SOCK_STREAM,
     };
     struct addrinfo *address_list = NULL;
-    if (getaddrinfo(NTRIP_HOST, port, &hints, &address_list) != 0) {
-        ESP_LOGE("ntrip", "Could not resolve caster %s", NTRIP_HOST);
+        if (getaddrinfo(ntrip_config.host, port, &hints, &address_list) != 0) {
+		ESP_LOGE("ntrip", "Could not resolve caster %s", ntrip_config.host);
         return -1;
     }
 
@@ -151,7 +98,7 @@ int ntrip_connect(void)
 
     char credentials[128];
     char authorization[180];
-    snprintf(credentials, sizeof(credentials), "%s:%s", NTRIP_USERNAME, NTRIP_PASSWORD);
+    snprintf(credentials, sizeof(credentials), "%s:%s", ntrip_config.username, ntrip_config.password);
     if (ntrip_base64_encode(credentials, authorization, sizeof(authorization)) == 0) {
         close(socket_fd);
         return -1;
@@ -167,9 +114,9 @@ int ntrip_connect(void)
         "Authorization: Basic %s\r\n"
         "Ntrip-Version: Ntrip/2.0\r\n"
         "Connection: keep-alive\r\n\r\n",
-        NTRIP_MOUNTPOINT,
-        NTRIP_HOST,
-        NTRIP_CLIENT_NAME,
+        ntrip_config.mountpoint,
+        ntrip_config.host,
+        ntrip_config.client_name,
         authorization);
     if (request_length < 0 || request_length >= sizeof(request) ||
         !ntrip_send_all(socket_fd, request, request_length)) {
@@ -202,8 +149,68 @@ int ntrip_connect(void)
         return -1;
     }
 
-    ESP_LOGI("ntrip", "Connected to %s/%s", NTRIP_HOST, NTRIP_MOUNTPOINT);
+    ESP_LOGI("ntrip", "Connected to %s/%s", ntrip_config.host, ntrip_config.mountpoint);
     return socket_fd;
+}
+
+void ntrip_get_config(ntrip_config_t *config)
+{
+    if (config != NULL) {
+        *config = ntrip_config;
+    }
+}
+
+esp_err_t ntrip_set_config(const ntrip_config_t *config)
+{
+    if (config == NULL || config->host[0] == '\0' || config->mountpoint[0] == '\0' ||
+        config->port == 0 || config->gga_interval_ms == 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    ntrip_config = *config;
+    return ESP_OK;
+}
+
+esp_err_t ntrip_save_config(const ntrip_config_t *config)
+{
+    esp_err_t error = ntrip_set_config(config);
+    if (error != ESP_OK) {
+        return error;
+    }
+    nvs_handle_t handle;
+    error = nvs_open("wifi_config", NVS_READWRITE, &handle);
+    if (error != ESP_OK) {
+        return error;
+    }
+    nvs_set_str(handle, "ntrip_host", ntrip_config.host);
+    nvs_set_u16(handle, "ntrip_port", ntrip_config.port);
+    nvs_set_str(handle, "ntrip_mount", ntrip_config.mountpoint);
+    nvs_set_str(handle, "ntrip_user", ntrip_config.username);
+    nvs_set_str(handle, "ntrip_pass", ntrip_config.password);
+    nvs_set_str(handle, "ntrip_client", ntrip_config.client_name);
+    nvs_set_u32(handle, "ntrip_interval", ntrip_config.gga_interval_ms);
+    error = nvs_commit(handle);
+    nvs_close(handle);
+    return error;
+}
+
+esp_err_t ntrip_load_config(void)
+{
+    nvs_handle_t handle;
+    esp_err_t error = nvs_open("wifi_config", NVS_READONLY, &handle);
+    if (error != ESP_OK) {
+        return error;
+    }
+    ntrip_config_t loaded = ntrip_config;
+    size_t length;
+    length = sizeof(loaded.host); nvs_get_str(handle, "ntrip_host", loaded.host, &length);
+    length = sizeof(loaded.mountpoint); nvs_get_str(handle, "ntrip_mount", loaded.mountpoint, &length);
+    length = sizeof(loaded.username); nvs_get_str(handle, "ntrip_user", loaded.username, &length);
+    length = sizeof(loaded.password); nvs_get_str(handle, "ntrip_pass", loaded.password, &length);
+    length = sizeof(loaded.client_name); nvs_get_str(handle, "ntrip_client", loaded.client_name, &length);
+    nvs_get_u16(handle, "ntrip_port", &loaded.port);
+    nvs_get_u32(handle, "ntrip_interval", &loaded.gga_interval_ms);
+    nvs_close(handle);
+    return ntrip_set_config(&loaded);
 }
 
 static uint8_t gps_command_checksum(const char *command)
@@ -319,5 +326,27 @@ bool gps_parse_gga_message(char *message, gps_data_t *gps_data)
     if (fields[5][0] == 'W') {
         gps_data->longitude = -gps_data->longitude;
     }
+    return true;
+}
+
+bool gps_parse_rmc_message(char *message, float *speed_kmh)
+{
+    char *fields[10] = {0};
+    size_t field_count = 0;
+    for (char *field = message; field != NULL && field_count < 10;) {
+        fields[field_count++] = field;
+        char *separator = strchr(field, ',');
+        if (separator == NULL) {
+            break;
+        }
+        *separator = '\0';
+        field = separator + 1;
+    }
+    if (speed_kmh == NULL || field_count < 8 ||
+        (strcmp(fields[0], "$GNRMC") != 0 && strcmp(fields[0], "$GPRMC") != 0) ||
+        fields[2][0] != 'A' || fields[7][0] == '\0') {
+        return false;
+    }
+    *speed_kmh = strtof(fields[7], NULL) * 1.852f;
     return true;
 }

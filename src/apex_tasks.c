@@ -11,6 +11,21 @@
 #include <unistd.h>
 
 QueueHandle_t gps_data_queue;
+static gps_data_t latest_gps_data;
+static bool latest_gps_data_valid;
+static portMUX_TYPE gps_data_lock = portMUX_INITIALIZER_UNLOCKED;
+
+bool gps_get_latest_data(gps_data_t *gps_data)
+{
+    bool valid;
+    portENTER_CRITICAL(&gps_data_lock);
+    valid = latest_gps_data_valid;
+    if (valid && gps_data != NULL) {
+        *gps_data = latest_gps_data;
+    }
+    portEXIT_CRITICAL(&gps_data_lock);
+    return valid;
+}
 
 void ntrip_task(void *pvParameters)
 {
@@ -23,13 +38,15 @@ void ntrip_task(void *pvParameters)
     uint8_t correction_data[NTRIP_RX_BUFFER_SIZE];
 
     while (true) {
+        ntrip_config_t config;
+        ntrip_get_config(&config);
         if (socket_fd < 0) {
             socket_fd = ntrip_connect();
             if (socket_fd < 0) {
                 vTaskDelay(pdMS_TO_TICKS(5000));
                 continue;
             }
-            last_gga_tick = xTaskGetTickCount() - pdMS_TO_TICKS(NTRIP_GGA_INTERVAL_MS);
+            last_gga_tick = xTaskGetTickCount() - pdMS_TO_TICKS(config.gga_interval_ms);
         }
 
         gps_data_t queued_gps_data;
@@ -39,7 +56,7 @@ void ntrip_task(void *pvParameters)
         }
 
         TickType_t now = xTaskGetTickCount();
-        if (have_gps_data && now - last_gga_tick >= pdMS_TO_TICKS(NTRIP_GGA_INTERVAL_MS)) {
+        if (have_gps_data && now - last_gga_tick >= pdMS_TO_TICKS(config.gga_interval_ms)) {
             bool sent = ntrip_send_all(
                 socket_fd,
                 latest_gps_data.nmea_sentence,
@@ -111,8 +128,6 @@ void gps_setup_task(void *pvParameters)
         vTaskDelete(NULL);
     }
 
-    ESP_ERROR_CHECK(wifi_start());
-
     static const char *commands[] = {
         "$PQTMGNSSSTOP",
         "$PQTMCFGFIXRATE,W,50",
@@ -154,6 +169,7 @@ void gps_monitor_task(void *pvParameters)
 
     char nmea_message[GPS_COMMAND_RESPONSE_BUFFER_SIZE];
     size_t message_length = 0;
+    float latest_speed_kmh = 0.0f;
 
     while (true) {
         uint8_t data[GPS_COMMAND_RESPONSE_BUFFER_SIZE];
@@ -179,6 +195,7 @@ void gps_monitor_task(void *pvParameters)
 
                     gps_data_t gps_data;
                     if (gps_parse_gga_message(nmea_message, &gps_data)) {
+                        gps_data.speed_kmh = latest_speed_kmh;
                         strncpy(gps_data.nmea_sentence, raw_nmea_message, sizeof(gps_data.nmea_sentence) - 1);
                         gps_data.nmea_sentence[sizeof(gps_data.nmea_sentence) - 1] = '\0';
 #if APX_DEBUG > 0
@@ -196,6 +213,16 @@ void gps_monitor_task(void *pvParameters)
                         ESP_LOGI("gps_monitor", "NMEA: %s", gps_data.nmea_sentence);
 #endif
                         xQueueOverwrite(gps_data_queue, &gps_data);
+                        portENTER_CRITICAL(&gps_data_lock);
+                        latest_gps_data = gps_data;
+                        latest_gps_data_valid = true;
+                        portEXIT_CRITICAL(&gps_data_lock);
+                    } else if (gps_parse_rmc_message(nmea_message, &latest_speed_kmh)) {
+                        portENTER_CRITICAL(&gps_data_lock);
+                        if (latest_gps_data_valid) {
+                            latest_gps_data.speed_kmh = latest_speed_kmh;
+                        }
+                        portEXIT_CRITICAL(&gps_data_lock);
                     }
                 }
                 message_length = 0;

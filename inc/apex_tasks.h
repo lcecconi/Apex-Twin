@@ -10,6 +10,7 @@ typedef struct {
 	double latitude;
 	double longitude;
 	float altitude_m;
+	float speed_kmh;
 	uint8_t gps_mode;
 	float correction_age_s;
 	char nmea_sentence[256];
@@ -21,4 +22,5 @@ void gps_setup_task(void *pvParameters);
 void dummy_task(void *pvParameters);
 void gps_monitor_task(void *pvParameters);
 void ntrip_task(void *pvParameters);
+bool gps_get_latest_data(gps_data_t *gps_data);
 #endif

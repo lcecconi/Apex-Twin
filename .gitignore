@@ -19,7 +19,8 @@
 *.a
 *.d
 *.map
-
+**/managed_components/
+*sdkconfig.*
 # Editor & IDE Directories
 .vscode/
 .idea/
