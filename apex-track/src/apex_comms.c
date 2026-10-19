@@ -12,6 +12,7 @@
 #include "nvs_flash.h"
 #include "nvs.h"
 #include "esp_http_server.h"
+#include "esp_now.h"
 #include "mdns.h"
 #include "apex_tasks.h"
 #include "apex_utils.h"
@@ -20,6 +21,10 @@
 
 #define AP_SSID "APEX-TWIN-Setup"
 #define NVS_NAMESPACE "wifi_config"
+#define APEX_CAN_FD_MAGIC 0x41434644
+#define CAN_ID_FAST_DYNAMICS 0x100
+#define CAN_ID_GNSS_STATUS 0x210
+#define CAN_ID_GNSS_SATELLITES 0x211
 
 static const char *TAG = "WIFI_PROV";
 static EventGroupHandle_t s_wifi_event_group;
@@ -30,6 +35,58 @@ static httpd_handle_t server = NULL;
 
 #define MDNS_HOSTNAME "apex-twin"
 static httpd_handle_t sta_server = NULL;
+
+typedef struct __attribute__((packed)) {
+    uint32_t id;
+    uint8_t len;
+    uint8_t flags;
+    uint8_t reserved[2];
+    uint32_t timestamp_us;
+    uint8_t data[64];
+} can_fd_frame_t;
+
+typedef struct __attribute__((packed)) {
+    uint32_t magic;
+    uint16_t seq;
+    uint8_t frame_count;
+    uint8_t reserved;
+    can_fd_frame_t frames[3];
+} apex_can_fd_packet_t;
+
+typedef struct __attribute__((packed)) {
+    uint16_t rpm;
+    uint16_t speed_raw;
+    uint8_t gear;
+    uint8_t status_flags;
+    uint8_t current_sector;
+    uint8_t total_sectors;
+    uint16_t lap_number;
+    uint32_t lap_time_ms;
+    int16_t pred_delta_ms;
+} can_fast_dynamics_payload_t;
+
+typedef struct __attribute__((packed)) {
+    int32_t latitude_scaled;
+    int32_t longitude_scaled;
+    int16_t altitude_m_raw;
+    uint16_t heading_raw;
+    uint8_t satellites;
+    uint8_t fix_type;
+    uint16_t hdop_raw;
+    uint8_t reserved[8];
+} can_gnss_status_payload_t;
+
+typedef struct __attribute__((packed)) {
+    uint8_t count;
+    uint8_t snr[10];
+    uint8_t reserved[5];
+} can_gnss_satellites_payload_t;
+
+static uint16_t espnow_sequence;
+static bool espnow_ready;
+static const uint8_t espnow_broadcast_mac[ESP_NOW_ETH_ALEN] = {
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+};
 
 static const char *control_html =
 "<!doctype html><html><head><meta name=viewport content='width=device-width,initial-scale=1'>"
@@ -50,7 +107,8 @@ static const char *control_html =
 "</main><script>"
 "const q=s=>document.querySelector(s);document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button,.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');q('#'+b.dataset.tab).classList.add('active');});"
 "async function json(url,opt){let r=await fetch(url,opt);return await r.json()}"
-"async function refresh(){try{let d=await json('/api/position');q('#lat').textContent=d.valid?d.latitude.toFixed(6):'--';q('#lon').textContent=d.valid?d.longitude.toFixed(6):'--';q('#alt').textContent=d.valid?d.altitude_m.toFixed(1)+' m':'--';q('#speed').textContent=d.valid?d.speed_kmh.toFixed(1)+' km/h':'--';q('#ospeed').textContent=d.valid?d.speed_kmh.toFixed(1)+' km/h':'--';q('#fix').textContent=d.valid?(d.gps_mode>=4?'RTK':'Fix'):'No fix';q('#age').textContent=d.valid?d.correction_age_s.toFixed(1)+' s':'--';q('#positionState').textContent=d.valid?'UTC '+d.utc_time_ms+' ms':'Waiting for GPS data';let s=await json('/api/status');q('#network').textContent=s.connected?'Connected to '+s.ssid+' ('+s.ip+')':'Not connected';q('#wifiState').textContent=q('#network').textContent}catch(e){q('#network').textContent='Status unavailable'}}"
+"function gpsModeName(mode){return ({0:'No fix',1:'GPS',2:'DGPS',3:'PPS',4:'RTK fixed',5:'RTK float',6:'Estimated',7:'Manual',8:'Simulation'})[mode]||'Unknown ('+mode+')'}"
+"async function refresh(){try{let d=await json('/api/position');q('#lat').textContent=d.valid?d.latitude.toFixed(6):'--';q('#lon').textContent=d.valid?d.longitude.toFixed(6):'--';q('#alt').textContent=d.valid?d.altitude_m.toFixed(1)+' m':'--';q('#speed').textContent=d.valid?d.speed_kmh.toFixed(1)+' km/h':'--';q('#ospeed').textContent=d.valid?d.speed_kmh.toFixed(1)+' km/h':'--';q('#fix').textContent=gpsModeName(d.gps_mode);q('#age').textContent=d.valid?d.correction_age_s.toFixed(1)+' s':'--';q('#positionState').textContent=d.valid?'UTC '+d.utc_time_ms+' ms':'Waiting for GPS data';let s=await json('/api/status');q('#network').textContent=s.connected?'Connected to '+s.ssid+' ('+s.ip+')':'Not connected';q('#wifiState').textContent=q('#network').textContent}catch(e){q('#network').textContent='Status unavailable'}}"
 "async function sendCommand(){let body='command='+encodeURIComponent(q('#command').value);let d=await json('/api/command',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});q('#commandResult').textContent=d.message||d.error}"
 "async function applyRates(){let body='baud='+q('#baud').value+'&rate='+q('#rate').value;let d=await json('/api/rates',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});q('#commandResult').textContent=d.message||d.error}"
 "async function loadRtk(){let d=await json('/api/rtk');for(let k in d){let e=document.querySelector('[name='+k+']');if(e)e.value=d[k]}}async function saveRtk(){let f=new FormData(q('#rtkForm')),body=new URLSearchParams(f);let d=await json('/api/rtk',{method:'POST',body});q('#rtkResult').textContent=d.message||d.error}loadRtk();refresh();setInterval(refresh,1000);</script></body></html>";
@@ -206,7 +264,7 @@ static void start_ap_mode(void) {
         .ap = {
             .ssid = AP_SSID,
             .ssid_len = strlen(AP_SSID),
-            .channel = 1,
+            .channel = 6,
             .max_connection = 4,
             .authmode = WIFI_AUTH_OPEN
         },
@@ -228,7 +286,7 @@ static void enable_ap_alongside_sta(void)
         .ap = {
             .ssid = AP_SSID,
             .ssid_len = strlen(AP_SSID),
-            .channel = 1,
+            .channel = 6,
             .max_connection = 4,
             .authmode = WIFI_AUTH_OPEN
         },
@@ -309,6 +367,122 @@ static void start_mdns_service(void) {
     ESP_LOGI(TAG, "mDNS started. Hostname: http://%s.local", MDNS_HOSTNAME);
 }
 
+static bool espnow_init_sender(void)
+{
+    // The station must remain on the channel selected by its access point.
+    // Calling esp_wifi_set_channel() here races with STA connection handling
+    // and fails with WIFI_REASON_ASSOC_TOOMANY or ESP_FAIL.
+    uint8_t channel = 0;
+    wifi_second_chan_t secondary_channel = WIFI_SECOND_CHAN_NONE;
+    esp_err_t error = esp_wifi_get_channel(&channel, &secondary_channel);
+    if (error != ESP_OK || channel == 0) {
+        ESP_LOGE(TAG, "Could not determine the active Wi-Fi channel: %s",
+                 esp_err_to_name(error));
+        return false;
+    }
+
+    error = esp_now_init();
+    if (error != ESP_OK && error != ESP_ERR_ESPNOW_EXIST) {
+        ESP_LOGE(TAG, "ESP-NOW initialization failed: %s", esp_err_to_name(error));
+        return false;
+    }
+
+    esp_now_peer_info_t peer = {0};
+    memcpy(peer.peer_addr, espnow_broadcast_mac, ESP_NOW_ETH_ALEN);
+    // Channel 0 means the current station channel.
+    peer.channel = 0;
+    peer.ifidx = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF") != NULL
+        ? WIFI_IF_STA : WIFI_IF_AP;
+    peer.encrypt = false;
+    if (!esp_now_is_peer_exist(peer.peer_addr)) {
+        error = esp_now_add_peer(&peer);
+        if (error != ESP_OK && error != ESP_ERR_ESPNOW_EXIST) {
+            ESP_LOGE(TAG, "Could not add ESP-NOW broadcast peer: %s", esp_err_to_name(error));
+            return false;
+        }
+    }
+
+    espnow_ready = true;
+    uint8_t mac[6] = {0};
+    esp_wifi_get_mac(peer.ifidx, mac);
+    ESP_LOGI(TAG,
+             "ESP-NOW telemetry sender ready: channel=%d MAC=%02X:%02X:%02X:%02X:%02X:%02X",
+             channel, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    return true;
+}
+
+static void fill_telemetry_packet(apex_can_fd_packet_t *packet, const gps_data_t *gps,
+                                  bool include_satellites)
+{
+    memset(packet, 0, sizeof(*packet));
+    packet->magic = APEX_CAN_FD_MAGIC;
+    packet->seq = ++espnow_sequence;
+    packet->frame_count = 2;
+    uint32_t timestamp_us = gps->utc_time_ms * 1000U;
+
+    can_fast_dynamics_payload_t *fast = (can_fast_dynamics_payload_t *)packet->frames[0].data;
+    packet->frames[0].id = CAN_ID_FAST_DYNAMICS;
+    packet->frames[0].len = sizeof(*fast);
+    packet->frames[0].timestamp_us = timestamp_us;
+    fast->speed_raw = (uint16_t)(gps->speed_kmh > 0.0f ? gps->speed_kmh * 20.0f : 0.0f);
+    fast->gear = 0;
+    fast->current_sector = 1;
+    fast->total_sectors = 3;
+    fast->lap_number = 1;
+
+    can_gnss_status_payload_t *gnss = (can_gnss_status_payload_t *)packet->frames[1].data;
+    packet->frames[1].id = CAN_ID_GNSS_STATUS;
+    packet->frames[1].len = sizeof(*gnss);
+    packet->frames[1].timestamp_us = timestamp_us;
+    gnss->latitude_scaled = (int32_t)(gps->latitude * 10000000.0);
+    gnss->longitude_scaled = (int32_t)(gps->longitude * 10000000.0);
+    gnss->altitude_m_raw = (int16_t)(gps->altitude_m * 10.0f);
+    gnss->satellites = gps->satellites;
+    gnss->fix_type = gps->gps_mode;
+    gnss->hdop_raw = (uint16_t)(gps->hdop * 100.0f);
+
+    if (include_satellites) {
+        can_gnss_satellites_payload_t *satellites =
+            (can_gnss_satellites_payload_t *)packet->frames[2].data;
+        packet->frames[2].id = CAN_ID_GNSS_SATELLITES;
+        packet->frames[2].len = sizeof(*satellites);
+        packet->frames[2].timestamp_us = timestamp_us;
+        satellites->count = gps->satellite_snr_count > 10 ? 10 : gps->satellite_snr_count;
+        memcpy(satellites->snr, gps->satellite_snr, sizeof(satellites->snr));
+        packet->frame_count = 3;
+    }
+}
+
+void espnow_telemetry_task(void *pvParameters)
+{
+    (void)pvParameters;
+    while (!espnow_ready) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
+    while (true) {
+        gps_data_t gps = {0};
+        gps_get_latest_data(&gps);
+        apex_can_fd_packet_t packet;
+        static TickType_t last_satellite_send_tick;
+        TickType_t now = xTaskGetTickCount();
+        bool include_satellites =
+            now - last_satellite_send_tick >= pdMS_TO_TICKS(10000);
+        fill_telemetry_packet(&packet, &gps, include_satellites);
+        if (include_satellites) {
+            last_satellite_send_tick = now;
+        }
+        uint8_t frame_count = packet.frame_count;
+        esp_err_t error = esp_now_send(espnow_broadcast_mac, (const uint8_t *)&packet,
+                                       sizeof(packet.magic) + sizeof(packet.seq) +
+                                       2 + frame_count * sizeof(can_fd_frame_t));
+        if (error != ESP_OK) {
+            ESP_LOGW(TAG, "ESP-NOW telemetry send failed: %s", esp_err_to_name(error));
+        }
+        vTaskDelay(pdMS_TO_TICKS(40));
+    }
+}
+
 // 2. Web Page Handler for STA Mode
 static esp_err_t sta_root_get_handler(httpd_req_t *req) {
     httpd_resp_send(req, control_html, HTTPD_RESP_USE_STRLEN);
@@ -384,6 +558,10 @@ void wifi_setup_task(void *pvParameters) {
 
     } else {
         start_ap_mode();
+    }
+
+    if (espnow_init_sender()) {
+        xTaskCreate(espnow_telemetry_task, "espnow_telemetry", 4096, NULL, 6, NULL);
     }
 
     // Task finished running initialization steps

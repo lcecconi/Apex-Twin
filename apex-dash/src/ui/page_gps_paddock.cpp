@@ -1,5 +1,20 @@
 #include "ui/page_gps_paddock.h"
 
+static const char *gpsFixName(uint8_t fix) {
+  switch (fix) {
+    case 0: return "No Fix";
+    case 1: return "GPS";
+    case 2: return "DGPS";
+    case 3: return "PPS";
+    case 4: return "RTK Fixed";
+    case 5: return "RTK Float";
+    case 6: return "Estimated";
+    case 7: return "Manual";
+    case 8: return "Simulation";
+    default: return "Unknown";
+  }
+}
+
 void PageGpsPaddock::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const SystemSettings &settings) {
   char buf[64];
 
@@ -20,11 +35,11 @@ void PageGpsPaddock::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, cons
   u8g2->drawStr(16, 44, "GNSS SATELLITE RADAR");
   u8g2->setDrawColor(1);
 
-  // Satellite Signal Bar Chart (10 channels)
-  static const uint8_t sat_snr[10] = {42, 38, 45, 30, 48, 44, 35, 41, 46, 39};
+  // Satellite Signal Bar Chart (up to 10 channels, refreshed every 10 seconds)
   for (int i = 0; i < 10; i++) {
     int bx = 18 + (i * 17);
-    int bar_h = (sat_snr[i] * 38) / 50;
+    uint8_t snr = i < telemetry.satellite_snr_count ? telemetry.satellite_snr[i] : 0;
+    int bar_h = (snr * 38) / 50;
     u8g2->drawFrame(bx, 96 - bar_h, 12, bar_h);
     u8g2->drawBox(bx, 96 - bar_h, 12, bar_h);
   }
@@ -34,7 +49,8 @@ void PageGpsPaddock::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, cons
   snprintf(buf, sizeof(buf), "Sats Visible: %d  (GPS/Gal)", telemetry.satellites_visible);
   u8g2->drawStr(16, 114, buf);
 
-  snprintf(buf, sizeof(buf), "Fix: 3D-DGPS  |  HDOP: %0.2f", telemetry.hdop);
+  snprintf(buf, sizeof(buf), "Fix: %s  |  HDOP: %0.2f",
+           gpsFixName(telemetry.gps_fix), telemetry.hdop);
   u8g2->drawStr(16, 132, buf);
 
   u8g2->drawStr(16, 150, "Antenna: Active Helix L1/L5");

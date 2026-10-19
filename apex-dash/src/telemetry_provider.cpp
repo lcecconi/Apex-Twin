@@ -2,9 +2,9 @@
 #include "storage_manager.h"
 #include <math.h>
 
-#define TRACK_LENGTH_METERS 1050.0f // Simulated Lonato circuit length
-#define SECTOR_1_END        340.0f
-#define SECTOR_2_END        710.0f
+static constexpr float TRACK_LENGTH_METERS = 1050.0f;
+static constexpr float SECTOR_1_END = 340.0f;
+static constexpr float SECTOR_2_END = 710.0f;
 
 void TelemetryProvider::begin(const SystemSettings &settings, StorageManager *storage) {
   memset(&_snapshot, 0, sizeof(_snapshot));
@@ -12,25 +12,6 @@ void TelemetryProvider::begin(const SystemSettings &settings, StorageManager *st
   _storage = storage;
 
   strncpy(_snapshot.current_track_name, settings.selected_track, sizeof(_snapshot.current_track_name) - 1);
-  _snapshot.satellites_visible = 15;
-  _snapshot.gps_fix = 3; // 3D / DGPS
-  _snapshot.hdop = 0.75f;
-  _snapshot.gear = 1;
-  _snapshot.water_temp_c = 48.0f;
-  _snapshot.exhaust_temp_c = 420.0f;
-  _snapshot.lap_number = 1;
-  _snapshot.current_sector = 1;
-  _snapshot.track_module_connected = false; // Wireless unlinked -> running internal simulation
-  _snapshot.link_rssi = -64;
-
-  if (_storage) {
-    _snapshot.engine_total_hours_sec = _storage->getEngineHours();
-  } else {
-    _snapshot.engine_total_hours_sec = 14 * 3600 + 18 * 60; // 14h 18m
-  }
-  _snapshot.piston_hours_sec = 4 * 3600 + 12 * 60;
-  _snapshot.session_time_sec = 18 * 60 + 42; // 18m 42s
-  _snapshot.session_active = true;
   _session_accum_ms = 0;
   _speed_low_ms = 0;
 
@@ -41,13 +22,10 @@ void TelemetryProvider::begin(const SystemSettings &settings, StorageManager *st
   _engine_accum_ms = 0;
 
   // Initialize wireless link
-  _receiver.begin();
-
-  // Populate initial realistic lap records so Data Recall has immediate data to display
-  onLapCompleted(48420, 16120, 16210, 16090, 114.2f, 15100, 5800, 56.4f);
-  onLapCompleted(47950, 15980, 16040, 15930, 117.8f, 15450, 5950, 58.1f); // Best lap
-  onLapCompleted(48190, 16050, 16110, 16030, 116.1f, 15300, 5890, 58.6f);
-  _snapshot.lap_number = 4;
+  bool receiver_ready = _receiver.begin();
+  Serial.printf("[INIT] ESP-NOW receiver: %s (channel 6, MAC %s)\n",
+                receiver_ready ? "READY" : "FAILED",
+                WiFi.macAddress().c_str());
 }
 
 void TelemetryProvider::resetEngineHours() {
@@ -252,17 +230,9 @@ void TelemetryProvider::update(const DeviceSensorsData &local_sensors, const Sys
   _snapshot.ambient_humidity_pct = local_sensors.ambient_humidity_pct;
   _snapshot.battery_voltage = local_sensors.battery_voltage;
   _snapshot.battery_percent = local_sensors.battery_percent;
-  // Try receiving real telemetry from Apex-Track on chassis
-  bool live_received = false;
-  if (!settings.simulation_mode) {
-    live_received = _receiver.applyLatestTelemetry(_snapshot);
-  }
-
-  // If unlinked or simulation mode forced, run physics simulation
-  if (!live_received) {
-    _snapshot.track_module_connected = false;
-    updateSimulation(settings);
-  }
+  // Chassis telemetry is sourced exclusively from Apex-Track over ESP-NOW.
+  _receiver.applyLatestTelemetry(_snapshot);
+  (void)settings;
 
   // Track absolute engine runtime when engine is running (rpm > 0)
   if (_last_engine_time_ms == 0) {

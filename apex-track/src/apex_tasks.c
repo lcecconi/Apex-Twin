@@ -6,6 +6,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -84,16 +85,6 @@ void ntrip_task(void *pvParameters)
     }
 }
 
-void dummy_task(void *pvParameters)
-{
-    (void)pvParameters;
-
-    while (true) {
-        ESP_LOGI("dummy_task", "Dummy task is running...");
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-}
-
 void gps_setup_task(void *pvParameters)
 {
     (void)pvParameters;
@@ -133,7 +124,7 @@ void gps_setup_task(void *pvParameters)
         "$PQTMCFGFIXRATE,W,50",
         "$PQTMCFGRCVRMODE,W,1",
         "$PQTMCFGMSGRATE,W,GGA,1",
-        "$PQTMCFGMSGRATE,W,GSV,0",
+        "$PQTMCFGMSGRATE,W,GSV,10",
         "$PQTMCFGMSGRATE,W,VTG,0",
         "$PQTMCFGMSGRATE,W,GLL,0",
         "$PQTMCFGMSGRATE,W,GSA,0",
@@ -147,8 +138,6 @@ void gps_setup_task(void *pvParameters)
         if (error != ESP_OK) {
             ESP_LOGE("gps_setup", "Failed to send GPS command %s: %s", commands[index], esp_err_to_name(error));
             vTaskDelete(NULL);
-        } else {
-            ESP_LOGI("gps_setup", "Sent GPS command: %s", commands[index]);
         }
 
         vTaskDelay(pdMS_TO_TICKS(100));
@@ -157,9 +146,8 @@ void gps_setup_task(void *pvParameters)
     vTaskDelay(pdMS_TO_TICKS(2000));
     ESP_ERROR_CHECK(gps_send_command("PQTMGNSSSTART", false));
 
-    xTaskCreate(dummy_task, "dummy_task", 2048, NULL, 5, NULL);
     xTaskCreate(gps_monitor_task, "gps_monitor", 4096, NULL, 6, NULL);
-    xTaskCreate(ntrip_task, "ntrip", 4096, NULL, 7, NULL);
+    xTaskCreate(ntrip_task, "ntrip", 8192, NULL, 7, NULL);
     vTaskDelete(NULL);
 }
 
@@ -170,6 +158,10 @@ void gps_monitor_task(void *pvParameters)
     char nmea_message[GPS_COMMAND_RESPONSE_BUFFER_SIZE];
     size_t message_length = 0;
     float latest_speed_kmh = 0.0f;
+    uint8_t satellite_snr[10] = {0};
+    uint8_t satellite_snr_count = 0;
+    uint8_t gsv_message_number = 0;
+    TickType_t last_status_tick = xTaskGetTickCount();
 
     while (true) {
         uint8_t data[GPS_COMMAND_RESPONSE_BUFFER_SIZE];
@@ -180,7 +172,17 @@ void gps_monitor_task(void *pvParameters)
             pdMS_TO_TICKS(1000));
 
         if (bytes_read <= 0) {
-            ESP_LOGW("gps_monitor", "No GPS data received in the last second.");
+            if (xTaskGetTickCount() - last_status_tick >= pdMS_TO_TICKS(1000)) {
+                gps_data_t status_data = {0};
+                bool status_valid = gps_get_latest_data(&status_data);
+                printf("GPS_STATUS,valid=%u,mode=%u,latitude=%.7f,longitude=%.7f,rtk_age_s=%.2f\r\n",
+                       status_valid ? 1U : 0U,
+                       (unsigned int)status_data.gps_mode,
+                       status_data.latitude,
+                       status_data.longitude,
+                       status_data.correction_age_s);
+                last_status_tick = xTaskGetTickCount();
+            }
             continue;
         }
 
@@ -196,22 +198,10 @@ void gps_monitor_task(void *pvParameters)
                     gps_data_t gps_data;
                     if (gps_parse_gga_message(nmea_message, &gps_data)) {
                         gps_data.speed_kmh = latest_speed_kmh;
+                        gps_data.satellite_snr_count = satellite_snr_count;
+                        memcpy(gps_data.satellite_snr, satellite_snr, sizeof(satellite_snr));
                         strncpy(gps_data.nmea_sentence, raw_nmea_message, sizeof(gps_data.nmea_sentence) - 1);
                         gps_data.nmea_sentence[sizeof(gps_data.nmea_sentence) - 1] = '\0';
-#if APX_DEBUG > 0
-                        ESP_LOGI(
-                            "gps_monitor",
-                            "Queue GPS data: time=%lu ms lat=%.6f lon=%.6f alt=%.3f m mode=%u correction_age=%.1f s",
-                            (unsigned long)gps_data.utc_time_ms,
-                            gps_data.latitude,
-                            gps_data.longitude,
-                            gps_data.altitude_m,
-                            (unsigned int)gps_data.gps_mode,
-                            gps_data.correction_age_s);
-#endif
-#if APX_DEBUG > 1
-                        ESP_LOGI("gps_monitor", "NMEA: %s", gps_data.nmea_sentence);
-#endif
                         xQueueOverwrite(gps_data_queue, &gps_data);
                         portENTER_CRITICAL(&gps_data_lock);
                         latest_gps_data = gps_data;
@@ -223,6 +213,52 @@ void gps_monitor_task(void *pvParameters)
                             latest_gps_data.speed_kmh = latest_speed_kmh;
                         }
                         portEXIT_CRITICAL(&gps_data_lock);
+                    } else {
+                        char *fields[32] = {0};
+                        size_t field_count = 0;
+                        for (char *field = nmea_message;
+                             field != NULL && field_count < 32;) {
+                            fields[field_count++] = field;
+                            char *separator = strchr(field, ',');
+                            if (separator == NULL) {
+                                break;
+                            }
+                            *separator = '\0';
+                            field = separator + 1;
+                        }
+
+                        if (field_count >= 4 && strlen(fields[0]) >= 6 &&
+                            strcmp(fields[0] + 3, "GSV") == 0) {
+                            uint8_t total_messages = (uint8_t)strtoul(fields[1], NULL, 10);
+                            uint8_t message_number = (uint8_t)strtoul(fields[2], NULL, 10);
+                            uint8_t total_satellites = (uint8_t)strtoul(fields[3], NULL, 10);
+                            if (total_messages > 0 && message_number > 0 &&
+                                message_number <= total_messages) {
+                                if (message_number == 1) {
+                                    memset(satellite_snr, 0, sizeof(satellite_snr));
+                                    satellite_snr_count = 0;
+                                }
+                                if (message_number == gsv_message_number + 1 ||
+                                    message_number == 1) {
+                                    for (size_t field_index = 7;
+                                         field_index + 3 < field_count;
+                                         field_index += 4) {
+                                        if (satellite_snr_count >= sizeof(satellite_snr)) {
+                                            break;
+                                        }
+                                        if (fields[field_index + 3][0] != '\0') {
+                                            satellite_snr[satellite_snr_count++] =
+                                                (uint8_t)strtoul(fields[field_index + 3], NULL, 10);
+                                        }
+                                    }
+                                    gsv_message_number = message_number;
+                                    if (message_number == total_messages &&
+                                        total_satellites < satellite_snr_count) {
+                                        satellite_snr_count = total_satellites;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 message_length = 0;
@@ -234,6 +270,18 @@ void gps_monitor_task(void *pvParameters)
                     message_length = 0;
                 }
             }
+        }
+
+        if (xTaskGetTickCount() - last_status_tick >= pdMS_TO_TICKS(1000)) {
+            gps_data_t status_data = {0};
+            bool status_valid = gps_get_latest_data(&status_data);
+            printf("GPS_STATUS,valid=%u,mode=%u,latitude=%.7f,longitude=%.7f,rtk_age_s=%.2f\r\n",
+                   status_valid ? 1U : 0U,
+                   (unsigned int)status_data.gps_mode,
+                   status_data.latitude,
+                   status_data.longitude,
+                   status_data.correction_age_s);
+            last_status_tick = xTaskGetTickCount();
         }
     }
 }

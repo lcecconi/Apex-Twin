@@ -14,6 +14,7 @@ public:
   void begin(const SystemSettings &settings, StorageManager *storage = nullptr);
   void update(const DeviceSensorsData &local_sensors, const SystemSettings &settings);
   const TelemetrySnapshot &getSnapshot() const { return _snapshot; }
+  EspNowDebugStats getEspNowDebugStats() const { return _receiver.getDebugStats(); }
 
   // Lap history for data recall
   uint16_t getCompletedLapCount() const { return _completed_laps_count; }

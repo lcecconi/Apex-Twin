@@ -4,4 +4,6 @@
 #include "freertos/task.h"
 
 void wifi_setup_task(void *pvParameters);
+void espnow_telemetry_task(void *pvParameters);
+
 #endif

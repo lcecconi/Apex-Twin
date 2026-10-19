@@ -76,7 +76,9 @@ struct ChassisTelemetry {
   float altitude_m = 0.0f;
   float heading_deg = 0.0f;
   uint8_t satellites_visible = 0;
-  uint8_t gps_fix = 0;          // 0 = None, 1 = 2D, 2 = 3D, 3 = DGPS, 4 = RTK-Float, 5 = RTK-Fixed
+  uint8_t satellite_snr_count = 0;
+  uint8_t satellite_snr[10] = {0};
+  uint8_t gps_fix = 0;          // GGA quality: 0=None, 1=GPS, 2=DGPS, 3=PPS, 4=RTK-Fixed, 5=RTK-Float
   float hdop = 9.9f;
 
   // Health & Power (CAN 0x220)
@@ -132,6 +134,8 @@ struct TelemetrySnapshot {
   uint32_t last_split_delta_ms = 0;
 
   uint8_t satellites_visible = 0;
+  uint8_t satellite_snr_count = 0;
+  uint8_t satellite_snr[10] = {0};
   uint8_t gps_fix = 0;
   float hdop = 9.9f;
   float lateral_g = 0.0f;
@@ -165,6 +169,8 @@ struct TelemetrySnapshot {
     total_sectors = chassis.total_sectors;
     last_split_delta_ms = chassis.last_split_delta_ms;
     satellites_visible = chassis.satellites_visible;
+    satellite_snr_count = chassis.satellite_snr_count;
+    memcpy(satellite_snr, chassis.satellite_snr, sizeof(satellite_snr));
     gps_fix = chassis.gps_fix;
     hdop = chassis.hdop;
     lateral_g = chassis.lateral_g;
@@ -218,7 +224,7 @@ struct SystemSettings {
   bool show_speed = true;
   bool inverted_display = true;
   uint8_t lap_hold_seconds = 5;
-  bool simulation_mode = true; // Enabled when physical Apex-Track is offline
+  bool simulation_mode = false; // Retained for settings compatibility; not used
   TrackDetectionMode track_mode = TRACK_AUTO;
   char selected_track[32] = "South Garda (Lonato)";
   char selected_track_file[64] = "lonato.json";

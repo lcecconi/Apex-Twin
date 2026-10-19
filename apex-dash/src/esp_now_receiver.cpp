@@ -1,4 +1,8 @@
 #include "esp_now_receiver.h"
+#include "esp_wifi.h"
+
+// Must match the Wi-Fi access point channel used by Apex-Track.
+static constexpr uint8_t ESPNOW_CHANNEL = 6;
 
 ChassisTelemetry EspNowReceiver::_chassis;
 uint32_t EspNowReceiver::_last_packet_ms = 0;
@@ -9,6 +13,16 @@ bool EspNowReceiver::_peer_registered = false;
 uint16_t EspNowReceiver::_tx_seq = 0;
 CanFrameReceiveCallback EspNowReceiver::_rx_callback = nullptr;
 void *EspNowReceiver::_rx_callback_arg = nullptr;
+static EspNowDebugStats espnow_debug_stats;
+static uint32_t espnow_previous_packet_ms;
+
+static void update_packet_rate(uint32_t packet_ms) {
+  if (espnow_previous_packet_ms != 0 && packet_ms > espnow_previous_packet_ms) {
+    uint32_t interval_ms = packet_ms - espnow_previous_packet_ms;
+    espnow_debug_stats.packet_rate_hz = 1000.0f / (float)interval_ms;
+  }
+  espnow_previous_packet_ms = packet_ms;
+}
 
 EspNowReceiver::EspNowReceiver() {
 }
@@ -16,23 +30,46 @@ EspNowReceiver::EspNowReceiver() {
 bool EspNowReceiver::begin() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
-
-  if (esp_now_init() != ESP_OK) {
-    log_e("ESP-NOW Init Failed");
+  delay(20);
+  esp_err_t channel_error = esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE);
+  if (channel_error != ESP_OK) {
+    log_e("Could not set ESP-NOW channel %u: %s", ESPNOW_CHANNEL,
+          esp_err_to_name(channel_error));
     return false;
   }
 
-  esp_now_register_recv_cb(EspNowReceiver::onDataRecv);
+  esp_err_t error = esp_now_init();
+  if (error != ESP_OK && error != ESP_ERR_ESPNOW_EXIST) {
+    log_e("ESP-NOW Init Failed: %s", esp_err_to_name(error));
+    return false;
+  }
+
+  error = esp_now_register_recv_cb(EspNowReceiver::onDataRecv);
+  if (error != ESP_OK) {
+    log_e("ESP-NOW receive callback registration failed: %s", esp_err_to_name(error));
+    return false;
+  }
 
   // Register broadcast peer
   esp_now_peer_info_t peerInfo = {};
   memset(peerInfo.peer_addr, 0xFF, 6);
   peerInfo.channel = 0;
+  peerInfo.ifidx = WIFI_IF_STA;
   peerInfo.encrypt = false;
-  esp_now_add_peer(&peerInfo);
+  error = esp_now_add_peer(&peerInfo);
+  if (error != ESP_OK && error != ESP_ERR_ESPNOW_EXIST) {
+    log_e("Could not add ESP-NOW broadcast peer: %s", esp_err_to_name(error));
+    return false;
+  }
 
-  log_i("Virtual CAN-FD ESP-NOW Receiver initialized on channel %d", WiFi.channel());
+  log_i("ESP-NOW receiver ready: channel=%u, MAC=%s",
+        ESPNOW_CHANNEL, WiFi.macAddress().c_str());
+  espnow_debug_stats.initialized = true;
   return true;
+}
+
+EspNowDebugStats EspNowReceiver::getDebugStats() const {
+  return espnow_debug_stats;
 }
 
 bool EspNowReceiver::isConnected() const {
@@ -154,6 +191,16 @@ void EspNowReceiver::processIncomingCanFrame(const CanFdFrame &frame) {
       break;
     }
 
+    case CAN_ID_GNSS_SATELLITES: {
+      if (frame.len >= sizeof(CanGnssSatellitesPayload)) {
+        const CanGnssSatellitesPayload *p =
+            (const CanGnssSatellitesPayload*)frame.data;
+        _chassis.satellite_snr_count = p->count > 10 ? 10 : p->count;
+        memcpy(_chassis.satellite_snr, p->snr, sizeof(_chassis.satellite_snr));
+      }
+      break;
+    }
+
     case CAN_ID_CHASSIS_HEALTH: {
       if (frame.len >= sizeof(CanChassisHealthPayload)) {
         const CanChassisHealthPayload *p = (const CanChassisHealthPayload*)frame.data;
@@ -178,12 +225,21 @@ void EspNowReceiver::processIncomingCanFrame(const CanFdFrame &frame) {
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
 void EspNowReceiver::onDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
   const uint8_t *mac = info->src_addr;
+  if (info->rx_ctrl) {
+    _last_rssi = info->rx_ctrl->rssi;
+  }
 #else
 void EspNowReceiver::onDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
 #endif
+  espnow_debug_stats.rssi = _last_rssi;
+  espnow_debug_stats.last_packet_length = len;
   if (len < 4) return;
 
   uint32_t magic = *(const uint32_t*)data;
+  if (magic != APEX_CAN_FD_MAGIC && len != sizeof(CanFdFrame)) {
+    espnow_debug_stats.invalid_packets++;
+    return;
+  }
 
   // Track sender MAC address for direct unicast responses
   if (!_peer_registered || memcmp(_peer_mac, mac, 6) != 0) {
@@ -203,16 +259,27 @@ void EspNowReceiver::onDataRecv(const uint8_t *mac, const uint8_t *data, int len
   if (magic == APEX_CAN_FD_MAGIC) {
     const ApexCanFdPacket *pkt = (const ApexCanFdPacket*)data;
     uint8_t count = pkt->frame_count;
-    if (count > 3) count = 3;
+    if (count == 0 || count > 3 ||
+        len < (int)(sizeof(uint32_t) + sizeof(uint16_t) + 2 + count * sizeof(CanFdFrame))) {
+      espnow_debug_stats.invalid_packets++;
+      return;
+    }
+    espnow_debug_stats.last_sequence = pkt->seq;
+    espnow_debug_stats.last_frame_count = count;
+    espnow_debug_stats.last_frame_timestamp_us = pkt->frames[0].timestamp_us;
 
     for (uint8_t i = 0; i < count; i++) {
       processIncomingCanFrame(pkt->frames[i]);
     }
 
     _last_packet_ms = millis();
+    update_packet_rate(_last_packet_ms);
     _new_packet_ready = true;
     _chassis.connected = true;
     _chassis.last_packet_ms = _last_packet_ms;
+    espnow_debug_stats.packets_received++;
+    espnow_debug_stats.last_packet_ms = _last_packet_ms;
+    espnow_debug_stats.receiving = true;
     return;
   }
 
@@ -220,19 +287,28 @@ void EspNowReceiver::onDataRecv(const uint8_t *mac, const uint8_t *data, int len
   if (len == sizeof(CanFdFrame)) {
     const CanFdFrame *frame = (const CanFdFrame*)data;
     processIncomingCanFrame(*frame);
+    espnow_debug_stats.last_frame_timestamp_us = frame->timestamp_us;
     _last_packet_ms = millis();
+    update_packet_rate(_last_packet_ms);
     _new_packet_ready = true;
     _chassis.connected = true;
     _chassis.last_packet_ms = _last_packet_ms;
+    espnow_debug_stats.packets_received++;
+    espnow_debug_stats.last_packet_ms = _last_packet_ms;
+    espnow_debug_stats.receiving = true;
     return;
   }
 }
 
 bool EspNowReceiver::applyLatestTelemetry(TelemetrySnapshot &target) {
   if (!isConnected()) {
+    _chassis = ChassisTelemetry{};
+    _chassis.link_rssi = _last_rssi;
     _chassis.connected = false;
     target.track_module_connected = false;
     target.chassis.connected = false;
+    target.chassis = _chassis;
+    target.syncFlatFields();
     return false;
   }
 

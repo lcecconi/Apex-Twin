@@ -58,6 +58,9 @@ void UiManager::render(U8G2 *u8g2, const TelemetrySnapshot &telemetry, const Tel
     case VIEW_DATA_RECALL:
       _page_data_recall.render(u8g2, provider, settings);
       break;
+    case VIEW_ESPNOW_DEBUG:
+      _page_espnow_debug.render(u8g2, telemetry, provider.getEspNowDebugStats());
+      break;
     default:
       _page_live_race.render(u8g2, telemetry, settings);
       break;
@@ -79,7 +82,8 @@ void UiManager::renderFooter(U8G2 *u8g2, const TelemetrySnapshot &telemetry) {
     "SCHUMACHER",
     "TELEMETRY",
     "PADDOCK",
-    "DATA RECALL"
+    "DATA RECALL",
+    "ESP-NOW DEBUG"
   };
 
   char buf[80];
@@ -87,4 +91,3 @@ void UiManager::renderFooter(U8G2 *u8g2, const TelemetrySnapshot &telemetry) {
            view_names[_current_view], _current_view + 1, VIEW_COUNT);
   u8g2->drawStr(6, 292, buf);
 }
-

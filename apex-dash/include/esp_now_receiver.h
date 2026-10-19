@@ -9,6 +9,23 @@
 
 #define APEX_CAN_FD_MAGIC 0x41434644 // "ACFD"
 #define APEX_LEGACY_MAGIC 0x41504558 // "APEX"
+#ifndef APEX_ESPNOW_DEBUG
+#define APEX_ESPNOW_DEBUG 0
+#endif
+
+struct EspNowDebugStats {
+  bool initialized = false;
+  bool receiving = false;
+  uint32_t packets_received = 0;
+  uint32_t invalid_packets = 0;
+  uint32_t last_packet_ms = 0;
+  uint16_t last_sequence = 0;
+  uint8_t last_frame_count = 0;
+  uint16_t last_packet_length = 0;
+  uint32_t last_frame_timestamp_us = 0;
+  float packet_rate_hz = 0.0f;
+  int8_t rssi = -127;
+};
 
 // Container for up to 3 Virtual CAN-FD frames bundled in a single ESP-NOW radio burst
 struct __attribute__((packed)) ApexCanFdPacket {
@@ -33,6 +50,7 @@ public:
 
   // Telemetry application
   bool applyLatestTelemetry(TelemetrySnapshot &target);
+  EspNowDebugStats getDebugStats() const;
   const ChassisTelemetry &getChassisTelemetry() const { return _chassis; }
 
   // Send command from Dash to Track

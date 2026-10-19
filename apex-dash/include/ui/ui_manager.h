@@ -11,6 +11,7 @@
 #include "ui/page_gps_paddock.h"
 #include "ui/page_data_recall.h"
 #include "ui/page_shumacher.h"
+#include "ui/page_esp_now_debug.h"
 
 enum UiViewMode : uint8_t {
   VIEW_LIVE_RACE = 0,    // Predictive Lap Time HUD
@@ -18,6 +19,7 @@ enum UiViewMode : uint8_t {
   VIEW_TELEMETRY,        // Tachometer, Dual Temps, G-G Diagram
   VIEW_GPS_PADDOCK,      // Satellite radar, Track detect, Maintenance
   VIEW_DATA_RECALL,      // Best 3 laps, sector breakdown
+  VIEW_ESPNOW_DEBUG,     // ESP-NOW link and packet diagnostics
   VIEW_COUNT
 };
 
@@ -46,6 +48,7 @@ private:
   PageGpsPaddock _page_gps_paddock;
   PageDataRecall _page_data_recall;
   PageShumacher  _page_shumacher;
+  PageEspNowDebug _page_espnow_debug;
 
   void renderFooter(U8G2 *u8g2, const TelemetrySnapshot &telemetry);
 };

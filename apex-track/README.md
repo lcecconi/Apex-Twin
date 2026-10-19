@@ -22,9 +22,20 @@ Rigidly mounted to the kart chassis or seat stay, Apex-Track consolidates all ph
 
 ## 2. Wireless Telemetry Link (ESP-NOW)
 
-Apex-Track broadcasts binary `ApexTrackTelemetryPacket` frames at $25\text{ Hz}$ using peer-to-peer ESP-NOW:
+Apex-Track broadcasts binary virtual CAN-FD packets at $25\text{ Hz}$ using peer-to-peer ESP-NOW:
 * **Over-the-Air Latency:** Sub-$2\text{ ms}$ transmission time.
 * **Zero Wires to Steering Wheel:** Eliminates cable fatigue, coil entanglement, and ignition interference across the steering column.
+
+The sender broadcasts the existing virtual CAN-FD packet format on ESP-NOW
+using the channel selected by the track board's Wi-Fi access point. `Apex-Dash`
+must listen on that same channel and consumes the
+GNSS and fast-dynamics frames. The current track firmware has GNSS as its
+available live telemetry source; additional sensor producers can add frames to
+the same packet without changing the dash transport.
+
+Each transmitted frame carries the GPS measurement timestamp in
+`timestamp_us`. It is derived from the GPS UTC time in milliseconds and
+converted to microseconds.
 
 ---
 
@@ -34,3 +45,22 @@ Apex-Track broadcasts binary `ApexTrackTelemetryPacket` frames at $25\text{ Hz}$
 * **[Apex-Dash Steering Wheel Display](../apex-dash/README.md)**
 * **[Connector & Pinout Specification](../docs/connector_pinout.md)**
 * **[ESP-NOW Latency Benchmark Test](../tests/espnow-latency/README.md)**
+
+### Building and uploading on Windows
+
+The `test_idf` environment is configured for the GPS/track board on `COM8`:
+
+```powershell
+platformio run -e test_idf --target upload
+platformio device monitor -e test_idf
+```
+
+The dash project is configured for `COM9`:
+
+```powershell
+platformio run -d ../apex-dash -e apex_dash --target upload
+platformio device monitor -d ../apex-dash -e apex_dash
+```
+
+If the port changes, override it for a single command with
+`--upload-port COMx` or `--monitor-port COMx`.

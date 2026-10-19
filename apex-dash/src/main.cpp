@@ -30,10 +30,6 @@ static UiManager ui_manager;
 static SystemSettings settings;
 
 // Performance & state tracking
-static uint32_t last_serial_log_ms = 0;
-static uint32_t last_fps_calc_ms = 0;
-static uint32_t frame_count = 0;
-static float current_fps = 0.0f;
 static bool last_applied_invert = true;
 static uint8_t last_applied_lang = 0;
 
@@ -88,7 +84,7 @@ void setup() {
   usb_storage_manager.begin(&sd_manager);
 
   // 6. Initialize Telemetry Provider
-  Serial.println("[INIT] Initializing Telemetry Provider (Physics Simulation Active)...");
+  Serial.println("[INIT] Initializing Telemetry Provider (ESP-NOW telemetry only)...");
   telemetry_provider.begin(settings, &storage_manager);
 
   // 7. Initialize UI Subsystem & Menu System
@@ -103,8 +99,6 @@ void setup() {
   last_applied_invert = settings.inverted_display;
 
   Serial.println("[INIT] Apex-Dash initialized successfully. Starting race loop.\n");
-  last_fps_calc_ms = millis();
-  last_serial_log_ms = millis();
 }
 
 void loop() {
@@ -145,24 +139,6 @@ void loop() {
   // 5. Render Active View / Menu
   ui_manager.render(u8g2, telemetry, telemetry_provider, settings);
   u8g2->sendBuffer();
-
-  // 6. Performance Monitoring
-  frame_count++;
-  uint32_t now = millis();
-  if (now - last_fps_calc_ms >= 1000) {
-    current_fps = (float)frame_count * 1000.0f / (float)(now - last_fps_calc_ms);
-    frame_count = 0;
-    last_fps_calc_ms = now;
-  }
-
-  // 7. USB CDC Telemetry Logging (1 Hz)
-  if (now - last_serial_log_ms >= 1000) {
-    Serial.printf("[TELEMETRY] Lap: L%02d | Spd: %03.0f km/h | RPM: %05d | Gear: %d | H2O: %04.1f C | EGT: %03d C | Delta: %+0.2fs | FPS: %.1f\n",
-                  telemetry.lap_number, telemetry.speed_kmh, telemetry.rpm, telemetry.gear,
-                  telemetry.water_temp_c, (int)telemetry.exhaust_temp_c,
-                  telemetry.predictive_delta_s, current_fps);
-    last_serial_log_ms = now;
-  }
 
   delay(5);
 }

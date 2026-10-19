@@ -13,6 +13,7 @@ enum CanMessageId : uint32_t {
   CAN_ID_SECTOR_EVENT     = 0x120, // Aperiodic: Split or S/F crossing event
   CAN_ID_ENGINE_THERMAL   = 0x200, // 2 Hz: Water, EGT, Head temps
   CAN_ID_GNSS_STATUS      = 0x210, // 1 Hz: Lat, Lon, Altitude, Sats, Fix, HDOP
+  CAN_ID_GNSS_SATELLITES  = 0x211, // 0.1 Hz: Per-satellite SNR values
   CAN_ID_CHASSIS_HEALTH   = 0x220, // 1 Hz: 12V Battery mV, Fault flags, Engine/Piston hours
 
   // Uplink: Apex-Dash (Steering) -> Apex-Track (Chassis)
@@ -26,7 +27,7 @@ struct __attribute__((packed)) CanFdFrame {
   uint8_t  len;           // Payload length in bytes (0 - 64)
   uint8_t  flags;         // CAN-FD flags (bit 0: BRS, bit 1: ESI)
   uint8_t  reserved[2];
-  uint32_t timestamp_us;  // Microsecond arrival / dispatch timestamp
+  uint32_t timestamp_us;  // GPS UTC measurement timestamp, in microseconds
   uint8_t  data[CAN_FD_MAX_DLC];
 };
 
@@ -88,9 +89,16 @@ struct __attribute__((packed)) CanGnssStatusPayload {
   int16_t  altitude_m_raw;   // meters * 10
   uint16_t heading_raw;      // deg * 100
   uint8_t  satellites;
-  uint8_t  fix_type;         // 0=None, 1=2D, 2=3D, 3=DGPS, 4=RTK-Float, 5=RTK-Fixed
+  uint8_t  fix_type;         // GGA quality: 0=None, 1=GPS, 2=DGPS, 3=PPS, 4=RTK-Fixed, 5=RTK-Float
   uint16_t hdop_raw;         // HDOP * 100
   uint8_t  reserved[8];
+};
+
+// 0x211: GNSS Satellite Signal Strength (16 Bytes)
+struct __attribute__((packed)) CanGnssSatellitesPayload {
+  uint8_t count;
+  uint8_t snr[10];             // SNR in dB-Hz, ordered by received GSV entry
+  uint8_t reserved[5];
 };
 
 // 0x220: Chassis Health & Power (16 Bytes)

@@ -237,7 +237,6 @@ esp_err_t gps_wait_for_response(const char *command)
             break;
         }
         response[bytes_read] = '\0';
-        ESP_LOGI("gps_wait_for_response", "GPS response: %s", response);
         received_response = true;
     }
 
@@ -292,7 +291,7 @@ bool gps_parse_gga_message(char *message, gps_data_t *gps_data)
     }
 
     if (field_count < 14 ||
-        (strcmp(fields[0], "$GNGGA") != 0 && strcmp(fields[0], "$GPGGA") != 0) ||
+        strlen(fields[0]) < 6 || strcmp(fields[0] + 3, "GGA") != 0 ||
         fields[1][0] == '\0' || fields[2][0] == '\0' || fields[3][0] == '\0' ||
         fields[4][0] == '\0' || fields[5][0] == '\0' || fields[6][0] == '\0' ||
         fields[9][0] == '\0') {
@@ -315,7 +314,9 @@ bool gps_parse_gga_message(char *message, gps_data_t *gps_data)
     gps_data->latitude = (int)(raw_latitude / 100.0) + fmod(raw_latitude, 100.0) / 60.0;
     gps_data->longitude = (int)(raw_longitude / 100.0) + fmod(raw_longitude, 100.0) / 60.0;
     gps_data->altitude_m = strtof(fields[9], NULL);
+    gps_data->satellites = (uint8_t)strtoul(fields[7], NULL, 10);
     gps_data->gps_mode = (uint8_t)strtoul(fields[6], NULL, 10);
+    gps_data->hdop = strtof(fields[8], NULL);
     gps_data->correction_age_s = fields[13] != NULL && fields[13][0] != '\0'
         ? strtof(fields[13], NULL)
         : -1.0f;
@@ -343,7 +344,7 @@ bool gps_parse_rmc_message(char *message, float *speed_kmh)
         field = separator + 1;
     }
     if (speed_kmh == NULL || field_count < 8 ||
-        (strcmp(fields[0], "$GNRMC") != 0 && strcmp(fields[0], "$GPRMC") != 0) ||
+        strlen(fields[0]) < 6 || strcmp(fields[0] + 3, "RMC") != 0 ||
         fields[2][0] != 'A' || fields[7][0] == '\0') {
         return false;
     }

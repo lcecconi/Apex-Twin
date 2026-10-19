@@ -11,7 +11,7 @@
 | **System Topology** | Single unit on steering wheel with all sensor wiring harnesses attached directly to the wheel. | **Twin Architecture:** Chassis-mounted **Apex-Track** acquires high-rate GNSS, IMU, RPM, and temps. Steering-wheel **Apex-Dash** receives live data wirelessly via **ESP-NOW (2.4 GHz)**. |
 | **Display Panel** | Custom multi-segment / low-res greyscale LCD with RGB backlight. | **4.2" Reflective LCD (Sitronix ST7305):** Full dot-matrix $400 \times 300$ resolution, zero backlight power draw, sunlight readable, ~24 FPS. |
 | **Compute / SoC** | Proprietary low-power microcontroller. | **Espressif ESP32-S3-WROOM-1-N16R8:** Dual-core Xtensa LX7 @ 240 MHz, 16 MB Flash, 8 MB Octal PSRAM. |
-| **Offline Operation** | None (requires sensors attached). | **Physics Simulation Stub:** Provides realistic kart racing telemetry (accelerations, gear shifts, lap deltas) when unlinked. |
+| **Offline Operation** | None (requires sensors attached). | Dash telemetry is sourced exclusively from Apex-Track via ESP-NOW. |
 
 ---
 
@@ -101,9 +101,19 @@ apex mon dash
 # Build
 uvx platformio run -d apex-dash
 
-# Flash to Device
-uvx platformio run -d apex-dash --target upload --upload-port /dev/ttyACM0
+# Flash to Device (COM9)
+uvx platformio run -d apex-dash --target upload --upload-port COM9
 
 # Live Serial Monitor (115200 baud)
-uvx platformio device monitor -d apex-dash --port /dev/ttyACM0 --baud 115200
+uvx platformio device monitor -d apex-dash --port COM9 --baud 115200
 ```
+
+On Windows, the dash project stores `COM9` as its default upload and monitor
+port. Apex-Track uses `COM8` in its `test_idf` environment. ESP-NOW is set to
+channel 6 on the dash and the track Wi-Fi access point/router must use channel
+6 as well.
+
+The last page in the normal page carousel (`ESP-NOW DEBUG`) shows initialization
+state, RSSI, packet counters, sequence, frame count, packet length, packet rate,
+and the latest decoded telemetry. Telemetry data is not printed to the serial
+monitor.

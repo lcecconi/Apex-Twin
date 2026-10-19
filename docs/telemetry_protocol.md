@@ -55,6 +55,7 @@ flowchart TD
 | **`0x120`** | `CAN_ID_SECTOR_EVENT` | **High (P1)** | On Event | 24 B | Event-driven notification triggered immediately upon crossing a start/finish or intermediate split gate. |
 | **`0x200`** | `CAN_ID_ENGINE_THERMAL`| **Medium (P2)** | 2 Hz | 12 B | Water coolant temperature, exhaust gas temperature (EGT), and cylinder head/under-plug temperature. |
 | **`0x210`** | `CAN_ID_GNSS_STATUS` | **Low (P3)** | 1 Hz | 24 B | Coordinates (Lat/Lon), altitude, heading, GPS speed, satellites visible, fix type, and HDOP. |
+| **`0x211`** | `CAN_ID_GNSS_SATELLITES` | **Low (P3)** | 0.1 Hz | 16 B | Up to 10 visible-satellite SNR values for the paddock signal-strength display. |
 | **`0x220`** | `CAN_ID_CHASSIS_HEALTH`| **Low (P3)** | 1 Hz | 16 B | Chassis battery voltage, diagnostic error bitfields, total engine runtime hours, and piston run hours. |
 
 ### B. Uplink: Apex-Dash $\longrightarrow$ Apex-Track (Commands & Local Sensors)
@@ -143,9 +144,21 @@ Broadcasted at 1 Hz for GPS lock verification and paddock review.
 | `8 - 9` | `altitude_m` | `int16_t` | $0.1\text{ m}$ | Elevation above MSL ($-500.0 \dots 5000.0\text{ m}$). |
 | `10 - 11`| `heading_deg` | `uint16_t` | $0.01^\circ$ | Course over ground ($0.00 \dots 359.99^\circ$). |
 | `12` | `satellites` | `uint8_t` | Raw | Satellites visible ($0 - 48$). |
-| `13` | `fix_type` | `uint8_t` | Enum | `0` = None, `1` = 2D, `2` = 3D, `3` = DGPS, `4` = RTK-Float, `5` = RTK-Fixed. |
+| `13` | `fix_type` | `uint8_t` | Enum | NMEA GGA quality: `0` = None, `1` = GPS, `2` = DGPS, `3` = PPS, `4` = RTK-Fixed, `5` = RTK-Float. |
 | `14 - 15`| `hdop` | `uint16_t` | $0.01$ | Horizontal Dilution of Precision. |
 | `16 - 23`| `reserved` | `uint8_t[8]` | - | Reserved. |
+
+---
+
+### `0x211`: `CAN_ID_GNSS_SATELLITES` (DLC = 16)
+Broadcasted every 10 seconds for the paddock satellite signal-strength display. SNR
+values are ordered as received from the GPS receiver's GSV sentences.
+
+| Byte Offset | Field | Type | Scale / Unit | Description |
+| :---: | :--- | :--- | :---: | :--- |
+| `0` | `count` | `uint8_t` | Raw | Number of valid SNR entries, up to 10. |
+| `1 - 10` | `snr` | `uint8_t[10]` | dB-Hz | Signal-to-noise ratio for each visible satellite. |
+| `11 - 15` | `reserved` | `uint8_t[5]` | - | Reserved. |
 
 ---
 
