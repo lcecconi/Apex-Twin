@@ -7,5 +7,6 @@
 void app_main(void)
 {   
     xTaskCreate(wifi_setup_task, "wifi_setup", 4096, NULL, 6, NULL);
+    xTaskCreate(imu_setup_task, "imu_setup", 4096, NULL, 5, NULL);
     xTaskCreate(gps_setup_task, "gps_setup", 4096, NULL, 5, NULL);
 }

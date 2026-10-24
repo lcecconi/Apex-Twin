@@ -3,6 +3,7 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include <stdbool.h>
 #include <stdint.h>
 
 typedef struct {
@@ -26,4 +27,6 @@ void gps_setup_task(void *pvParameters);
 void gps_monitor_task(void *pvParameters);
 void ntrip_task(void *pvParameters);
 bool gps_get_latest_data(gps_data_t *gps_data);
+void imu_setup_task(void *pvParameters);
+void imu_monitor_task(void *pvParameters);
 #endif
