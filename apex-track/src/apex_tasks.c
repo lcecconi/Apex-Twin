@@ -175,7 +175,7 @@ void gps_monitor_task(void *pvParameters)
             if (xTaskGetTickCount() - last_status_tick >= pdMS_TO_TICKS(1000)) {
                 gps_data_t status_data = {0};
                 bool status_valid = gps_get_latest_data(&status_data);
-                printf("GPS_STATUS,valid=%u,mode=%u,latitude=%.7f,longitude=%.7f,rtk_age_s=%.2f\r\n",
+                ESP_LOGI("gps_monitor", "GPS_STATUS,valid=%u,mode=%u,latitude=%.7f,longitude=%.7f,rtk_age_s=%.2f",
                        status_valid ? 1U : 0U,
                        (unsigned int)status_data.gps_mode,
                        status_data.latitude,
@@ -275,7 +275,7 @@ void gps_monitor_task(void *pvParameters)
         if (xTaskGetTickCount() - last_status_tick >= pdMS_TO_TICKS(1000)) {
             gps_data_t status_data = {0};
             bool status_valid = gps_get_latest_data(&status_data);
-            printf("GPS_STATUS,valid=%u,mode=%u,latitude=%.7f,longitude=%.7f,rtk_age_s=%.2f\r\n",
+            ESP_LOGI("gps_monitor", "GPS_STATUS,valid=%u,mode=%u,latitude=%.7f,longitude=%.7f,rtk_age_s=%.2f",
                    status_valid ? 1U : 0U,
                    (unsigned int)status_data.gps_mode,
                    status_data.latitude,

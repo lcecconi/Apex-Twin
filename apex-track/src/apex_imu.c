@@ -11,7 +11,8 @@
 #define IMU_SCL_PIN 12
 #define IMU_I2C_FREQUENCY_HZ 400000
 #define IMU_ADDRESS 0x69
-#define IMU_FIFO_FRAME_SIZE 23
+#define IMU_FIFO_FRAME_SIZE 22
+#define IMU_FRAME_LOG_INTERVAL 20
 
 #define REG_BANK_SEL 0x7F
 #define BANK_0 0x00
@@ -36,6 +37,7 @@
 #define ACCEL_CONFIG 0x14
 #define FSYNC_CONFIG 0x52
 #define FSYNC_CONFIG_TEMP_LSB 0x01
+#define FSYNC_CONFIG_DELAY_TIME_EN 0x80
 
 #define I2C_MST_ODR_CONFIG 0x00
 #define I2C_MST_CTRL 0x01
@@ -48,9 +50,19 @@
 #define AK09916_ST1 0x10
 #define AK09916_CNTL2 0x31
 #define AK09916_CONTINUOUS_100HZ 0x08
-#define AK09916_READ_LENGTH 9
+#define AK09916_READ_LENGTH 8
 #define FIFO_TEMP_LSB_OFFSET 13
 
+// Calibration values:
+//   - TEMPERATURE
+static const uint16_t room_temp_offset = 0; // Offset in LSB at room temperature (21.0°C)
+static const float room_temp_lsb = 333.87f; // LSB per degree Celsius
+//  - ACCELEROMETER
+static float accel_sensitivity = 8192.0f; // LSB per g for +/- 4 g range
+// - GYROSCOPE
+static float gyro_sensitivity = 65.5f; // LSB per degree per second for 500 dps range
+
+//
 static const char *TAG = "imu";
 
 static esp_err_t imu_write_raw(uint8_t reg, uint8_t value)
@@ -139,10 +151,6 @@ static esp_err_t configure_magnetometer(void)
     }
 
     // Write AK09916 CNTL2 = continuous measurement at 100 Hz.
-    error = imu_write(BANK_3, I2C_SLV0_ADDR, AK09916_ADDRESS);
-    if (error != ESP_OK) {
-        return error;
-    }
     error = imu_write(BANK_3, I2C_SLV0_REG, AK09916_CNTL2);
     if (error != ESP_OK) {
         return error;
@@ -151,22 +159,32 @@ static esp_err_t configure_magnetometer(void)
     if (error != ESP_OK) {
         return error;
     }
-    error = imu_write(BANK_3, I2C_SLV0_CTRL, 0x81);
+    error = imu_write(BANK_3, I2C_SLV0_ADDR, AK09916_ADDRESS);
     if (error != ESP_OK) {
         return error;
     }
     vTaskDelay(pdMS_TO_TICKS(20));
 
     // Read ST1 through ST2 (status, XYZ, and overflow/status bytes) into EXT_SLV data.
-    error = imu_write(BANK_3, I2C_SLV0_ADDR, AK09916_ADDRESS | 0x80);
-    if (error != ESP_OK) {
-        return error;
-    }
     error = imu_write(BANK_3, I2C_SLV0_REG, AK09916_ST1);
     if (error != ESP_OK) {
         return error;
     }
+    error = imu_write(BANK_3, I2C_SLV0_ADDR, AK09916_ADDRESS | 0x80);
+    if (error != ESP_OK) {
+        return error;
+    }
     return imu_write(BANK_3, I2C_SLV0_CTRL, 0x80 | AK09916_READ_LENGTH);
+}
+
+static esp_err_t reset_fifo(void)
+{
+    esp_err_t error = imu_write(BANK_0, FIFO_RST, 0x1F);
+    if (error != ESP_OK) {
+        return error;
+    }
+    vTaskDelay(pdMS_TO_TICKS(2));
+    return imu_write(BANK_0, FIFO_RST, 0x00);
 }
 
 static esp_err_t configure_imu(void)
@@ -199,11 +217,11 @@ static esp_err_t configure_imu(void)
     if (error != ESP_OK) {
         return error;
     }
-    error = imu_write(BANK_2, GYRO_SMPLRT_DIV, 10); // 1.1 kHz / (10 + 1) = 100 Hz.
+    error = imu_write(BANK_2, GYRO_SMPLRT_DIV, 0x0A); // 1.125 kHz / (10 + 1) = 102.3 Hz.
     if (error != ESP_OK) {
         return error;
     }
-    error = imu_write(BANK_2, GYRO_CONFIG_1, 0x02); // Continuous mode, 500 dps.
+    error = imu_write(BANK_2, GYRO_CONFIG_1, 0x13); // Continuous mode, 500 dps, DPLF BW 23.9 Hz.
     if (error != ESP_OK) {
         return error;
     }
@@ -211,18 +229,18 @@ static esp_err_t configure_imu(void)
     if (error != ESP_OK) {
         return error;
     }
-    error = imu_write(BANK_2, ACCEL_SMPLRT_DIV_2, 10); // 1.125 kHz / (10 + 1) ~= 102.3 Hz.
+    error = imu_write(BANK_2, ACCEL_SMPLRT_DIV_2, 0x0A); // 1.125 kHz / (10 + 1) ~= 102.3 Hz.
     if (error != ESP_OK) {
         return error;
     }
-    error = imu_write(BANK_2, ACCEL_CONFIG, 0x02); // +/- 4 g, DLPF enabled.
+    error = imu_write(BANK_2, ACCEL_CONFIG, 0x3B); // +/- 4 g, DLPF enabled at 473 Hz.
     if (error != ESP_OK) {
         return error;
     }
     error = imu_write(
         BANK_2,
         FSYNC_CONFIG,
-        FSYNC_CONFIG_TEMP_LSB); // FSYNC is written to TEMP_OUT_LSB bit 0.
+        FSYNC_CONFIG_TEMP_LSB | FSYNC_CONFIG_DELAY_TIME_EN); // FSYNC is written to TEMP_OUT_LSB bit 0, and delay time is written to regs.
     if (error != ESP_OK) {
         return error;
     }
@@ -251,12 +269,7 @@ static esp_err_t configure_imu(void)
     if (error != ESP_OK) {
         return error;
     }
-    error = imu_write(BANK_0, FIFO_RST, 0x1F);
-    if (error != ESP_OK) {
-        return error;
-    }
-    vTaskDelay(pdMS_TO_TICKS(2));
-    error = imu_write(BANK_0, FIFO_RST, 0x00);
+    error = reset_fifo();
     if (error != ESP_OK) {
         return error;
     }
@@ -268,31 +281,55 @@ static int16_t frame_int16(const uint8_t *frame, size_t offset)
     return (int16_t)(((uint16_t)frame[offset] << 8) | frame[offset + 1]);
 }
 
-static void log_fsync_frame(const uint8_t *frame)
+static float calc_temp_c(int16_t temp_uint)
 {
+    return ((temp_uint - room_temp_offset) / room_temp_lsb) + 21.0f;
+}
+
+static float calc_accel_g(int16_t accel_int)
+{
+    return ((float)accel_int) / accel_sensitivity;
+}
+
+static float calc_gyro_dps(int16_t gyro_int)
+{
+    return ((float)gyro_int) / gyro_sensitivity;
+}
+
+static void log_frame(const uint8_t *frame)
+{
+    float temp_c = calc_temp_c(frame_int16(frame, 12));
+    bool fsync_asserted = (frame[FIFO_TEMP_LSB_OFFSET] & 0x01U) != 0;
+    float accel_x_g = calc_accel_g(frame_int16(frame, 0));
+    float accel_y_g = calc_accel_g(frame_int16(frame, 2));
+    float accel_z_g = calc_accel_g(frame_int16(frame, 4));
+    float gyro_x_dps = calc_gyro_dps(frame_int16(frame, 6));
+    float gyro_y_dps = calc_gyro_dps(frame_int16(frame, 8));
+    float gyro_z_dps = calc_gyro_dps(frame_int16(frame, 10));
     ESP_LOGI(
-        TAG,
-        "FSYNC frame: accel=(%d,%d,%d) gyro=(%d,%d,%d) temp_raw=%d "
-        "temp_lsb=0x%02X",
-        frame_int16(frame, 0),
-        frame_int16(frame, 2),
-        frame_int16(frame, 4),
-        frame_int16(frame, 6),
-        frame_int16(frame, 8),
-        frame_int16(frame, 10),
-        frame_int16(frame, 12),
-        frame[13]);
+        "imu_monitor",
+        "IMU frame contents: accel=(%.4f,%.4f,%.4f) gyro=(%.2f,%.2f,%.2f) temp_c=%.2f "
+        "F_SYNCH=%s",
+        accel_x_g,
+        accel_y_g,
+        accel_z_g,
+        gyro_x_dps,
+        gyro_y_dps,
+        gyro_z_dps,
+        temp_c,
+        (fsync_asserted ? "true" : "false"));
 }
 
 void imu_monitor_task(void *pvParameters)
 {
     (void)pvParameters;
     uint8_t count_data[2];
-    uint8_t fifo_data[128];
+    uint8_t fifo_data[220];
     uint8_t frame[IMU_FIFO_FRAME_SIZE];
     size_t frame_length = 0;
     uint32_t bytes_received = 0;
     uint32_t frames_received = 0;
+    uint32_t frame_log_counter = 0;
     uint32_t frames_since_fsync = 0;
     uint32_t fsync_intervals = 0;
     uint32_t fsync_frames_between_sum = 0;
@@ -303,16 +340,19 @@ void imu_monitor_task(void *pvParameters)
 
     while (true) {
         if (imu_read(BANK_0, FIFO_COUNT_H, count_data, sizeof(count_data)) != ESP_OK) {
-            ESP_LOGW(TAG, "Failed to read FIFO count");
+            ESP_LOGW("imu_monitor", "Failed to read FIFO count");
             vTaskDelay(pdMS_TO_TICKS(10));
             continue;
         }
 
         uint16_t fifo_count = ((uint16_t)count_data[0] << 8) | count_data[1];
-        while (fifo_count > 0) {
+        if (fifo_count >= 220) {
+            ESP_LOGW("imu_monitor", "IMU FIFO data length: %u bytes", (unsigned int)fifo_count);
+        }
+        while ((fifo_count % IMU_FIFO_FRAME_SIZE) == 0 && fifo_count > 0) {
             size_t read_length = fifo_count < sizeof(fifo_data) ? fifo_count : sizeof(fifo_data);
             if (imu_read(BANK_0, FIFO_R_W, fifo_data, read_length) != ESP_OK) {
-                ESP_LOGW(TAG, "Failed to read FIFO data");
+                ESP_LOGW("imu_monitor", "Failed to read FIFO data");
                 break;
             }
             bytes_received += read_length;
@@ -323,8 +363,9 @@ void imu_monitor_task(void *pvParameters)
                 if (frame_length == sizeof(frame)) {
                     bool fsync_asserted = (frame[FIFO_TEMP_LSB_OFFSET] & 0x01U) != 0;
                     frames_received++;
+                    frame_log_counter++;
                     if (fsync_asserted && !previous_fsync) {
-                        log_fsync_frame(frame);
+                        ESP_LOGI("imu_monitor", "FSYNC signal detected:");
                         if (have_fsync_reference) {
                             last_fsync_frames_between = frames_since_fsync;
                             fsync_frames_between_sum += last_fsync_frames_between;
@@ -335,6 +376,9 @@ void imu_monitor_task(void *pvParameters)
                     } else if (have_fsync_reference) {
                         frames_since_fsync++;
                     }
+                    if (frame_log_counter % IMU_FRAME_LOG_INTERVAL == 0) {
+                        log_frame(frame);
+                    }
                     previous_fsync = fsync_asserted;
                     frame_length = 0;
                 }
@@ -344,7 +388,7 @@ void imu_monitor_task(void *pvParameters)
         TickType_t now = xTaskGetTickCount();
         if (now - report_tick >= pdMS_TO_TICKS(1000)) {
             ESP_LOGI(
-                TAG,
+                "imu_monitor",
                 "FIFO stream: %lu bytes/s, %lu frames/s, FSYNC intervals: %lu, "
                 "frames between: last=%lu avg=%.2f",
                 (unsigned long)bytes_received,
@@ -388,6 +432,7 @@ void imu_setup_task(void *pvParameters)
 
     ESP_LOGI(TAG, "ICM-20948 configured: accel/gyro/magnetometer FIFO at 100 Hz, DMP disabled");
     ESP_LOGI(TAG, "FSYNC source: TEMP_OUT_LSB bit 0 (FSYNC_CONFIG=0x%02X)", FSYNC_CONFIG_TEMP_LSB);
+    ESP_ERROR_CHECK(reset_fifo());
     xTaskCreate(imu_monitor_task, "imu_monitor", 4096, NULL, 5, NULL);
     vTaskDelete(NULL);
 }
