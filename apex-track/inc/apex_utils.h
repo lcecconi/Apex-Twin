@@ -26,6 +26,11 @@
 #define NTRIP_GGA_INTERVAL_MS 1000
 #define NTRIP_RX_BUFFER_SIZE 1024
 
+extern const uint8_t SD_MISO_PIN;
+extern const uint8_t SD_MOSI_PIN;
+extern const uint8_t SD_SCK_PIN;
+extern const uint8_t SD_CS_PIN;
+
 typedef struct {
 	char host[64];
 	uint16_t port;

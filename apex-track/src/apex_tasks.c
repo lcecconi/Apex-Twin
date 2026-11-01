@@ -1,5 +1,6 @@
 #include "apex_tasks.h"
 #include "apex_utils.h"
+#include "apex_logger.h"
 #include "driver/uart.h"
 #include "esp_err.h"
 #include "esp_log.h"
@@ -207,6 +208,7 @@ void gps_monitor_task(void *pvParameters)
                         latest_gps_data = gps_data;
                         latest_gps_data_valid = true;
                         portEXIT_CRITICAL(&gps_data_lock);
+                        logger_log_gps(&gps_data);
                     } else if (gps_parse_rmc_message(nmea_message, &latest_speed_kmh)) {
                         portENTER_CRITICAL(&gps_data_lock);
                         if (latest_gps_data_valid) {

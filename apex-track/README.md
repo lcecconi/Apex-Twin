@@ -64,3 +64,11 @@ platformio device monitor -d ../apex-dash -e apex_dash
 
 If the port changes, override it for a single command with
 `--upload-port COMx` or `--monitor-port COMx`.
+
+### SD-card measurements
+
+When an SD card is present, the track firmware mounts it over SPI and appends
+measurements to `/measurements.csv`. Each GPS GGA measurement and each IMU
+frame is written as a row in the same CSV; fields that do not apply to that
+row are left empty. The file is flushed every ten rows to balance durability
+and high-rate IMU logging.

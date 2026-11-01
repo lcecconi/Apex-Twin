@@ -1,4 +1,5 @@
 #include "apex_imu.h"
+#include "apex_logger.h"
 #include "driver/i2c.h"
 #include "esp_err.h"
 #include "esp_log.h"
@@ -11,7 +12,7 @@
 #define IMU_SCL_PIN 12
 #define IMU_I2C_FREQUENCY_HZ 400000
 #define IMU_ADDRESS 0x69
-#define IMU_FIFO_FRAME_SIZE 22
+#define IMU_FIFO_FRAME_SIZE 23
 #define IMU_FRAME_LOG_INTERVAL 20
 
 #define REG_BANK_SEL 0x7F
@@ -49,8 +50,10 @@
 #define AK09916_ADDRESS 0x0C
 #define AK09916_ST1 0x10
 #define AK09916_CNTL2 0x31
+#define AK09916_CNTL3 0x32
 #define AK09916_CONTINUOUS_100HZ 0x08
-#define AK09916_READ_LENGTH 8
+#define AK09916_SOFT_RESET 0x01
+#define AK09916_READ_LENGTH 9
 #define FIFO_TEMP_LSB_OFFSET 13
 
 // Calibration values:
@@ -61,7 +64,8 @@ static const float room_temp_lsb = 333.87f; // LSB per degree Celsius
 static float accel_sensitivity = 8192.0f; // LSB per g for +/- 4 g range
 // - GYROSCOPE
 static float gyro_sensitivity = 65.5f; // LSB per degree per second for 500 dps range
-
+// Magnetometer
+static float mag_sensitivity = 0.15f; // LSB per microtesla for AK09916
 //
 static const char *TAG = "imu";
 
@@ -150,7 +154,30 @@ static esp_err_t configure_magnetometer(void)
         return error;
     }
 
-    // Write AK09916 CNTL2 = continuous measurement at 100 Hz.
+    // Reset the AK09916 before starting a fresh measurement stream.
+    error = imu_write(BANK_3, I2C_SLV0_REG, AK09916_CNTL3);
+    if (error != ESP_OK) {
+        return error;
+    }
+    error = imu_write(BANK_3, I2C_SLV0_DO, AK09916_SOFT_RESET);
+    if (error != ESP_OK) {
+        return error;
+    }
+    error = imu_write(BANK_3, I2C_SLV0_ADDR, AK09916_ADDRESS);
+    if (error != ESP_OK) {
+        return error;
+    }
+    error = imu_write(BANK_3, I2C_SLV0_CTRL, 0x81);
+    if (error != ESP_OK) {
+        return error;
+    }
+    vTaskDelay(pdMS_TO_TICKS(20));
+
+    // Stop the reset transaction, then write CNTL2 = continuous measurement at 100 Hz.
+    error = imu_write(BANK_3, I2C_SLV0_CTRL, 0x00);
+    if (error != ESP_OK) {
+        return error;
+    }
     error = imu_write(BANK_3, I2C_SLV0_REG, AK09916_CNTL2);
     if (error != ESP_OK) {
         return error;
@@ -163,9 +190,17 @@ static esp_err_t configure_magnetometer(void)
     if (error != ESP_OK) {
         return error;
     }
+    error = imu_write(BANK_3, I2C_SLV0_CTRL, 0x81);
+    if (error != ESP_OK) {
+        return error;
+    }
     vTaskDelay(pdMS_TO_TICKS(20));
 
     // Read ST1 through ST2 (status, XYZ, and overflow/status bytes) into EXT_SLV data.
+    error = imu_write(BANK_3, I2C_SLV0_CTRL, 0x00);
+    if (error != ESP_OK) {
+        return error;
+    }
     error = imu_write(BANK_3, I2C_SLV0_REG, AK09916_ST1);
     if (error != ESP_OK) {
         return error;
@@ -296,27 +331,40 @@ static float calc_gyro_dps(int16_t gyro_int)
     return ((float)gyro_int) / gyro_sensitivity;
 }
 
-static void log_frame(const uint8_t *frame)
+static float calc_mag_ut(int16_t mag_int)
 {
-    float temp_c = calc_temp_c(frame_int16(frame, 12));
-    bool fsync_asserted = (frame[FIFO_TEMP_LSB_OFFSET] & 0x01U) != 0;
-    float accel_x_g = calc_accel_g(frame_int16(frame, 0));
-    float accel_y_g = calc_accel_g(frame_int16(frame, 2));
-    float accel_z_g = calc_accel_g(frame_int16(frame, 4));
-    float gyro_x_dps = calc_gyro_dps(frame_int16(frame, 6));
-    float gyro_y_dps = calc_gyro_dps(frame_int16(frame, 8));
-    float gyro_z_dps = calc_gyro_dps(frame_int16(frame, 10));
+    return ((float)mag_int) * mag_sensitivity;
+}
+
+static imu_data_t decode_frame(const uint8_t *frame)
+{
+    imu_data_t data = {
+        .accel_x_g = calc_accel_g(frame_int16(frame, 0)),
+        .accel_y_g = calc_accel_g(frame_int16(frame, 2)),
+        .accel_z_g = calc_accel_g(frame_int16(frame, 4)),
+        .gyro_x_dps = calc_gyro_dps(frame_int16(frame, 6)),
+        .gyro_y_dps = calc_gyro_dps(frame_int16(frame, 8)),
+        .gyro_z_dps = calc_gyro_dps(frame_int16(frame, 10)),
+        .mag_x_ut = calc_mag_ut(frame_int16(frame, 15)),
+        .mag_y_ut = calc_mag_ut(frame_int16(frame, 17)),
+        .mag_z_ut = calc_mag_ut(frame_int16(frame, 19)),
+        .temp_c = calc_temp_c(frame_int16(frame, 12)),
+        .timestamp_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS),
+    };
+    return data;
+}
+
+static void log_frame(const imu_data_t *data, const imu_orientation_t *orientation,
+                      bool fsync_asserted)
+{
     ESP_LOGI(
         "imu_monitor",
-        "IMU frame contents: accel=(%.4f,%.4f,%.4f) gyro=(%.2f,%.2f,%.2f) temp_c=%.2f "
-        "F_SYNCH=%s",
-        accel_x_g,
-        accel_y_g,
-        accel_z_g,
-        gyro_x_dps,
-        gyro_y_dps,
-        gyro_z_dps,
-        temp_c,
+        "IMU frame: accel=(%.4f,%.4f,%.4f) gyro=(%.2f,%.2f,%.2f) mag=(%.2f,%.2f,%.2f) "
+        "temp_c=%.2f euler=(%.2f,%.2f,%.2f) FSYNC=%s",
+        data->accel_x_g, data->accel_y_g, data->accel_z_g,
+        data->gyro_x_dps, data->gyro_y_dps, data->gyro_z_dps,
+        data->mag_x_ut, data->mag_y_ut, data->mag_z_ut, data->temp_c,
+        orientation->pitch_deg, orientation->roll_deg, orientation->yaw_deg,
         (fsync_asserted ? "true" : "false"));
 }
 
@@ -324,7 +372,7 @@ void imu_monitor_task(void *pvParameters)
 {
     (void)pvParameters;
     uint8_t count_data[2];
-    uint8_t fifo_data[220];
+    uint8_t fifo_data[IMU_FIFO_FRAME_SIZE * 10]; // Buffer for up to 10 frames at once.
     uint8_t frame[IMU_FIFO_FRAME_SIZE];
     size_t frame_length = 0;
     uint32_t bytes_received = 0;
@@ -365,7 +413,7 @@ void imu_monitor_task(void *pvParameters)
                     frames_received++;
                     frame_log_counter++;
                     if (fsync_asserted && !previous_fsync) {
-                        ESP_LOGI("imu_monitor", "FSYNC signal detected:");
+                        // ESP_LOGI("imu_monitor", "FSYNC signal detected:");
                         if (have_fsync_reference) {
                             last_fsync_frames_between = frames_since_fsync;
                             fsync_frames_between_sum += last_fsync_frames_between;
@@ -376,8 +424,12 @@ void imu_monitor_task(void *pvParameters)
                     } else if (have_fsync_reference) {
                         frames_since_fsync++;
                     }
+                    imu_data_t data = decode_frame(frame);
+                    imu_orientation_t orientation;
+                    imu_update_filter(&data, 0.01f, &orientation);
+                    logger_log_imu(&data, &orientation, fsync_asserted);
                     if (frame_log_counter % IMU_FRAME_LOG_INTERVAL == 0) {
-                        log_frame(frame);
+                        log_frame(&data, &orientation, fsync_asserted);
                     }
                     previous_fsync = fsync_asserted;
                     frame_length = 0;

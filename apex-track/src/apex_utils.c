@@ -11,6 +11,11 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+const uint8_t SD_MISO_PIN = 4;
+const uint8_t SD_MOSI_PIN = 5;
+const uint8_t SD_SCK_PIN = 6;
+const uint8_t SD_CS_PIN = 7;
+
 static ntrip_config_t ntrip_config = {
     .host = NTRIP_HOST,
     .port = NTRIP_PORT,
