@@ -15,6 +15,8 @@
 #include "esp_now.h"
 #include "mdns.h"
 #include "apex_tasks.h"
+#include "apex_imu.h"
+#include "apex_logger.h"
 #include "apex_utils.h"
 
 #include "apex_comms.h"
@@ -95,22 +97,26 @@ static const char *control_html =
 "header{padding:22px 18px;background:#18242e;border-bottom:1px solid #30404b}h1{margin:0;font-size:22px}"
 "nav{display:flex;gap:6px;padding:10px;background:#202f39;overflow:auto}nav button{border:0;background:#31434e;color:#b9c6cc;padding:10px 14px;border-radius:5px;white-space:nowrap}nav button.active{background:#f0a34a;color:#182029}"
 "main{max-width:900px;margin:auto;padding:18px}.tab{display:none}.tab.active{display:block}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}"
-"section{background:#1c2933;border:1px solid #30404b;border-radius:6px;padding:16px;margin-bottom:14px}h2{font-size:18px;margin:0 0 14px}label{display:block;color:#9fb0ba;margin:10px 0 4px}input,select,textarea{width:100%;padding:10px;border:1px solid #41535e;border-radius:4px;background:#111820;color:#eef3f5}textarea{min-height:90px;font-family:monospace}button.action{margin-top:12px;padding:10px 14px;border:0;border-radius:4px;background:#f0a34a;color:#182029;font-weight:700}"
+"section{background:#1c2933;border:1px solid #30404b;border-radius:6px;padding:16px;margin-bottom:14px}h2{font-size:18px;margin:0 0 14px}label{display:block;color:#9fb0ba;margin:10px 0 4px}input,select,textarea{width:100%;padding:10px;border:1px solid #41535e;border-radius:4px;background:#111820;color:#eef3f5}textarea{min-height:90px;font-family:monospace}button.action,a.actionLink{display:inline-block;margin-top:12px;padding:10px 14px;border:0;border-radius:4px;background:#f0a34a;color:#182029;font-weight:700;text-decoration:none}"
 ".metric{font-size:25px;color:#f0a34a}.muted{color:#9fb0ba}.ok{color:#7bd89a}.error{color:#ff8c80}pre{white-space:pre-wrap;word-break:break-word}" 
 "</style></head><body><header><h1>APEX-TWIN module control</h1><div class=muted>GPS, RTK and communications console</div></header>"
-"<nav><button class=active data-tab=overview>Overview</button><button data-tab=position>Position</button><button data-tab=gps>GPS</button><button data-tab=rtk>RTK</button><button data-tab=wifi>Wi-Fi</button></nav><main>"
+"<nav><button class=active data-tab=overview>Overview</button><button data-tab=position>Position</button><button data-tab=gps>GPS</button><button data-tab=rtk>RTK</button><button data-tab=logging>Logging</button><button data-tab=wifi>Wi-Fi</button></nav><main>"
 "<div id=overview class='tab active'><section><h2>Module status</h2><div class=grid><div><div class=muted>GPS fix</div><div id=fix class=metric>--</div></div><div><div class=muted>Speed</div><div id=ospeed class=metric>--</div></div><div><div class=muted>RTK age</div><div id=age class=metric>--</div></div></div><p id=network class=muted>Loading...</p></section></div>"
-"<div id=position class=tab><section><h2>Position and speed</h2><div class=grid><div><div class=muted>Latitude</div><div id=lat class=metric>--</div></div><div><div class=muted>Longitude</div><div id=lon class=metric>--</div></div><div><div class=muted>Altitude</div><div id=alt class=metric>--</div></div><div><div class=muted>Speed</div><div id=speed class=metric>--</div></div></div><p id=positionState class=muted>Waiting for GPS data...</p></section></div>"
+"<div id=position class=tab><section><h2>Position and speed</h2><div class=grid><div><div class=muted>Latitude</div><div id=lat class=metric>--</div></div><div><div class=muted>Longitude</div><div id=lon class=metric>--</div></div><div><div class=muted>Altitude</div><div id=alt class=metric>--</div></div><div><div class=muted>Speed</div><div id=speed class=metric>--</div></div></div><p id=positionState class=muted>Waiting for GPS data...</p></section><section><h2>IMU data</h2><div class=grid><div><div class=muted>Acceleration X / Y / Z</div><div id=imuAccel class=metric>--</div></div><div><div class=muted>Gyroscope X / Y / Z</div><div id=imuGyro class=metric>--</div></div><div><div class=muted>Magnetometer X / Y / Z</div><div id=imuMag class=metric>--</div></div><div><div class=muted>Temperature</div><div id=imuTemp class=metric>--</div></div><div><div class=muted>Pitch / Roll / Yaw</div><div id=imuOrientation class=metric>--</div></div></div><p id=imuState class=muted>Waiting for IMU data...</p></section></div>"
 "<div id=gps class=tab><section><h2>GPS command console</h2><label>Command (with or without checksum)</label><textarea id=command placeholder='$PQTMCFGUART,W,460800'></textarea><button class=action onclick=sendCommand()>Send command</button><pre id=commandResult></pre></section><section><h2>Quick configuration</h2><label>Communication rate</label><select id=baud><option value=115200>115200 baud</option><option value=460800 selected>460800 baud</option></select><label>GPS update rate</label><select id=rate><option value=1000>1 Hz</option><option value=200>5 Hz</option><option value=100>10 Hz</option><option value=50>20 Hz</option></select><button class=action onclick=applyRates()>Apply and save GPS rates</button></section></div>"
 "<div id=rtk class=tab><section><h2>NTRIP / RTK</h2><form id=rtkForm><label>Host</label><input name=host><label>Port</label><input name=port type=number><label>Mountpoint</label><input name=mountpoint><label>Username</label><input name=username><label>Password</label><input name=password type=password><label>Client name</label><input name=client_name><label>GGA interval (ms)</label><input name=gga_interval_ms type=number></form><button class=action onclick=saveRtk()>Save RTK settings</button><p id=rtkResult class=muted></p></section></div>"
+"<div id=logging class=tab><section><h2>Current log</h2><p id=logCurrent class=muted>Loading SD card status...</p><a class=actionLink href='/api/logs/download?file=measurements.csv' download>Download current log</a><button class=action onclick=archiveLog()>Save current log</button><p class=muted>Saving archives the current session on the SD card and starts a fresh current log. Saved logs remain available after restart.</p><p id=logResult class=muted></p></section><section><h2>Saved logs</h2><ul id=savedLogs class=muted></ul><button class=action id=logsPrevious onclick='changeLogPage(-1)' disabled>Previous</button><span id=logPage class=muted></span><button class=action id=logsNext onclick='changeLogPage(1)' disabled>Next</button></section></div>"
 "<div id=wifi class=tab><section><h2>Network</h2><p id=wifiState>Loading...</p><p class=muted>Connected network</p><form action='/save' method=post><label>New SSID</label><input name=ssid required maxlength=32><label>New password</label><input name=pass type=password maxlength=63><button class=action type=submit>Save and reconnect</button></form><p class=muted>Saving restarts the module and reconnects using the new credentials. Provisioning mode remains available at 192.168.4.1 if the connection fails.</p></section></div>"
 "</main><script>"
-"const q=s=>document.querySelector(s);document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button,.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');q('#'+b.dataset.tab).classList.add('active');});"
+"const q=s=>document.querySelector(s);let logPageOffset=0;const logPageSize=64;document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button,.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');q('#'+b.dataset.tab).classList.add('active');if(b.dataset.tab==='logging')loadLogs(0);});"
 "async function json(url,opt){let r=await fetch(url,opt);return await r.json()}"
 "function gpsModeName(mode){return ({0:'No fix',1:'GPS',2:'DGPS',3:'PPS',4:'RTK fixed',5:'RTK float',6:'Estimated',7:'Manual',8:'Simulation'})[mode]||'Unknown ('+mode+')'}"
-"async function refresh(){try{let d=await json('/api/position');q('#lat').textContent=d.valid?d.latitude.toFixed(6):'--';q('#lon').textContent=d.valid?d.longitude.toFixed(6):'--';q('#alt').textContent=d.valid?d.altitude_m.toFixed(1)+' m':'--';q('#speed').textContent=d.valid?d.speed_kmh.toFixed(1)+' km/h':'--';q('#ospeed').textContent=d.valid?d.speed_kmh.toFixed(1)+' km/h':'--';q('#fix').textContent=gpsModeName(d.gps_mode);q('#age').textContent=d.valid?d.correction_age_s.toFixed(1)+' s':'--';q('#positionState').textContent=d.valid?'UTC '+d.utc_time_ms+' ms':'Waiting for GPS data';let s=await json('/api/status');q('#network').textContent=s.connected?'Connected to '+s.ssid+' ('+s.ip+')':'Not connected';q('#wifiState').textContent=q('#network').textContent}catch(e){q('#network').textContent='Status unavailable'}}"
+"async function refresh(){try{let d=await json('/api/position');q('#lat').textContent=d.valid?d.latitude.toFixed(6):'--';q('#lon').textContent=d.valid?d.longitude.toFixed(6):'--';q('#alt').textContent=d.valid?d.altitude_m.toFixed(1)+' m':'--';q('#speed').textContent=d.valid?d.speed_kmh.toFixed(1)+' km/h':'--';q('#ospeed').textContent=d.valid?d.speed_kmh.toFixed(1)+' km/h':'--';q('#fix').textContent=gpsModeName(d.gps_mode);q('#age').textContent=d.valid?d.correction_age_s.toFixed(1)+' s':'--';q('#positionState').textContent=d.valid?'UTC '+d.utc_time_ms+' ms':'Waiting for GPS data';q('#imuAccel').textContent=d.imu_valid?d.accel_x_g.toFixed(3)+' / '+d.accel_y_g.toFixed(3)+' / '+d.accel_z_g.toFixed(3)+' g':'--';q('#imuGyro').textContent=d.imu_valid?d.gyro_x_dps.toFixed(1)+' / '+d.gyro_y_dps.toFixed(1)+' / '+d.gyro_z_dps.toFixed(1)+' deg/s':'--';q('#imuMag').textContent=d.imu_valid?d.mag_x_ut.toFixed(1)+' / '+d.mag_y_ut.toFixed(1)+' / '+d.mag_z_ut.toFixed(1)+' uT':'--';q('#imuTemp').textContent=d.imu_valid?d.temp_c.toFixed(1)+' C':'--';q('#imuOrientation').textContent=d.imu_valid?d.pitch_deg.toFixed(1)+' / '+d.roll_deg.toFixed(1)+' / '+d.yaw_deg.toFixed(1)+' deg':'--';q('#imuState').textContent=d.imu_valid?'IMU timestamp '+d.imu_timestamp_ms+' ms':'Waiting for IMU data';let s=await json('/api/status');q('#network').textContent=s.connected?'Connected to '+s.ssid+' ('+s.ip+')':'Not connected';q('#wifiState').textContent=q('#network').textContent}catch(e){q('#network').textContent='Status unavailable'}}"
 "async function sendCommand(){let body='command='+encodeURIComponent(q('#command').value);let d=await json('/api/command',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});q('#commandResult').textContent=d.message||d.error}"
 "async function applyRates(){let body='baud='+q('#baud').value+'&rate='+q('#rate').value;let d=await json('/api/rates',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});q('#commandResult').textContent=d.message||d.error}"
+"async function loadLogs(offset=0){try{let r=await fetch('/api/logs?offset='+offset),d=await r.json();if(!r.ok)throw Error(d.error||'SD card unavailable');logPageOffset=offset;q('#logCurrent').textContent='Current file: measurements.csv ('+d.current_size+' bytes)';let list=q('#savedLogs');list.textContent='';d.files.filter(f=>!f.current).forEach(f=>{let li=document.createElement('li'),a=document.createElement('a');a.href='/api/logs/download?file='+encodeURIComponent(f.name);a.textContent=f.name+' ('+f.size+' bytes)';a.setAttribute('download',f.name);li.appendChild(a);list.appendChild(li)});q('#logPage').textContent=(d.total?' '+(offset+1)+'-'+(offset+d.files.length)+' of '+d.total:' No logs');q('#logsPrevious').disabled=offset===0;q('#logsNext').disabled=offset+d.files.length>=d.total;q('#logResult').textContent=d.total>1?'Saved logs are stored on the SD card.':'No saved logs yet.'}catch(e){q('#logCurrent').textContent='Current log unavailable';q('#logResult').textContent=e.message}}"
+"function changeLogPage(direction){loadLogs(logPageOffset+direction*logPageSize)}"
+"async function archiveLog(){let r=await fetch('/api/logs/archive',{method:'POST'}),d=await r.json();if(!r.ok){q('#logResult').textContent=d.error||'Could not save log';return}await loadLogs(0);q('#logResult').textContent='Saved '+d.name+' to the SD card.'}"
 "async function loadRtk(){let d=await json('/api/rtk');for(let k in d){let e=document.querySelector('[name='+k+']');if(e)e.value=d[k]}}async function saveRtk(){let f=new FormData(q('#rtkForm')),body=new URLSearchParams(f);let d=await json('/api/rtk',{method:'POST',body});q('#rtkResult').textContent=d.message||d.error}loadRtk();refresh();setInterval(refresh,1000);</script></body></html>";
 
 // HTML Configuration Page
@@ -491,6 +497,9 @@ static esp_err_t sta_root_get_handler(httpd_req_t *req) {
 
 static esp_err_t status_get_handler(httpd_req_t *req);
 static esp_err_t position_get_handler(httpd_req_t *req);
+static esp_err_t logs_get_handler(httpd_req_t *req);
+static esp_err_t log_archive_post_handler(httpd_req_t *req);
+static esp_err_t log_download_get_handler(httpd_req_t *req);
 static esp_err_t command_post_handler(httpd_req_t *req);
 static esp_err_t rates_post_handler(httpd_req_t *req);
 static esp_err_t rtk_get_handler(httpd_req_t *req);
@@ -499,6 +508,7 @@ static esp_err_t rtk_post_handler(httpd_req_t *req);
 // 3. Start Web Server in STA Mode
 static void start_sta_webserver(void) {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    config.max_uri_handlers = 12;
 
     if (httpd_start(&sta_server, &config) == ESP_OK) {
         httpd_uri_t root_uri = {
@@ -512,6 +522,12 @@ static void start_sta_webserver(void) {
         httpd_register_uri_handler(sta_server, &status_uri);
         httpd_uri_t position_uri = { .uri = "/api/position", .method = HTTP_GET, .handler = position_get_handler };
         httpd_register_uri_handler(sta_server, &position_uri);
+        httpd_uri_t logs_uri = { .uri = "/api/logs", .method = HTTP_GET, .handler = logs_get_handler };
+        httpd_register_uri_handler(sta_server, &logs_uri);
+        httpd_uri_t log_archive_uri = { .uri = "/api/logs/archive", .method = HTTP_POST, .handler = log_archive_post_handler };
+        httpd_register_uri_handler(sta_server, &log_archive_uri);
+        httpd_uri_t log_download_uri = { .uri = "/api/logs/download", .method = HTTP_GET, .handler = log_download_get_handler };
+        httpd_register_uri_handler(sta_server, &log_download_uri);
         httpd_uri_t command_uri = { .uri = "/api/command", .method = HTTP_POST, .handler = command_post_handler };
         httpd_register_uri_handler(sta_server, &command_uri);
         httpd_uri_t rates_uri = { .uri = "/api/rates", .method = HTTP_POST, .handler = rates_post_handler };
@@ -578,14 +594,168 @@ static esp_err_t send_json(httpd_req_t *req, const char *json)
 static esp_err_t position_get_handler(httpd_req_t *req)
 {
     gps_data_t data = {0};
+    imu_data_t imu = {0};
+    imu_orientation_t orientation = {0};
     bool valid = gps_get_latest_data(&data);
-    char response[256];
+    bool imu_valid = imu_get_latest_data(&imu, &orientation);
+    char response[640];
     snprintf(response, sizeof(response),
-             "{\"valid\":%s,\"latitude\":%.7f,\"longitude\":%.7f,\"altitude_m\":%.2f,\"speed_kmh\":%.2f,\"gps_mode\":%u,\"correction_age_s\":%.2f,\"utc_time_ms\":%lu}",
+             "{\"valid\":%s,\"latitude\":%.7f,\"longitude\":%.7f,\"altitude_m\":%.2f,\"speed_kmh\":%.2f,\"gps_mode\":%u,\"correction_age_s\":%.2f,\"utc_time_ms\":%lu,"
+             "\"imu_valid\":%s,\"accel_x_g\":%.4f,\"accel_y_g\":%.4f,\"accel_z_g\":%.4f,"
+             "\"gyro_x_dps\":%.2f,\"gyro_y_dps\":%.2f,\"gyro_z_dps\":%.2f,"
+             "\"mag_x_ut\":%.2f,\"mag_y_ut\":%.2f,\"mag_z_ut\":%.2f,\"temp_c\":%.2f,"
+             "\"pitch_deg\":%.2f,\"roll_deg\":%.2f,\"yaw_deg\":%.2f,\"imu_timestamp_ms\":%lu}",
              valid ? "true" : "false", data.latitude, data.longitude, data.altitude_m,
              data.speed_kmh, data.gps_mode, data.correction_age_s,
-             (unsigned long)data.utc_time_ms);
+             (unsigned long)data.utc_time_ms, imu_valid ? "true" : "false",
+             imu.accel_x_g, imu.accel_y_g, imu.accel_z_g, imu.gyro_x_dps, imu.gyro_y_dps,
+             imu.gyro_z_dps, imu.mag_x_ut, imu.mag_y_ut, imu.mag_z_ut, imu.temp_c,
+             orientation.pitch_deg, orientation.roll_deg, orientation.yaw_deg,
+             (unsigned long)imu.timestamp_ms);
     return send_json(req, response);
+}
+
+#define LOG_FILE_LIST_CAPACITY 64
+#define LOG_LIST_RESPONSE_CAPACITY 8192
+#define LOG_DOWNLOAD_CHUNK_SIZE 1024
+
+static esp_err_t logs_get_handler(httpd_req_t *req)
+{
+    if (!logger_is_ready()) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "SD card is not ready");
+    }
+    logger_file_info_t *files = calloc(LOG_FILE_LIST_CAPACITY, sizeof(*files));
+    char *response = malloc(LOG_LIST_RESPONSE_CAPACITY);
+    if (files == NULL || response == NULL) {
+        free(files);
+        free(response);
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Not enough memory");
+    }
+
+    size_t file_count = 0;
+    size_t total_count = 0;
+    size_t current_size = 0;
+    size_t offset = 0;
+    char query[32] = {0};
+    esp_err_t query_error = httpd_req_get_url_query_str(req, query, sizeof(query));
+    if (query_error == ESP_OK) {
+        char offset_text[12] = {0};
+        if (httpd_query_key_value(query, "offset", offset_text, sizeof(offset_text)) != ESP_OK) {
+            free(files);
+            free(response);
+            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid log offset");
+        }
+        char *end = NULL;
+        unsigned long parsed_offset = strtoul(offset_text, &end, 10);
+        if (offset_text[0] == '\0' || end == offset_text || *end != '\0' ||
+            parsed_offset > 9999) {
+            free(files);
+            free(response);
+            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid log offset");
+        }
+        offset = (size_t)parsed_offset;
+    } else if (query_error != ESP_ERR_NOT_FOUND) {
+        free(files);
+        free(response);
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid log offset");
+    }
+
+    bool success = logger_list_files(files, LOG_FILE_LIST_CAPACITY, offset, &file_count,
+                                     &total_count) &&
+                   logger_get_file_size("measurements.csv", &current_size);
+    size_t response_length = 0;
+    if (success) {
+        int written = snprintf(response, LOG_LIST_RESPONSE_CAPACITY,
+                               "{\"current_size\":%lu,\"offset\":%lu,\"total\":%lu,\"files\":[",
+                               (unsigned long)current_size, (unsigned long)offset,
+                               (unsigned long)total_count);
+        success = written >= 0 && (size_t)written < LOG_LIST_RESPONSE_CAPACITY;
+        if (success) {
+            response_length = (size_t)written;
+        }
+    }
+    for (size_t index = 0; success && index < file_count; index++) {
+        int written = snprintf(response + response_length,
+                               LOG_LIST_RESPONSE_CAPACITY - response_length,
+                               "%s{\"name\":\"%s\",\"current\":%s,\"size\":%lu}",
+                               index == 0 ? "" : ",", files[index].name,
+                               files[index].current ? "true" : "false",
+                               (unsigned long)files[index].size);
+        success = written >= 0 &&
+                  (size_t)written < LOG_LIST_RESPONSE_CAPACITY - response_length;
+        if (success) {
+            response_length += (size_t)written;
+        }
+    }
+    if (success) {
+        int written = snprintf(response + response_length,
+                               LOG_LIST_RESPONSE_CAPACITY - response_length, "]}");
+        success = written >= 0 &&
+                  (size_t)written < LOG_LIST_RESPONSE_CAPACITY - response_length;
+    }
+    free(files);
+    if (!success) {
+        free(response);
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
+                                   "Could not read log files");
+    }
+    httpd_resp_set_type(req, "application/json");
+    esp_err_t error = httpd_resp_send(req, response, HTTPD_RESP_USE_STRLEN);
+    free(response);
+    return error;
+}
+
+static esp_err_t log_archive_post_handler(httpd_req_t *req)
+{
+    char archive_name[LOGGER_FILE_NAME_MAX] = {0};
+    if (!logger_archive_current(archive_name, sizeof(archive_name))) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
+                                   "Could not save the current log");
+    }
+    char response[96];
+    snprintf(response, sizeof(response),
+             "{\"message\":\"Current log saved\",\"name\":\"%s\"}", archive_name);
+    return send_json(req, response);
+}
+
+static esp_err_t log_download_get_handler(httpd_req_t *req)
+{
+    char query[64] = {0};
+    char file_name[LOGGER_FILE_NAME_MAX] = {0};
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
+        httpd_query_key_value(query, "file", file_name, sizeof(file_name)) != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "A log file name is required");
+    }
+    size_t file_size = 0;
+    if (!logger_get_file_size(file_name, &file_size)) {
+        return httpd_resp_send_err(req, logger_is_ready() ? HTTPD_404_NOT_FOUND
+                                                         : HTTPD_500_INTERNAL_SERVER_ERROR,
+                                   "Log file is unavailable");
+    }
+
+    char disposition[LOGGER_FILE_NAME_MAX + 32];
+    snprintf(disposition, sizeof(disposition), "attachment; filename=\"%s\"", file_name);
+    httpd_resp_set_type(req, "text/csv");
+    httpd_resp_set_hdr(req, "Content-Disposition", disposition);
+    char buffer[LOG_DOWNLOAD_CHUNK_SIZE];
+    size_t offset = 0;
+    while (offset < file_size) {
+        size_t bytes_read = 0;
+        size_t capacity = file_size - offset < sizeof(buffer)
+            ? file_size - offset : sizeof(buffer);
+        if (!logger_read_file(file_name, offset, buffer, capacity, &bytes_read) ||
+            bytes_read == 0) {
+            ESP_LOGE(TAG, "Failed reading log file %s at offset %lu", file_name,
+                     (unsigned long)offset);
+            return ESP_FAIL;
+        }
+        esp_err_t error = httpd_resp_send_chunk(req, buffer, bytes_read);
+        if (error != ESP_OK) {
+            return error;
+        }
+        offset += bytes_read;
+    }
+    return httpd_resp_send_chunk(req, NULL, 0);
 }
 
 static esp_err_t status_get_handler(httpd_req_t *req)

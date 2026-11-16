@@ -1,6 +1,7 @@
 #ifndef APEX_IMU_H
 #define APEX_IMU_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -30,6 +31,7 @@ typedef struct {
 void imu_setup_task(void *pvParameters);
 void imu_monitor_task(void *pvParameters);
 void imu_update_filter(const imu_data_t *data, float dt_seconds, imu_orientation_t *orientation);
+bool imu_get_latest_data(imu_data_t *data, imu_orientation_t *orientation);
 
 #ifdef __cplusplus
 }

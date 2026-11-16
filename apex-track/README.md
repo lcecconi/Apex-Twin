@@ -70,5 +70,10 @@ If the port changes, override it for a single command with
 When an SD card is present, the track firmware mounts it over SPI and appends
 measurements to `/measurements.csv`. Each GPS GGA measurement and each IMU
 frame is written as a row in the same CSV; fields that do not apply to that
-row are left empty. The file is flushed every ten rows to balance durability
-and high-rate IMU logging.
+row are left empty. Rows are flushed as they are written.
+
+The web interface's **Logging** tab can download the active CSV or save a
+session. Saving renames the active file to a numbered `measurements_NNNN.csv`
+archive on the SD card and starts a fresh active file. The active log continues
+across restarts, and archived sessions remain available to download from the
+tab after restart.

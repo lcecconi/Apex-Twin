@@ -5,6 +5,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <stddef.h>
 #include <stdint.h>
 
 #define IMU_I2C_PORT I2C_NUM_0
@@ -68,6 +69,26 @@ static float gyro_sensitivity = 65.5f; // LSB per degree per second for 500 dps 
 static float mag_sensitivity = 0.15f; // LSB per microtesla for AK09916
 //
 static const char *TAG = "imu";
+static imu_data_t latest_imu_data;
+static imu_orientation_t latest_imu_orientation;
+static bool latest_imu_data_valid;
+static portMUX_TYPE latest_imu_data_lock = portMUX_INITIALIZER_UNLOCKED;
+
+bool imu_get_latest_data(imu_data_t *data, imu_orientation_t *orientation)
+{
+    if (data == NULL || orientation == NULL) {
+        return false;
+    }
+
+    portENTER_CRITICAL(&latest_imu_data_lock);
+    bool valid = latest_imu_data_valid;
+    if (valid) {
+        *data = latest_imu_data;
+        *orientation = latest_imu_orientation;
+    }
+    portEXIT_CRITICAL(&latest_imu_data_lock);
+    return valid;
+}
 
 static esp_err_t imu_write_raw(uint8_t reg, uint8_t value)
 {
@@ -427,6 +448,11 @@ void imu_monitor_task(void *pvParameters)
                     imu_data_t data = decode_frame(frame);
                     imu_orientation_t orientation;
                     imu_update_filter(&data, 0.01f, &orientation);
+                    portENTER_CRITICAL(&latest_imu_data_lock);
+                    latest_imu_data = data;
+                    latest_imu_orientation = orientation;
+                    latest_imu_data_valid = true;
+                    portEXIT_CRITICAL(&latest_imu_data_lock);
                     logger_log_imu(&data, &orientation, fsync_asserted);
                     if (frame_log_counter % IMU_FRAME_LOG_INTERVAL == 0) {
                         log_frame(&data, &orientation, fsync_asserted);
