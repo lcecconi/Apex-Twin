@@ -113,3 +113,6 @@ Detailed technical documentation, schematics, and guides are organized into dedi
 
 * 📡 **[ESP-NOW Latency & Throughput Benchmark Suite](tests/espnow-latency/README.md)**  
   *Microsecond-precision test harness to measure round-trip time (RTT), jitter, and packet loss between ESP32 modules.*
+
+* 🖨️ **[3D CAD Enclosure Models](3d-cad/apex-dash/README.md)**  
+  *SolidCraft parametric CAD models and assemblies for the Apex-Dash steering-wheel enclosure (tracked with Git LFS).*
