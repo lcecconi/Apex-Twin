@@ -11,14 +11,15 @@ typedef struct {
 	double latitude;
 	double longitude;
 	float altitude_m;
-	float speed_kmh;
-	float hdop;
+	float speed_kmh;      // Horizontal speed (PQTMNAV <HVel>)
+	float cog_deg;        // Course over ground (PQTMNAV <COG>), [0, 360)
+	float hdop;           // Not provided by PQTMNAV; always 0
 	uint8_t satellites;
 	uint8_t gps_mode;
 	uint8_t satellite_snr_count;
 	uint8_t satellite_snr[10];
 	float correction_age_s;
-	char nmea_sentence[256];
+	char nmea_sentence[256];  // GGA synthesized from PQTMNAV, sent to the NTRIP caster
 } gps_data_t;
 
 extern QueueHandle_t gps_data_queue;

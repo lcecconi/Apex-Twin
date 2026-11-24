@@ -10,6 +10,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <limits.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,6 +20,7 @@ namespace {
 constexpr char kMountPoint[] = "/sdcard";
 constexpr char kLogPath[] = "/sdcard/measurements.csv";
 constexpr size_t kQueueLength = 64;
+constexpr uint32_t kGpsFrameLogInterval = 20;
 
 enum class MeasurementType : uint8_t {
     GPS,
@@ -44,7 +46,7 @@ bool write_header()
 {
     if (fprintf(measurement_file,
         "timestamp_ms,source,utc_time_ms,latitude,longitude,altitude_m,hdop,satellites,gps_mode,"
-        "correction_age_s,accel_x_g,accel_y_g,accel_z_g,gyro_x_dps,gyro_y_dps,"
+        "correction_age_s,speed_kmh,cog_deg,accel_x_g,accel_y_g,accel_z_g,gyro_x_dps,gyro_y_dps,"
         "gyro_z_dps,mag_x_ut,mag_y_ut,mag_z_ut,temp_c,pitch_deg,roll_deg,yaw_deg,fsync\n") < 0) {
         return false;
     }
@@ -53,17 +55,24 @@ bool write_header()
 
 bool write_gps(const gps_data_t &data)
 {
+    // PQTMNAV carries no HDOP, so that column is left empty for GPS rows.
+    // cog_deg is empty when the receiver reported no course.
+    char cog[16] = "";
+    if (!isnan(data.cog_deg)) {
+        snprintf(cog, sizeof(cog), "%.3f", data.cog_deg);
+    }
     return fprintf(measurement_file,
-        "%lu,GPS,%lu,%.9f,%.9f,%.3f,%.3f,%u,%u,%.3f,,,,,,,,,,,,,,\n",
+        "%lu,GPS,%lu,%.9f,%.9f,%.3f,,%u,%u,%.3f,%.3f,%s,,,,,,,,,,,,,,\n",
         (unsigned long)data.utc_time_ms,
         (unsigned long)data.utc_time_ms,
         data.latitude,
         data.longitude,
         data.altitude_m,
-        data.hdop,
         data.satellites,
         data.gps_mode,
-        data.correction_age_s) >= 0;
+        data.correction_age_s,
+        data.speed_kmh,
+        cog) >= 0;
 }
 
 bool write_imu(const Measurement &measurement)
@@ -71,7 +80,7 @@ bool write_imu(const Measurement &measurement)
     const imu_data_t &data = measurement.imu;
     const imu_orientation_t &orientation = measurement.orientation;
     return fprintf(measurement_file,
-        "%lu,IMU,,,,,,,,,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,"
+        "%lu,IMU,,,,,,,,,,,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,"
         "%.6f,%.3f,%.3f,%.3f,%u\n",
         (unsigned long)data.timestamp_ms,
         data.accel_x_g,
@@ -131,15 +140,20 @@ extern "C" bool logger_log_gps(const gps_data_t *data)
     if (data == nullptr || measurement_queue == nullptr) {
         return false;
     }
-    ESP_LOGI("logger", "Logging GPS data: utc_time_ms=%lu, lat=%.9f, lon=%.9f, alt=%.3f, hdop=%.3f, satellites=%u, gps_mode=%u, correction_age_s=%.3f",
-             (unsigned long)data->utc_time_ms,
-             data->latitude,
-             data->longitude,
-             data->altitude_m,
-             data->hdop,
-             (unsigned int)data->satellites,
-             (unsigned int)data->gps_mode,
-             data->correction_age_s);
+    static uint32_t gps_frame_counter;
+    if (++gps_frame_counter >= kGpsFrameLogInterval) {
+        gps_frame_counter = 0;
+        ESP_LOGI("gps_monitor", "Logging GPS data: utc_time_ms=%lu, lat=%.9f, lon=%.9f, alt=%.3f, speed_kmh=%.2f, cog_deg=%.2f, satellites=%u, gps_mode=%u, correction_age_s=%.3f",
+                 (unsigned long)data->utc_time_ms,
+                 data->latitude,
+                 data->longitude,
+                 data->altitude_m,
+                 data->speed_kmh,
+                 data->cog_deg,
+                 (unsigned int)data->satellites,
+                 (unsigned int)data->gps_mode,
+                 data->correction_age_s);
+    }
 
     Measurement measurement = {};
     measurement.type = MeasurementType::GPS;

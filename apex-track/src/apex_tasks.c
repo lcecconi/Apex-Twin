@@ -124,12 +124,10 @@ void gps_setup_task(void *pvParameters)
         "$PQTMGNSSSTOP",
         "$PQTMCFGFIXRATE,W,50",
         "$PQTMCFGRCVRMODE,W,1",
-        "$PQTMCFGMSGRATE,W,GGA,1",
-        "$PQTMCFGMSGRATE,W,GSV,10",
-        "$PQTMCFGMSGRATE,W,VTG,0",
-        "$PQTMCFGMSGRATE,W,GLL,0",
-        "$PQTMCFGMSGRATE,W,GSA,0",
-        "$PQTMCFGMSGRATE,W,RMC,0",
+        // Disable every output message on this UART, then enable only PQTMNAV (version 1)
+        // once per fix: it carries position, speed and COG in a single sentence.
+        "$PQTMCLRMSG",
+        "$PQTMCFGMSGRATE,W,PQTMNAV,1,1",
         "$PQTMCFGUART,W,460800",
         "$PQTMSAVEPAR",
     };
@@ -152,17 +150,46 @@ void gps_setup_task(void *pvParameters)
     vTaskDelete(NULL);
 }
 
+static void report_gps_status(TickType_t *report_tick, uint32_t *bytes_received,
+                              uint32_t *sentences_received)
+{
+    TickType_t now = xTaskGetTickCount();
+    if (now - *report_tick < pdMS_TO_TICKS(1000)) {
+        return;
+    }
+
+    gps_data_t status_data = {0};
+    bool status_valid = gps_get_latest_data(&status_data);
+    ESP_LOGI("gps_monitor",
+             "GPS stream: %lu bytes/s, %lu NMEA sentences/s; valid=%u,mode=%u,"
+             "timestamp_ms=%lu,latitude=%.7f,longitude=%.7f,speed_kmh=%.2f,cog_deg=%.2f,rtk_age_s=%.2f",
+             (unsigned long)*bytes_received,
+             (unsigned long)*sentences_received,
+             status_valid ? 1U : 0U,
+             (unsigned int)status_data.gps_mode,
+             (unsigned long)status_data.utc_time_ms,
+             status_data.latitude,
+             status_data.longitude,
+             status_data.speed_kmh,
+             status_data.cog_deg,
+             status_data.correction_age_s);
+    *bytes_received = 0;
+    *sentences_received = 0;
+    *report_tick = now;
+}
+
 void gps_monitor_task(void *pvParameters)
 {
     (void)pvParameters;
 
     char nmea_message[GPS_COMMAND_RESPONSE_BUFFER_SIZE];
     size_t message_length = 0;
-    float latest_speed_kmh = 0.0f;
     uint8_t satellite_snr[10] = {0};
     uint8_t satellite_snr_count = 0;
     uint8_t gsv_message_number = 0;
-    TickType_t last_status_tick = xTaskGetTickCount();
+    uint32_t bytes_received = 0;
+    uint32_t sentences_received = 0;
+    TickType_t report_tick = xTaskGetTickCount();
 
     while (true) {
         uint8_t data[GPS_COMMAND_RESPONSE_BUFFER_SIZE];
@@ -173,49 +200,37 @@ void gps_monitor_task(void *pvParameters)
             pdMS_TO_TICKS(1000));
 
         if (bytes_read <= 0) {
-            if (xTaskGetTickCount() - last_status_tick >= pdMS_TO_TICKS(1000)) {
-                gps_data_t status_data = {0};
-                bool status_valid = gps_get_latest_data(&status_data);
-                ESP_LOGI("gps_monitor", "GPS_STATUS,valid=%u,mode=%u,latitude=%.7f,longitude=%.7f,rtk_age_s=%.2f",
-                       status_valid ? 1U : 0U,
-                       (unsigned int)status_data.gps_mode,
-                       status_data.latitude,
-                       status_data.longitude,
-                       status_data.correction_age_s);
-                last_status_tick = xTaskGetTickCount();
-            }
+            report_gps_status(&report_tick, &bytes_received, &sentences_received);
             continue;
         }
 
+        bytes_received += (uint32_t)bytes_read;
         for (int index = 0; index < bytes_read; index++) {
             char character = (char)data[index];
 
             if (character == '\n') {
                 nmea_message[message_length] = '\0';
                 if (message_length > 0) {
-                    char raw_nmea_message[GPS_COMMAND_RESPONSE_BUFFER_SIZE];
-                    memcpy(raw_nmea_message, nmea_message, message_length + 1);
+                    sentences_received++;
 
-                    gps_data_t gps_data;
-                    if (gps_parse_gga_message(nmea_message, &gps_data)) {
-                        gps_data.speed_kmh = latest_speed_kmh;
-                        gps_data.satellite_snr_count = satellite_snr_count;
-                        memcpy(gps_data.satellite_snr, satellite_snr, sizeof(satellite_snr));
-                        strncpy(gps_data.nmea_sentence, raw_nmea_message, sizeof(gps_data.nmea_sentence) - 1);
-                        gps_data.nmea_sentence[sizeof(gps_data.nmea_sentence) - 1] = '\0';
-                        xQueueOverwrite(gps_data_queue, &gps_data);
-                        portENTER_CRITICAL(&gps_data_lock);
-                        latest_gps_data = gps_data;
-                        latest_gps_data_valid = true;
-                        portEXIT_CRITICAL(&gps_data_lock);
-                        logger_log_gps(&gps_data);
-                    } else if (gps_parse_rmc_message(nmea_message, &latest_speed_kmh)) {
-                        portENTER_CRITICAL(&gps_data_lock);
-                        if (latest_gps_data_valid) {
-                            latest_gps_data.speed_kmh = latest_speed_kmh;
+                    // The parsers split the buffer in place, so pick the parser by
+                    // sentence name before handing the buffer over.
+                    if (strncmp(nmea_message, "$PQTMNAV,", 9) == 0) {
+                        gps_data_t gps_data = {0};
+                        // Returns false before the first fix (SolType 0) or on a malformed sentence.
+                        if (gps_parse_pqtmnav_message(nmea_message, &gps_data)) {
+                            gps_data.satellite_snr_count = satellite_snr_count;
+                            memcpy(gps_data.satellite_snr, satellite_snr, sizeof(satellite_snr));
+                            xQueueOverwrite(gps_data_queue, &gps_data);
+                            portENTER_CRITICAL(&gps_data_lock);
+                            latest_gps_data = gps_data;
+                            latest_gps_data_valid = true;
+                            portEXIT_CRITICAL(&gps_data_lock);
+                            logger_log_gps(&gps_data);
                         }
-                        portEXIT_CRITICAL(&gps_data_lock);
                     } else {
+                        // GSV is disabled by the setup commands; this only fills the
+                        // satellite SNR CAN frame if GSV output is re-enabled.
                         char *fields[32] = {0};
                         size_t field_count = 0;
                         for (char *field = nmea_message;
@@ -274,16 +289,6 @@ void gps_monitor_task(void *pvParameters)
             }
         }
 
-        if (xTaskGetTickCount() - last_status_tick >= pdMS_TO_TICKS(1000)) {
-            gps_data_t status_data = {0};
-            bool status_valid = gps_get_latest_data(&status_data);
-            ESP_LOGI("gps_monitor", "GPS_STATUS,valid=%u,mode=%u,latitude=%.7f,longitude=%.7f,rtk_age_s=%.2f",
-                   status_valid ? 1U : 0U,
-                   (unsigned int)status_data.gps_mode,
-                   status_data.latitude,
-                   status_data.longitude,
-                   status_data.correction_age_s);
-            last_status_tick = xTaskGetTickCount();
-        }
+        report_gps_status(&report_tick, &bytes_received, &sentences_received);
     }
 }

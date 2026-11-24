@@ -43,8 +43,7 @@ typedef struct {
 
 esp_err_t gps_send_command(const char *command, bool wait_for_response);
 esp_err_t gps_wait_for_response(const char *command);
-bool gps_parse_gga_message(char *message, gps_data_t *gps_data);
-bool gps_parse_rmc_message(char *message, float *speed_kmh);
+bool gps_parse_pqtmnav_message(char *message, gps_data_t *gps_data);
 bool ntrip_send_all(int socket, const char *data, size_t length);
 int ntrip_connect(void);
 void ntrip_get_config(ntrip_config_t *config);

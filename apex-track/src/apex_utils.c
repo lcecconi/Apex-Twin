@@ -280,66 +280,95 @@ esp_err_t gps_send_command(const char *command, bool wait_for_response)
     return wait_for_response ? gps_wait_for_response(command) : ESP_OK;
 }
 
-bool gps_parse_gga_message(char *message, gps_data_t *gps_data)
+// PQTMNAV field indices (fields[0] is "$PQTMNAV"), see Quectel LG29xP&LGx80P
+// GNSS Protocol Specification v1.3, chapter 2.3.53.
+enum {
+    PQTMNAV_FIELD_UTC = 4,
+    PQTMNAV_FIELD_SOL_TYPE = 11,
+    PQTMNAV_FIELD_LAT = 13,
+    PQTMNAV_FIELD_LON = 14,
+    PQTMNAV_FIELD_ALT = 15,
+    PQTMNAV_FIELD_SEP = 16,
+    PQTMNAV_FIELD_DIFF_ID = 24,
+    PQTMNAV_FIELD_DIFF_AGE = 25,
+    PQTMNAV_FIELD_SAT_USED = 28,
+    PQTMNAV_FIELD_HVEL = 35,
+    PQTMNAV_FIELD_COG = 41,
+    PQTMNAV_FIELD_COUNT = 44,
+};
+
+// Parses "hhmmss.sss" into milliseconds since midnight UTC.
+static bool gps_parse_utc_time_ms(const char *field, uint32_t *utc_time_ms)
 {
-    char *fields[16] = {0};
-    size_t field_count = 0;
-
-    for (char *field = message; field != NULL && field_count < 16;) {
-        fields[field_count++] = field;
-        char *separator = strchr(field, ',');
-        if (separator == NULL) {
-            break;
-        }
-        *separator = '\0';
-        field = separator + 1;
-    }
-
-    if (field_count < 14 ||
-        strlen(fields[0]) < 6 || strcmp(fields[0] + 3, "GGA") != 0 ||
-        fields[1][0] == '\0' || fields[2][0] == '\0' || fields[3][0] == '\0' ||
-        fields[4][0] == '\0' || fields[5][0] == '\0' || fields[6][0] == '\0' ||
-        fields[9][0] == '\0') {
-        return false;
-    }
-
     int hours;
     int minutes;
     double seconds;
-    double raw_latitude = strtod(fields[2], NULL);
-    double raw_longitude = strtod(fields[4], NULL);
-    if (sscanf(fields[1], "%2d%2d%lf", &hours, &minutes, &seconds) != 3 ||
+    if (field[0] == '\0' ||
+        sscanf(field, "%2d%2d%lf", &hours, &minutes, &seconds) != 3 ||
         hours > 23 || minutes > 59 || seconds >= 60.0) {
         return false;
     }
-
-    gps_data->utc_time_ms = ((uint32_t)hours * 3600U + (uint32_t)minutes * 60U +
-                             (uint32_t)seconds) * 1000U +
-                            (uint32_t)((seconds - (uint32_t)seconds) * 1000.0);
-    gps_data->latitude = (int)(raw_latitude / 100.0) + fmod(raw_latitude, 100.0) / 60.0;
-    gps_data->longitude = (int)(raw_longitude / 100.0) + fmod(raw_longitude, 100.0) / 60.0;
-    gps_data->altitude_m = strtof(fields[9], NULL);
-    gps_data->satellites = (uint8_t)strtoul(fields[7], NULL, 10);
-    gps_data->gps_mode = (uint8_t)strtoul(fields[6], NULL, 10);
-    gps_data->hdop = strtof(fields[8], NULL);
-    gps_data->correction_age_s = fields[13] != NULL && fields[13][0] != '\0'
-        ? strtof(fields[13], NULL)
-        : -1.0f;
-
-    if (fields[3][0] == 'S') {
-        gps_data->latitude = -gps_data->latitude;
-    }
-    if (fields[5][0] == 'W') {
-        gps_data->longitude = -gps_data->longitude;
-    }
+    *utc_time_ms = ((uint32_t)hours * 3600U + (uint32_t)minutes * 60U +
+                    (uint32_t)seconds) * 1000U +
+                   (uint32_t)((seconds - (uint32_t)seconds) * 1000.0 + 0.5);
     return true;
 }
 
-bool gps_parse_rmc_message(char *message, float *speed_kmh)
+// Maps the PQTMNAV <SolType> onto the GGA <Quality> values used by the rest of the firmware.
+static uint8_t gps_quality_from_sol_type(unsigned long sol_type)
 {
-    char *fields[10] = {0};
+    switch (sol_type) {
+    case 0:  return 0;  // Not fixed
+    case 2:  return 2;  // SBAS
+    case 5:  return 2;  // Pseudorange differential
+    case 8:  return 5;  // RTK float
+    case 12: return 4;  // RTK fixed
+    default: return 1;  // Single
+    }
+}
+
+// Formats decimal degrees as NMEA "ddmm.mmmmmmmm" (latitude) or "dddmm.mmmmmmmm" (longitude).
+static void gps_format_nmea_coordinate(double degrees, bool is_latitude, char *out, size_t out_size,
+                                       char *hemisphere)
+{
+    *hemisphere = is_latitude ? (degrees < 0.0 ? 'S' : 'N') : (degrees < 0.0 ? 'W' : 'E');
+    double absolute = fabs(degrees);
+    int whole_degrees = (int)absolute;
+    double minutes = (absolute - whole_degrees) * 60.0;
+    if (minutes >= 59.999999995) {
+        whole_degrees++;
+        minutes = 0.0;
+    }
+    snprintf(out, out_size, is_latitude ? "%02d%011.8f" : "%03d%011.8f", whole_degrees, minutes);
+}
+
+// Builds the GGA sentence the NTRIP caster expects from the PQTMNAV data.
+// HDOP is not available in PQTMNAV and is left empty.
+static void gps_build_gga_sentence(const gps_data_t *gps_data, const char *utc_field,
+                                   const char *diff_age_field, const char *diff_id_field,
+                                   float separation_m, char *out, size_t out_size)
+{
+    char latitude[20];
+    char longitude[20];
+    char north_south;
+    char east_west;
+    gps_format_nmea_coordinate(gps_data->latitude, true, latitude, sizeof(latitude), &north_south);
+    gps_format_nmea_coordinate(gps_data->longitude, false, longitude, sizeof(longitude), &east_west);
+
+    char body[200];
+    snprintf(body, sizeof(body), "GNGGA,%s,%s,%c,%s,%c,%u,%02u,,%.3f,M,%.3f,M,%s,%s",
+             utc_field, latitude, north_south, longitude, east_west,
+             (unsigned int)gps_data->gps_mode, (unsigned int)gps_data->satellites,
+             gps_data->altitude_m, separation_m, diff_age_field, diff_id_field);
+    snprintf(out, out_size, "$%s*%02X", body, gps_command_checksum(body));
+}
+
+bool gps_parse_pqtmnav_message(char *message, gps_data_t *gps_data)
+{
+    char *fields[PQTMNAV_FIELD_COUNT] = {0};
     size_t field_count = 0;
-    for (char *field = message; field != NULL && field_count < 10;) {
+
+    for (char *field = message; field != NULL && field_count < PQTMNAV_FIELD_COUNT;) {
         fields[field_count++] = field;
         char *separator = strchr(field, ',');
         if (separator == NULL) {
@@ -348,11 +377,43 @@ bool gps_parse_rmc_message(char *message, float *speed_kmh)
         *separator = '\0';
         field = separator + 1;
     }
-    if (speed_kmh == NULL || field_count < 8 ||
-        strlen(fields[0]) < 6 || strcmp(fields[0] + 3, "RMC") != 0 ||
-        fields[2][0] != 'A' || fields[7][0] == '\0') {
+
+    if (gps_data == NULL || field_count < PQTMNAV_FIELD_COUNT ||
+        strcmp(fields[0], "$PQTMNAV") != 0) {
         return false;
     }
-    *speed_kmh = strtof(fields[7], NULL) * 1.852f;
+    char *checksum = strchr(fields[PQTMNAV_FIELD_COUNT - 1], '*');
+    if (checksum != NULL) {
+        *checksum = '\0';
+    }
+
+    unsigned long sol_type = strtoul(fields[PQTMNAV_FIELD_SOL_TYPE], NULL, 10);
+    if (sol_type == 0 ||
+        fields[PQTMNAV_FIELD_LAT][0] == '\0' || fields[PQTMNAV_FIELD_LON][0] == '\0' ||
+        fields[PQTMNAV_FIELD_ALT][0] == '\0' || fields[PQTMNAV_FIELD_HVEL][0] == '\0' ||
+        !gps_parse_utc_time_ms(fields[PQTMNAV_FIELD_UTC], &gps_data->utc_time_ms)) {
+        return false;
+    }
+
+    gps_data->latitude = strtod(fields[PQTMNAV_FIELD_LAT], NULL);
+    gps_data->longitude = strtod(fields[PQTMNAV_FIELD_LON], NULL);
+    gps_data->altitude_m = strtof(fields[PQTMNAV_FIELD_ALT], NULL);
+    gps_data->speed_kmh = strtof(fields[PQTMNAV_FIELD_HVEL], NULL) * 3.6f;
+    gps_data->cog_deg = fields[PQTMNAV_FIELD_COG][0] != '\0'
+        ? strtof(fields[PQTMNAV_FIELD_COG], NULL)
+        : NAN;
+    gps_data->hdop = 0.0f;
+    gps_data->satellites = (uint8_t)strtoul(fields[PQTMNAV_FIELD_SAT_USED], NULL, 10);
+    gps_data->gps_mode = gps_quality_from_sol_type(sol_type);
+    gps_data->correction_age_s = fields[PQTMNAV_FIELD_DIFF_AGE][0] != '\0'
+        ? strtof(fields[PQTMNAV_FIELD_DIFF_AGE], NULL)
+        : -1.0f;
+
+    float separation_m = fields[PQTMNAV_FIELD_SEP][0] != '\0'
+        ? strtof(fields[PQTMNAV_FIELD_SEP], NULL)
+        : 0.0f;
+    gps_build_gga_sentence(gps_data, fields[PQTMNAV_FIELD_UTC],
+                           fields[PQTMNAV_FIELD_DIFF_AGE], fields[PQTMNAV_FIELD_DIFF_ID],
+                           separation_m, gps_data->nmea_sentence, sizeof(gps_data->nmea_sentence));
     return true;
 }

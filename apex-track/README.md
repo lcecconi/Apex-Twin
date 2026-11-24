@@ -68,9 +68,11 @@ If the port changes, override it for a single command with
 ### SD-card measurements
 
 When an SD card is present, the track firmware mounts it over SPI and appends
-measurements to `/measurements.csv`. Each GPS GGA measurement and each IMU
+measurements to `/measurements.csv`. Each GPS `PQTMNAV` fix and each IMU
 frame is written as a row in the same CSV; fields that do not apply to that
-row are left empty. Rows are flushed as they are written.
+row are left empty. GPS rows include `speed_kmh` (horizontal speed) and
+`cog_deg` (course over ground); `hdop` is empty because `PQTMNAV` does not
+report it. Rows are flushed as they are written.
 
 The web interface's **Logging** tab can download the active CSV or save a
 session. Saving renames the active file to a numbered `measurements_NNNN.csv`
