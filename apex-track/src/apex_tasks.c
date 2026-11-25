@@ -4,6 +4,7 @@
 #include "driver/uart.h"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <stdbool.h>
@@ -24,6 +25,19 @@ bool gps_get_latest_data(gps_data_t *gps_data)
     valid = latest_gps_data_valid;
     if (valid && gps_data != NULL) {
         *gps_data = latest_gps_data;
+    }
+    portEXIT_CRITICAL(&gps_data_lock);
+    return valid;
+}
+
+bool gps_get_time_reference(uint32_t *utc_time_ms, int64_t *local_time_us)
+{
+    bool valid;
+    portENTER_CRITICAL(&gps_data_lock);
+    valid = latest_gps_data_valid;
+    if (valid) {
+        *utc_time_ms = latest_gps_data.utc_time_ms;
+        *local_time_us = latest_gps_data.local_time_us;
     }
     portEXIT_CRITICAL(&gps_data_lock);
     return valid;
@@ -128,6 +142,9 @@ void gps_setup_task(void *pvParameters)
         // once per fix: it carries position, speed and COG in a single sentence.
         "$PQTMCLRMSG",
         "$PQTMCFGMSGRATE,W,PQTMNAV,1,1",
+        // PPS1 -> ICM-20948 FSYNC: 100 ms active-high pulse at each UTC second, only while
+        // the receiver has a fix, so every edge the IMU sees is aligned to UTC.
+        "$PQTMCFGPPS,W,1,1,100,2,1,0",
         "$PQTMCFGUART,W,460800",
         "$PQTMSAVEPAR",
     };
@@ -197,7 +214,9 @@ void gps_monitor_task(void *pvParameters)
             GPS_UART_NUM,
             data,
             sizeof(data),
-            pdMS_TO_TICKS(1000));
+            // Short timeout: return partial data quickly so sentence arrival times
+            // (local_time_us) are not delayed by waiting for a full buffer.
+            pdMS_TO_TICKS(10));
 
         if (bytes_read <= 0) {
             report_gps_status(&report_tick, &bytes_received, &sentences_received);
@@ -217,6 +236,7 @@ void gps_monitor_task(void *pvParameters)
                     // sentence name before handing the buffer over.
                     if (strncmp(nmea_message, "$PQTMNAV,", 9) == 0) {
                         gps_data_t gps_data = {0};
+                        gps_data.local_time_us = esp_timer_get_time();
                         // Returns false before the first fix (SolType 0) or on a malformed sentence.
                         if (gps_parse_pqtmnav_message(nmea_message, &gps_data)) {
                             gps_data.satellite_snr_count = satellite_snr_count;

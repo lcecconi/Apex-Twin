@@ -45,7 +45,7 @@ bool first_measurement_received;
 bool write_header()
 {
     if (fprintf(measurement_file,
-        "timestamp_ms,source,utc_time_ms,latitude,longitude,altitude_m,hdop,satellites,gps_mode,"
+        "utc_time_ms,source,timestamp_ms,latitude,longitude,altitude_m,hdop,satellites,gps_mode,"
         "correction_age_s,speed_kmh,cog_deg,accel_x_g,accel_y_g,accel_z_g,gyro_x_dps,gyro_y_dps,"
         "gyro_z_dps,mag_x_ut,mag_y_ut,mag_z_ut,temp_c,pitch_deg,roll_deg,yaw_deg,fsync\n") < 0) {
         return false;
@@ -53,6 +53,10 @@ bool write_header()
     return fflush(measurement_file) == 0 && ferror(measurement_file) == 0;
 }
 
+// Time columns, identical for GPS and IMU rows:
+//   utc_time_ms  (1st) - ms since midnight UTC: the GPS fix epoch, or the IMU sample time
+//                        aligned to the GPS PPS via FSYNC (empty until the IMU is synchronized)
+//   timestamp_ms (3rd) - ESP32 local clock (esp_timer) when the data was received
 bool write_gps(const gps_data_t &data)
 {
     // PQTMNAV carries no HDOP, so that column is left empty for GPS rows.
@@ -64,7 +68,7 @@ bool write_gps(const gps_data_t &data)
     return fprintf(measurement_file,
         "%lu,GPS,%lu,%.9f,%.9f,%.3f,,%u,%u,%.3f,%.3f,%s,,,,,,,,,,,,,,\n",
         (unsigned long)data.utc_time_ms,
-        (unsigned long)data.utc_time_ms,
+        (unsigned long)(data.local_time_us / 1000),
         data.latitude,
         data.longitude,
         data.altitude_m,
@@ -79,9 +83,14 @@ bool write_imu(const Measurement &measurement)
 {
     const imu_data_t &data = measurement.imu;
     const imu_orientation_t &orientation = measurement.orientation;
+    char utc[16] = "";
+    if (data.utc_valid) {
+        snprintf(utc, sizeof(utc), "%lu", (unsigned long)data.utc_time_ms);
+    }
     return fprintf(measurement_file,
-        "%lu,IMU,,,,,,,,,,,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,"
+        "%s,IMU,%lu,,,,,,,,,,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,"
         "%.6f,%.3f,%.3f,%.3f,%u\n",
+        utc,
         (unsigned long)data.timestamp_ms,
         data.accel_x_g,
         data.accel_y_g,

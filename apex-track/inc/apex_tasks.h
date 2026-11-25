@@ -7,7 +7,8 @@
 #include <stdint.h>
 
 typedef struct {
-	uint32_t utc_time_ms;
+	uint32_t utc_time_ms;     // Fix epoch, milliseconds since midnight UTC
+	int64_t local_time_us;    // esp_timer time at which the sentence was received
 	double latitude;
 	double longitude;
 	float altitude_m;
@@ -28,6 +29,8 @@ void gps_setup_task(void *pvParameters);
 void gps_monitor_task(void *pvParameters);
 void ntrip_task(void *pvParameters);
 bool gps_get_latest_data(gps_data_t *gps_data);
+// Latest (UTC, local esp_timer) pair from a valid PQTMNAV; used to label FSYNC/PPS edges.
+bool gps_get_time_reference(uint32_t *utc_time_ms, int64_t *local_time_us);
 void imu_setup_task(void *pvParameters);
 void imu_monitor_task(void *pvParameters);
 #endif

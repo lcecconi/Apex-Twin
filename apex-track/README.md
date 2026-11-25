@@ -74,6 +74,18 @@ row are left empty. GPS rows include `speed_kmh` (horizontal speed) and
 `cog_deg` (course over ground); `hdop` is empty because `PQTMNAV` does not
 report it. Rows are flushed as they are written.
 
+Every row has two time columns:
+
+* `utc_time_ms` (first column) — milliseconds since midnight UTC. For GPS rows this is the fix
+  epoch from `PQTMNAV`. For IMU rows it is the sample time aligned to GPS time:
+  the GPS PPS output drives the ICM-20948 FSYNC pin, the first FIFO sample after
+  each pulse is flagged in the temperature LSB, the pulse is labelled with its UTC
+  second, and the remaining samples are placed using the `DELAY_TIME` register and
+  the sample period measured between consecutive pulses. It stays empty until two
+  consecutive pulses have been seen with a GPS fix (about 2 s after the first fix).
+* `timestamp_ms` (third column) — ESP32 local clock (`esp_timer`) when the data
+  was received.
+
 The web interface's **Logging** tab can download the active CSV or save a
 session. Saving renames the active file to a numbered `measurements_NNNN.csv`
 archive on the SD card and starts a fresh active file. The active log continues

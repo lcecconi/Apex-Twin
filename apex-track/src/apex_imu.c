@@ -3,6 +3,7 @@
 #include "driver/i2c.h"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <stddef.h>
@@ -56,6 +57,25 @@
 #define AK09916_SOFT_RESET 0x01
 #define AK09916_READ_LENGTH 9
 #define FIFO_TEMP_LSB_OFFSET 13
+
+// GPS time alignment. The GPS PPS (rising edge at every UTC second) drives FSYNC; the first
+// FIFO frame after each edge has bit 0 of TEMP_OUT_L set.
+#define DELAY_TIMEH 0x28                    // Bank 0; DELAY_TIMEL follows at 0x29.
+#define IMU_DELAY_TIME_US_PER_LSB 0.9645f   // Datasheet 8.17.
+#define IMU_MAX_FSYNC_DELAY_MS 15.0f        // Must be < 1 sample period (~9.8 ms) plus margin.
+#define IMU_FSYNC_MIN_FRAMES 90             // ~102.3 frames per second, internal clock +/- 9%.
+#define IMU_FSYNC_MAX_FRAMES 115
+#define GPS_TIME_REFERENCE_MAX_AGE_US 2000000LL
+#define UTC_MS_PER_DAY 86400000U
+
+typedef struct {
+    bool anchored;          // edge_utc_ms/delay_ms describe the most recent FSYNC edge
+    bool period_valid;      // period_ms was measured between two consecutive edges
+    uint32_t edge_utc_ms;   // UTC (ms since midnight) of the last FSYNC rising edge
+    float delay_ms;         // Time from that edge to the first flagged FIFO frame
+    float period_ms;        // Measured FIFO sample period
+    uint32_t frame_index;   // Frames since the flagged frame (0 = flagged frame)
+} imu_time_sync_t;
 
 // Calibration values:
 //   - TEMPERATURE
@@ -370,9 +390,93 @@ static imu_data_t decode_frame(const uint8_t *frame)
         .mag_y_ut = calc_mag_ut(frame_int16(frame, 17)),
         .mag_z_ut = calc_mag_ut(frame_int16(frame, 19)),
         .temp_c = calc_temp_c(frame_int16(frame, 12)),
-        .timestamp_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS),
+        .timestamp_ms = (uint32_t)(esp_timer_get_time() / 1000),
     };
     return data;
+}
+
+// Called on the FIFO frame where the FSYNC flag goes 0 -> 1. Labels the edge with its UTC
+// second and, if the previous edge was exactly one second earlier, measures the real FIFO
+// sample period from the number of frames in between.
+static void imu_time_sync_on_edge(imu_time_sync_t *sync, bool have_previous_edge,
+                                  uint32_t frames_between_edges)
+{
+    bool was_anchored = sync->anchored;
+    uint32_t previous_edge_utc_ms = sync->edge_utc_ms;
+    float previous_delay_ms = sync->delay_ms;
+    sync->anchored = false;
+
+    // Delay between the FSYNC edge and the next sample (the flagged frame). Reading H then L
+    // in one burst locks and then unlocks the pair for the next FSYNC event.
+    uint8_t delay_raw[2] = {0};
+    float delay_ms = 0.0f;
+    if (imu_read(BANK_0, DELAY_TIMEH, delay_raw, sizeof(delay_raw)) == ESP_OK) {
+        delay_ms = (float)(((uint16_t)delay_raw[0] << 8) | delay_raw[1]) *
+                   IMU_DELAY_TIME_US_PER_LSB / 1000.0f;
+        if (delay_ms > IMU_MAX_FSYNC_DELAY_MS) {
+            ESP_LOGW(TAG, "Implausible FSYNC delay %.3f ms; ignoring it", delay_ms);
+            delay_ms = 0.0f;
+        }
+    } else {
+        ESP_LOGW(TAG, "Failed to read FSYNC delay time");
+    }
+
+    // The edge is exactly on a UTC second; find which one by estimating the current UTC from
+    // the last PQTMNAV and its local arrival time, then rounding to the nearest second.
+    // Reception and FIFO latencies (tens of ms) are far below the +/-500 ms rounding window.
+    uint32_t reference_utc_ms;
+    int64_t reference_local_us;
+    int64_t now_us = esp_timer_get_time();
+    if (!gps_get_time_reference(&reference_utc_ms, &reference_local_us) ||
+        now_us - reference_local_us > GPS_TIME_REFERENCE_MAX_AGE_US) {
+        sync->period_valid = false;
+        return;
+    }
+    int64_t estimate_ms = (int64_t)reference_utc_ms + (now_us - reference_local_us) / 1000;
+    uint32_t edge_utc_ms = (uint32_t)((((estimate_ms + 500) / 1000) * 1000) % UTC_MS_PER_DAY);
+
+    bool frame_count_ok = frames_between_edges + 1 >= IMU_FSYNC_MIN_FRAMES &&
+                          frames_between_edges + 1 <= IMU_FSYNC_MAX_FRAMES;
+    bool consecutive = was_anchored && have_previous_edge &&
+                       (edge_utc_ms + UTC_MS_PER_DAY - previous_edge_utc_ms) % UTC_MS_PER_DAY == 1000;
+    if (consecutive && frame_count_ok) {
+        // Flagged frame N is at edge+delay_N, flagged frame N+1 at edge+1000+delay_N+1,
+        // with frames_between_edges + 1 sample intervals in between.
+        sync->period_ms = (1000.0f + delay_ms - previous_delay_ms) /
+                          (float)(frames_between_edges + 1);
+        sync->period_valid = true;
+    } else if (have_previous_edge && !frame_count_ok) {
+        ESP_LOGW(TAG, "FSYNC edges %lu frames apart; dropped frames or missed pulse",
+                 (unsigned long)(frames_between_edges + 1));
+        sync->period_valid = false;
+    }
+
+    sync->edge_utc_ms = edge_utc_ms;
+    sync->delay_ms = delay_ms;
+    sync->frame_index = 0;
+    sync->anchored = true;
+}
+
+// Returns the UTC time of the current frame and advances to the next one.
+static bool imu_time_sync_next_frame(imu_time_sync_t *sync, uint32_t *utc_time_ms)
+{
+    if (!sync->anchored) {
+        return false;
+    }
+    if (sync->frame_index > IMU_FSYNC_MAX_FRAMES) {
+        // No edge for over a second: PPS lost (e.g. no fix). Wait for two fresh edges.
+        sync->anchored = false;
+        sync->period_valid = false;
+        return false;
+    }
+    uint32_t frame_index = sync->frame_index++;
+    if (!sync->period_valid) {
+        return false;
+    }
+    double utc_ms = (double)sync->edge_utc_ms + sync->delay_ms +
+                    (double)frame_index * sync->period_ms;
+    *utc_time_ms = (uint32_t)(utc_ms + 0.5) % UTC_MS_PER_DAY;
+    return true;
 }
 
 static void log_frame(const imu_data_t *data, const imu_orientation_t *orientation,
@@ -405,6 +509,7 @@ void imu_monitor_task(void *pvParameters)
     uint32_t last_fsync_frames_between = 0;
     bool have_fsync_reference = false;
     bool previous_fsync = false;
+    imu_time_sync_t time_sync = {0};
     TickType_t report_tick = xTaskGetTickCount();
 
     while (true) {
@@ -434,7 +539,8 @@ void imu_monitor_task(void *pvParameters)
                     frames_received++;
                     frame_log_counter++;
                     if (fsync_asserted && !previous_fsync) {
-                        // ESP_LOGI("imu_monitor", "FSYNC signal detected:");
+                        imu_time_sync_on_edge(&time_sync, have_fsync_reference,
+                                              frames_since_fsync);
                         if (have_fsync_reference) {
                             last_fsync_frames_between = frames_since_fsync;
                             fsync_frames_between_sum += last_fsync_frames_between;
@@ -446,6 +552,7 @@ void imu_monitor_task(void *pvParameters)
                         frames_since_fsync++;
                     }
                     imu_data_t data = decode_frame(frame);
+                    data.utc_valid = imu_time_sync_next_frame(&time_sync, &data.utc_time_ms);
                     imu_orientation_t orientation;
                     imu_update_filter(&data, 0.01f, &orientation);
                     portENTER_CRITICAL(&latest_imu_data_lock);
@@ -468,14 +575,19 @@ void imu_monitor_task(void *pvParameters)
             ESP_LOGI(
                 "imu_monitor",
                 "FIFO stream: %lu bytes/s, %lu frames/s, FSYNC intervals: %lu, "
-                "frames between: last=%lu avg=%.2f",
+                "frames between: last=%lu avg=%.2f; UTC sync=%u edge=%lu delay=%.3f ms "
+                "period=%.4f ms",
                 (unsigned long)bytes_received,
                 (unsigned long)frames_received,
                 (unsigned long)fsync_intervals,
                 (unsigned long)last_fsync_frames_between,
                 fsync_intervals > 0
                     ? (double)fsync_frames_between_sum / fsync_intervals
-                    : 0.0);
+                    : 0.0,
+                (time_sync.anchored && time_sync.period_valid) ? 1U : 0U,
+                (unsigned long)time_sync.edge_utc_ms,
+                time_sync.delay_ms,
+                time_sync.period_ms);
             bytes_received = 0;
             frames_received = 0;
             fsync_intervals = 0;

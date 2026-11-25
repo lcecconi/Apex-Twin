@@ -19,7 +19,9 @@ typedef struct {
 	float mag_y_ut;
 	float mag_z_ut;
 	float temp_c;
-	uint32_t timestamp_ms;
+	uint32_t timestamp_ms;   // Local esp_timer time when the FIFO frame was read
+	uint32_t utc_time_ms;    // Sample time in ms since midnight UTC (GPS PPS/FSYNC aligned)
+	bool utc_valid;          // utc_time_ms is valid
 } imu_data_t;
 
 typedef struct {
